@@ -1,0 +1,719 @@
+<!DOCTYPE html>
+<html lang="tr">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
+    <title>FIG TR Judge - Admin Paneli</title>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="styles.css">
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-database-compat.js"></script>
+    <script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
+</head>
+
+<body>
+    <div id="app">
+        <!-- Admin Auth -->
+        <div id="admin-auth-screen" class="glass-card auth-card">
+            <h1>Yönetici Girişi</h1>
+            <p style="color:var(--text-dim)">Lütfen sistem şifresini giriniz</p>
+            <div style="margin-top:20px; display:flex; gap:10px">
+                <input type="password" id="admin-password-input" placeholder="Şifre" style="flex:1">
+                <button id="btn-admin-login" class="primary-btn">Giriş Yap</button>
+            </div>
+        </div>
+
+        <!-- Admin Dashboard -->
+        <div id="admin-screen" style="display:none">
+            <div class="admin-layout">
+                <aside class="admin-sidebar glass-card"
+                    style="height:100%; border-radius:0; border-top-right-radius:24px; border-bottom-right-radius:24px; border-left:none; margin:0; padding-top:40px">
+                    <h2
+                        style="padding-left:15px; border-bottom:1px solid var(--glass-border); padding-bottom:20px; margin-bottom:20px">
+                        FIG Admin</h2>
+
+                    <div class="active-exam-selector">
+                        <label
+                            style="font-size:0.75rem; color:var(--text-dim); text-transform:uppercase; letter-spacing:1px">Aktif
+                            Sınav</label>
+                        <select id="global-exam-select">
+                            <option value="">Sınav Seçin...</option>
+                        </select>
+                    </div>
+
+                    <div class="active-exam-selector" style="margin-top:10px">
+                        <label
+                            style="font-size:0.75rem; color:var(--text-dim); text-transform:uppercase; letter-spacing:1px">Branş
+                            Filtresi</label>
+                        <select id="active-discipline-select">
+                            <option value="WAG">WAG (Kadın)</option>
+                        </select>
+                    </div>
+
+                    <nav style="display:flex; flex-direction:column; gap:5px">
+                        <button class="admin-nav-btn" data-target="view-exams">📋 Sınav Yönetimi</button>
+                        <button class="admin-nav-btn active" data-target="view-live">📡 Canlı Kontrol (Podyum)</button>
+                        <button class="admin-nav-btn" data-target="view-videos">🎥 Video Yönetimi</button>
+                        <button class="admin-nav-btn" data-target="view-referees">👥 Hakem Listesi</button>
+                        <button class="admin-nav-btn" data-target="view-reports">📊 Hakem Raporları</button>
+                        <button class="admin-nav-btn" onclick="exportJudgeReportToExcel()"
+                            style="background: linear-gradient(135deg, #10b981 0%, #059669 100%);">📥 Excel Rapor
+                            İndir</button>
+                        <button class="admin-nav-btn" onclick="window.open('monitor.html', '_blank')">🖥️ Monitor
+                            Ekranı</button>
+                        <button class="admin-nav-btn" onclick="window.open('manager.html', '_blank')">👥 Podyum
+                            Yönetimi</button>
+
+                        <button class="admin-nav-btn" data-target="view-settings">⚙️ Puanlama Ayarları</button>
+                        <button class="admin-nav-btn" data-target="view-stats">📈 İstatistikler</button>
+                    </nav>
+
+                    <button id="btn-logout" class="logout-btn">Çıkış Yap</button>
+                </aside>
+
+                <main class="admin-content">
+                    <!-- Exam Management -->
+                    <div id="view-exams" class="admin-subview" style="display:none">
+                        <div class="glass-card" style="margin-bottom:20px">
+                            <h3>Yeni Sınav Oluştur</h3>
+                            <div class="admin-form" style="margin-top:20px">
+                                <div class="form-row">
+                                    <input type="text" id="exam-name"
+                                        placeholder="Sınav Adı (örn: 2025 WAG Serbest Seri)">
+                                    <select id="exam-discipline">
+                                        <option value="WAG">WAG (Kadın)</option>
+                                    </select>
+                                </div>
+                                <button id="btn-create-exam" class="primary-btn">Sınav Oluştur</button>
+                            </div>
+                        </div>
+
+                        <div id="active-exam-info" class="glass-card" style="display:none; margin-bottom:20px">
+                            <div
+                                style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px">
+                                <h3>Aktif Sınav Bilgileri</h3>
+                                <span id="exam-status-badge" class="badge tag-E">AKTİF</span>
+                            </div>
+                            <div id="exam-details" class="data-table"
+                                style="background:transparent; padding:0; border:none; box-shadow:none">
+                                <!-- JS ile doldurulacak -->
+                            </div>
+                            <div style="display:flex; gap:10px; margin-top:20px">
+                                <button id="btn-archive-exam" class="primary-btn sm-btn">📦 Sınavı Arşivle</button>
+                                <button id="btn-clear-exam-results" class="reset-btn sm-btn">🗑️ Sonuçları
+                                    Temizle</button>
+                            </div>
+                        </div>
+
+                        <div class="glass-card">
+                            <h3 style="margin-bottom:15px">Arşivlenmiş Sınavlar</h3>
+                            <div id="archived-exams-list">
+                                <p style="color:var(--text-dim); text-align:center">Arşivlenmiş sınav yok.</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Live Control (Podiums) -->
+                    <div id="view-live" class="admin-subview">
+                        <div
+                            style="display:flex; justify-content:space-between; align-items:center; margin-bottom:30px">
+                            <div>
+                                <h1 style="margin-bottom:5px">Canlı Yayın Yönetimi</h1>
+                                <p>Podyumları ve yayın akışını buradan yönetin.</p>
+                            </div>
+                            <button id="btn-add-podium" class="primary-btn">➕ Yeni Podyum</button>
+                        </div>
+
+                        <div id="podium-grid" class="podium-grid">
+                            <!-- JS ile Podyum Kartları Buraya Eklenecek -->
+                            <div class="empty-state-message"
+                                style="grid-column: 1/-1; text-align: center; padding: 40px; color: var(--text-dim); background: rgba(0,0,0,0.2); border-radius: 12px;">
+                                <p>Henüz aktif podyum yok. "Yeni Podyum" butonu ile başlayın.</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Video Management -->
+                    <div id="view-videos" class="admin-subview" style="display:none">
+                        <div class="glass-card">
+                            <h3>Yeni Seri Ekle <span id="add-video-context"
+                                    style="font-size:0.8rem; color:var(--primary-light); margin-left:10px"></span></h3>
+                            <form id="add-video-form" class="admin-form" style="margin-top:20px">
+                                <div class="form-row">
+                                    <input type="text" id="v-title"
+                                        placeholder="Seri Başlığı (Örn: Ayşe Yılmaz - Denge)" required>
+                                </div>
+                                <div class="form-row">
+                                    <select id="v-exam-select" style="width:100%">
+                                        <option value="">Sınav Seçin...</option>
+                                    </select>
+                                </div>
+                                <div class="form-row">
+                                    <select id="v-discipline"
+                                        onchange="updateApparatusOptions('v-apparatus', this.value)">
+                                        <option value="WAG">WAG (Kadın)</option>
+                                    </select>
+                                    <select id="v-apparatus">
+                                        <!-- JS populates this -->
+                                        <option value="AtM">Atlama Masası</option>
+                                        <option value="KP">Kız Paraleli</option>
+                                        <option value="D">Denge</option>
+                                        <option value="Y">Yer</option>
+                                    </select>
+                                </div>
+                                <div class="form-row">
+                                    <select id="v-type" onchange="toggleExpertInputs(this.value)">
+                                        <option value="D">D Değerlendirmesi</option>
+                                        <option value="E">E Değerlendirmesi</option>
+                                    </select>
+                                </div>
+                                <div class="form-row" id="row-expert-d">
+                                    <input type="number" id="v-expert-d" step="0.05" placeholder="Uzman D Puanı">
+                                </div>
+                                <div class="form-row" id="row-expert-e" style="display:none">
+                                    <input type="number" id="v-expert-e" step="0.05"
+                                        placeholder="Uzman E Puanı (Örn: 8.5)">
+                                </div>
+
+                                <!-- Zorunlu Seri Add Mode -->
+                                <div class="form-row"
+                                    style="margin-top:20px; border-top:1px solid var(--glass-border); padding-top:20px">
+                                    <label
+                                        style="display:flex; align-items:center; gap:10px; cursor:pointer; background:rgba(245, 158, 11, 0.1); padding:10px; border-radius:8px">
+                                        <input type="checkbox" id="v-is-zorunlu" onchange="toggleZorunluAddInputs()">
+                                        <span style="color:var(--warning); font-weight:700">Zorunlu Seri Modu
+                                            (D1-D11)</span>
+                                    </label>
+                                </div>
+
+                                <div id="zorunlu-add-inputs-container"
+                                    style="display:none; margin-top:15px; background:rgba(0,0,0,0.3); padding:15px; border-radius:8px">
+                                    <h4
+                                        style="font-size:0.8rem; margin-bottom:10px; color:var(--text-dim); text-transform:uppercase">
+                                        D Element Değerleri</h4>
+                                    <div
+                                        style="display:grid; grid-template-columns:repeat(auto-fill, minmax(80px, 1fr)); gap:15px; row-gap:20px">
+                                        <div style="display:flex; flex-direction:column; gap:5px; text-align:center">
+                                            <label
+                                                style="font-size:0.8rem; font-weight:bold; color:var(--text-dim)">D1</label>
+                                            <input type="text" class="d-add-input" id="v-d-1"
+                                                style="text-align:center; padding:8px 5px" placeholder="-">
+                                            <label
+                                                style="font-size:0.65rem; color:var(--text-dim); display:flex; align-items:center; justify-content:center; gap:3px">
+                                                <input type="checkbox" id="v-d-1-inv"> Geçersiz
+                                            </label>
+                                        </div>
+                                        <div style="display:flex; flex-direction:column; gap:5px; text-align:center">
+                                            <label
+                                                style="font-size:0.8rem; font-weight:bold; color:var(--text-dim)">D2</label>
+                                            <input type="text" class="d-add-input" id="v-d-2"
+                                                style="text-align:center; padding:8px 5px" placeholder="-">
+                                            <label
+                                                style="font-size:0.65rem; color:var(--text-dim); display:flex; align-items:center; justify-content:center; gap:3px">
+                                                <input type="checkbox" id="v-d-2-inv"> Geçersiz
+                                            </label>
+                                        </div>
+                                        <div style="display:flex; flex-direction:column; gap:5px; text-align:center">
+                                            <label
+                                                style="font-size:0.8rem; font-weight:bold; color:var(--text-dim)">D3</label>
+                                            <input type="text" class="d-add-input" id="v-d-3"
+                                                style="text-align:center; padding:8px 5px" placeholder="-">
+                                            <label
+                                                style="font-size:0.65rem; color:var(--text-dim); display:flex; align-items:center; justify-content:center; gap:3px">
+                                                <input type="checkbox" id="v-d-3-inv"> Geçersiz
+                                            </label>
+                                        </div>
+                                        <div style="display:flex; flex-direction:column; gap:5px; text-align:center">
+                                            <label
+                                                style="font-size:0.8rem; font-weight:bold; color:var(--text-dim)">D4</label>
+                                            <input type="text" class="d-add-input" id="v-d-4"
+                                                style="text-align:center; padding:8px 5px" placeholder="-">
+                                            <label
+                                                style="font-size:0.65rem; color:var(--text-dim); display:flex; align-items:center; justify-content:center; gap:3px">
+                                                <input type="checkbox" id="v-d-4-inv"> Geçersiz
+                                            </label>
+                                        </div>
+                                        <div style="display:flex; flex-direction:column; gap:5px; text-align:center">
+                                            <label
+                                                style="font-size:0.8rem; font-weight:bold; color:var(--text-dim)">D5</label>
+                                            <input type="text" class="d-add-input" id="v-d-5"
+                                                style="text-align:center; padding:8px 5px" placeholder="-">
+                                            <label
+                                                style="font-size:0.65rem; color:var(--text-dim); display:flex; align-items:center; justify-content:center; gap:3px">
+                                                <input type="checkbox" id="v-d-5-inv"> Geçersiz
+                                            </label>
+                                        </div>
+                                        <div style="display:flex; flex-direction:column; gap:5px; text-align:center">
+                                            <label
+                                                style="font-size:0.8rem; font-weight:bold; color:var(--text-dim)">D6</label>
+                                            <input type="text" class="d-add-input" id="v-d-6"
+                                                style="text-align:center; padding:8px 5px" placeholder="-">
+                                            <label
+                                                style="font-size:0.65rem; color:var(--text-dim); display:flex; align-items:center; justify-content:center; gap:3px">
+                                                <input type="checkbox" id="v-d-6-inv"> Geçersiz
+                                            </label>
+                                        </div>
+                                        <div style="display:flex; flex-direction:column; gap:5px; text-align:center">
+                                            <label
+                                                style="font-size:0.8rem; font-weight:bold; color:var(--text-dim)">D7</label>
+                                            <input type="text" class="d-add-input" id="v-d-7"
+                                                style="text-align:center; padding:8px 5px" placeholder="-">
+                                            <label
+                                                style="font-size:0.65rem; color:var(--text-dim); display:flex; align-items:center; justify-content:center; gap:3px">
+                                                <input type="checkbox" id="v-d-7-inv"> Geçersiz
+                                            </label>
+                                        </div>
+                                        <div style="display:flex; flex-direction:column; gap:5px; text-align:center">
+                                            <label
+                                                style="font-size:0.8rem; font-weight:bold; color:var(--text-dim)">D8</label>
+                                            <input type="text" class="d-add-input" id="v-d-8"
+                                                style="text-align:center; padding:8px 5px" placeholder="-">
+                                            <label
+                                                style="font-size:0.65rem; color:var(--text-dim); display:flex; align-items:center; justify-content:center; gap:3px">
+                                                <input type="checkbox" id="v-d-8-inv"> Geçersiz
+                                            </label>
+                                        </div>
+                                        <div style="display:flex; flex-direction:column; gap:5px; text-align:center">
+                                            <label
+                                                style="font-size:0.8rem; font-weight:bold; color:var(--text-dim)">D9</label>
+                                            <input type="text" class="d-add-input" id="v-d-9"
+                                                style="text-align:center; padding:8px 5px" placeholder="-">
+                                            <label
+                                                style="font-size:0.65rem; color:var(--text-dim); display:flex; align-items:center; justify-content:center; gap:3px">
+                                                <input type="checkbox" id="v-d-9-inv"> Geçersiz
+                                            </label>
+                                        </div>
+                                        <div style="display:flex; flex-direction:column; gap:5px; text-align:center">
+                                            <label
+                                                style="font-size:0.8rem; font-weight:bold; color:var(--text-dim)">D10</label>
+                                            <input type="text" class="d-add-input" id="v-d-10"
+                                                style="text-align:center; padding:8px 5px" placeholder="-">
+                                            <label
+                                                style="font-size:0.65rem; color:var(--text-dim); display:flex; align-items:center; justify-content:center; gap:3px">
+                                                <input type="checkbox" id="v-d-10-inv"> Geçersiz
+                                            </label>
+                                        </div>
+                                        <div style="display:flex; flex-direction:column; gap:5px; text-align:center">
+                                            <label
+                                                style="font-size:0.8rem; font-weight:bold; color:var(--text-dim)">D11</label>
+                                            <input type="text" class="d-add-input" id="v-d-11"
+                                                style="text-align:center; padding:8px 5px" placeholder="-">
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div
+                                    style="font-size:0.8rem; color:var(--text-dim); margin-bottom:15px; margin-top:15px">
+                                    * E Puanı 10 üzerinden girilmelidir. Sistem kesintiyi otomatik hesaplar.
+                                </div>
+                                <button type="submit" class="primary-btn" style="width:100%">Seriyi Kaydet</button>
+                            </form>
+                        </div>
+
+                        <!-- Video Filter Controls -->
+                        <div class="glass-card" style="margin-top:30px">
+                            <h4 style="margin-bottom:15px">Seri Filtrele</h4>
+                            <div style="display:flex; gap:10px; flex-wrap:wrap">
+                                <select id="filter-apparatus" style="flex:1; min-width:150px">
+                                    <option value="all">Tüm Aletler</option>
+                                    <option value="AtM">Atlama Masası</option>
+                                    <option value="KP">Kız Paraleli</option>
+                                    <option value="D">Denge</option>
+                                    <option value="Y">Yer</option>
+                                </select>
+                                <select id="filter-type" style="flex:1; min-width:150px">
+                                    <option value="all">Tüm Tipler</option>
+                                    <option value="D">D Değerlendirmesi</option>
+                                    <option value="E">E Değerlendirmesi</option>
+                                </select>
+                                <input type="text" id="filter-search" placeholder="Başlık ile ara..."
+                                    style="flex:2; min-width:200px">
+                            </div>
+                        </div>
+
+                        <div id="admin-video-list" style="margin-top:30px">
+                            <h4
+                                style="margin-bottom:20px; padding-bottom:10px; border-bottom:1px solid var(--glass-border)">
+                                Seri Listesi</h4>
+                        </div>
+                    </div>
+
+                    <!-- Edit Video Modal -->
+                    <div id="edit-video-modal"
+                        style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.8); z-index:9999; align-items:center; justify-content:center">
+                        <div class="glass-card" style="max-width:600px; width:90%; max-height:90vh; overflow-y:auto">
+                            <h3>Seriyi Düzenle</h3>
+                            <form id="edit-video-form" class="admin-form" style="margin-top:20px">
+                                <input type="hidden" id="edit-video-id">
+                                <div class="form-row">
+                                    <input type="text" id="edit-v-title" placeholder="Seri Başlığı" required>
+                                </div>
+                                <div class="form-row">
+                                    <select id="edit-v-discipline"
+                                        onchange="updateApparatusOptions('edit-v-apparatus', this.value)">
+                                        <option value="WAG">WAG (Kadın)</option>
+                                    </select>
+                                    <select id="edit-v-apparatus">
+                                        <option value="AtM">Atlama Masası</option>
+                                        <option value="KP">Kız Paraleli</option>
+                                        <option value="D">Denge</option>
+                                        <option value="Y">Yer</option>
+                                    </select>
+                                </div>
+                                <div class="form-row">
+                                    <select id="edit-v-type" onchange="toggleEditExpertInputs(this.value)">
+                                        <option value="D">D Değerlendirmesi</option>
+                                        <option value="E">E Değerlendirmesi</option>
+                                    </select>
+                                </div>
+                                <div class="form-row" id="edit-row-expert-d">
+                                    <input type="number" id="edit-v-expert-d" step="0.05" placeholder="Uzman D Puanı">
+                                </div>
+                                <div class="form-row" id="edit-row-expert-e" style="display:none">
+                                    <input type="number" id="edit-v-expert-e" step="0.05"
+                                        placeholder="Uzman E Puanı (Örn: 8.5)">
+                                </div>
+                                <div style="display:flex; gap:10px; margin-top:20px">
+                                    <button type="submit" class="primary-btn" style="flex:1">Kaydet</button>
+                                    <button type="button" class="reset-btn" onclick="closeEditModal()"
+                                        style="flex:1">İptal</button>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+
+                    <!-- Referee List -->
+                    <div id="view-referees" class="admin-subview" style="display:none">
+                        <div class="glass-card">
+                            <h3>Hakem Ekle</h3>
+                            <div class="admin-form" style="margin-top:20px">
+                                <div class="form-row">
+                                    <input type="text" id="ref-name" placeholder="Ad">
+                                    <input type="text" id="ref-surname" placeholder="Soyad">
+                                </div>
+                                <div class="form-row">
+                                    <input type="text" id="ref-tckn" placeholder="TCKN (11 Hane)">
+                                    <input type="text" id="ref-phone" placeholder="Cep Telefonu">
+                                </div>
+                                <div class="form-row">
+                                    <select id="ref-discipline">
+                                        <option value="WAG">WAG (Kadın Cimnastik)</option>
+                                    </select>
+                                    <input type="email" id="ref-email" placeholder="E-posta Adresi">
+                                </div>
+                                <div class="form-row">
+                                    <select id="ref-podium">
+                                        <option value="">Podyum Seçin...</option>
+                                        <!-- JS ile doldurulacak -->
+                                    </select>
+                                </div>
+                                <button id="btn-save-referee" class="primary-btn">Hakemi Kaydet</button>
+                            </div>
+                        </div>
+
+                        <!-- Bulk Upload Section -->
+                        <div class="glass-card" style="margin-top:20px; border-left: 4px solid var(--warning);">
+                            <h3>Toplu Hakem Yükle (Excel)</h3>
+                            <p style="color:var(--text-dim); font-size:0.9rem; margin-bottom:15px">
+                                Şablonu indirin, doldurun ve yükleyin.
+                            </p>
+                            <div style="margin-bottom:15px;">
+                                <select id="ref-bulk-podium"
+                                    style="width:100%; padding:10px; background:var(--surface-light); color:white; border:1px solid var(--glass-border); border-radius:8px">
+                                    <option value="">Yüklenecek Podyumu Seçin...</option>
+                                    <!-- Populated by JS -->
+                                </select>
+                            </div>
+                            <div style="display:flex; gap:15px; align-items:center;">
+                                <button id="btn-download-template" class="reset-btn sm-btn"
+                                    style="border:1px solid var(--glass-border)">📥 Şablon İndir</button>
+                                <div style="height:30px; border-left:1px solid var(--glass-border)"></div>
+                                <input type="file" id="ref-bulk-upload" accept=".xlsx, .xls" style="display:none" />
+                                <button onclick="document.getElementById('ref-bulk-upload').click()"
+                                    class="primary-btn sm-btn">📂 Excel Yükle</button>
+                                <span id="upload-status" style="color:var(--text-dim); font-size:0.85rem"></span>
+                            </div>
+                        </div>
+                        <div id="admin-ref-list" style="margin-top:30px">
+                            <h4
+                                style="margin-bottom:20px; padding-bottom:10px; border-bottom:1px solid var(--glass-border)">
+                                Kayıtlı Hakemler</h4>
+                        </div>
+                    </div>
+
+                    <!-- Scoring Settings -->
+                    <div id="view-settings" class="admin-subview" style="display:none">
+                        <div class="glass-card" style="margin-bottom:20px; padding: 0; overflow: hidden;">
+                            <div
+                                style="padding: 20px; border-bottom: 1px solid var(--glass-border); background: rgba(0,0,0,0.2);">
+                                <h3 style="color: var(--primary-hover);">Zorluk Derecesi Puanları (A-J)</h3>
+                                <p style="font-size:0.8rem; color:var(--text-dim);">Her zorluk seviyesi için temel puan
+                                    değerleri</p>
+                            </div>
+                            <div class="table-scroll" style="overflow-x: auto; padding:20px">
+                                <table class="excel-table" style="width:100%">
+                                    <thead>
+                                        <tr id="diff-header"></tr>
+                                    </thead>
+                                    <tbody>
+                                        <tr id="diff-body"></tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                            <div style="padding: 20px; text-align: right; background:rgba(0,0,0,0.1)">
+                                <button id="btn-save-diff-points" class="primary-btn">Zorluk Puanlarını Kaydet</button>
+                            </div>
+                        </div>
+
+                        <div class="glass-card" style="padding: 0; overflow: hidden;">
+                            <div
+                                style="padding: 20px; border-bottom: 1px solid var(--glass-border); background: rgba(0,0,0,0.2);">
+                                <h3 style="color: var(--primary-hover); margin-bottom: 5px;">Tablo E: Sapma Matrisi</h3>
+                                <p
+                                    style="font-size:0.85rem; color:var(--text-dim); display: flex; align-items: center; gap: 10px;">
+                                    <span class="badge tag-E">DİKEY: Uzman</span>
+                                    <span class="badge tag-D">YATAY: Sapma</span>
+                                </p>
+                            </div>
+
+                            <div class="table-scroll"
+                                style="max-height: 500px; overflow: auto; border-bottom: 1px solid var(--glass-border);">
+                                <table class="excel-table" style="width:100%">
+                                    <thead style="position: sticky; top: 0; z-index: 10;">
+                                        <tr id="matrix-header">
+                                            <th
+                                                style="min-width: 140px; position: sticky; left: 0; background: #1e293b; z-index: 12;">
+                                                Uzman \ Sapma</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="matrix-body"></tbody>
+                                </table>
+                            </div>
+                            <div style="padding: 20px; text-align: right; background:rgba(0,0,0,0.1)">
+                                <button id="btn-save-full-matrix" class="primary-btn">Tüm Tabloyu Kaydet</button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Hakem Raporları -->
+                    <div id="view-reports" class="admin-subview" style="display:none">
+                        <div class="glass-card">
+                            <div
+                                style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px">
+                                <h3>Hakem Sonuç Raporu</h3>
+                                <select id="report-referee-select" style="min-width:250px;">
+                                    <option value="">Hakem Seçin...</option>
+                                </select>
+                            </div>
+                            <div id="report-content" style="display:none">
+                                <div id="report-summary" class="report-summary-box"
+                                    style="background:rgba(99, 102, 241, 0.1); border:1px solid var(--primary); padding:20px; border-radius:12px; text-align:center; margin-bottom:20px">
+                                    <!-- JS ile doldurulacak -->
+                                </div>
+                                <div id="report-details">
+                                    <!-- Alet bazlı detaylar -->
+                                </div>
+                            </div>
+                            <div id="report-empty"
+                                style="text-align:center; padding:50px; color:var(--text-dim); border:2px dashed var(--glass-border); border-radius:20px">
+                                <p>Rapor görüntülemek için bir hakem seçin.</p>
+                            </div>
+                        </div>
+                    </div>
+
+
+
+                    <!-- Stats View -->
+                    <div id="view-stats" class="admin-subview" style="display:none">
+                        <div class="glass-card">
+                            <h3 style="margin-bottom: 20px;">Sınav Sonuçları (İstatistik)</h3>
+                            <div style="overflow-x: auto; width: 100%;">
+                                <table class="data-table">
+                                    <thead>
+                                        <tr>
+                                            <th>Hakem</th>
+                                            <th>Video</th>
+                                            <th>Detay</th>
+                                            <th>Sapma</th>
+                                            <th>Puan %</th>
+                                            <th>Aksiyon</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="stats-table-body"></tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </main>
+            </div>
+        </div>
+    </div>
+    <!-- Edit Video Modal -->
+    <div id="edit-video-modal"
+        style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.8); z-index:9999; align-items:center; justify-content:center">
+        <div class="glass-card" style="max-width:600px; width:90%; max-height:90vh; overflow-y:auto">
+            <h3>Seriyi Düzenle</h3>
+            <form id="edit-video-form" class="admin-form" style="margin-top:20px">
+                <input type="hidden" id="edit-video-id">
+                <div class="form-row">
+                    <input type="text" id="edit-v-title" placeholder="Seri Başlığı" required>
+                </div>
+                <div class="form-row">
+                    <select id="edit-v-discipline" onchange="updateApparatusOptions('edit-v-apparatus', this.value)">
+                        <option value="WAG">WAG (Kadın)</option>
+                    </select>
+                    <select id="edit-v-apparatus">
+                        <option value="AtM">Atlama Masası</option>
+                        <option value="KP">Kız Paraleli</option>
+                        <option value="D">Denge</option>
+                        <option value="Y">Yer</option>
+                    </select>
+                </div>
+                <div class="form-row">
+                    <select id="edit-v-type" onchange="toggleEditExpertInputs(this.value)">
+                        <option value="D">D Değerlendirmesi</option>
+                        <option value="E">E Değerlendirmesi</option>
+                    </select>
+                </div>
+                <div class="form-row" id="edit-row-expert-d">
+                    <input type="number" id="edit-v-expert-d" step="0.05" placeholder="Uzman D Puanı">
+                </div>
+                <div class="form-row" id="edit-row-expert-e" style="display:none">
+                    <input type="number" id="edit-v-expert-e" step="0.05" placeholder="Uzman E Puanı (Örn: 8.5)">
+                </div>
+
+                <!-- Zorunlu Seri Mode -->
+                <div class="form-row"
+                    style="margin-top:20px; border-top:1px solid var(--glass-border); padding-top:20px">
+                    <label
+                        style="display:flex; align-items:center; gap:10px; cursor:pointer; background:rgba(245, 158, 11, 0.1); padding:10px; border-radius:8px">
+                        <input type="checkbox" id="edit-v-is-zorunlu" onchange="toggleZorunluInputs()">
+                        <span style="color:var(--warning); font-weight:700">Zorunlu Seri Modu (D1-D11)</span>
+                    </label>
+                </div>
+
+                <div id="zorunlu-inputs-container"
+                    style="display:none; margin-top:15px; background:rgba(0,0,0,0.3); padding:15px; border-radius:8px">
+                    <h4 style="font-size:0.8rem; margin-bottom:10px; color:var(--text-dim); text-transform:uppercase">D
+                        Element Değerleri</h4>
+                    <p style="font-size:0.8rem; color:var(--text-dim); margin-bottom:10px">Her bir element için beklenen
+                        değeri giriniz.</p>
+                    <div
+                        style="display:grid; grid-template-columns:repeat(auto-fill, minmax(80px, 1fr)); gap:15px; row-gap:20px">
+                        <div style="display:flex; flex-direction:column; gap:5px; text-align:center">
+                            <label style="font-size:0.8rem; font-weight:bold; color:var(--text-dim)">D1</label>
+                            <input type="text" class="d-move-input" id="edit-d-1"
+                                style="text-align:center; padding:8px 5px" placeholder="-">
+                            <label
+                                style="font-size:0.65rem; color:var(--text-dim); display:flex; align-items:center; justify-content:center; gap:3px">
+                                <input type="checkbox" id="edit-d-1-inv"> Geçersiz
+                            </label>
+                        </div>
+                        <div style="display:flex; flex-direction:column; gap:5px; text-align:center">
+                            <label style="font-size:0.8rem; font-weight:bold; color:var(--text-dim)">D2</label>
+                            <input type="text" class="d-move-input" id="edit-d-2"
+                                style="text-align:center; padding:8px 5px" placeholder="-">
+                            <label
+                                style="font-size:0.65rem; color:var(--text-dim); display:flex; align-items:center; justify-content:center; gap:3px">
+                                <input type="checkbox" id="edit-d-2-inv"> Geçersiz
+                            </label>
+                        </div>
+                        <div style="display:flex; flex-direction:column; gap:5px; text-align:center">
+                            <label style="font-size:0.8rem; font-weight:bold; color:var(--text-dim)">D3</label>
+                            <input type="text" class="d-move-input" id="edit-d-3"
+                                style="text-align:center; padding:8px 5px" placeholder="-">
+                            <label
+                                style="font-size:0.65rem; color:var(--text-dim); display:flex; align-items:center; justify-content:center; gap:3px">
+                                <input type="checkbox" id="edit-d-3-inv"> Geçersiz
+                            </label>
+                        </div>
+                        <div style="display:flex; flex-direction:column; gap:5px; text-align:center">
+                            <label style="font-size:0.8rem; font-weight:bold; color:var(--text-dim)">D4</label>
+                            <input type="text" class="d-move-input" id="edit-d-4"
+                                style="text-align:center; padding:8px 5px" placeholder="-">
+                            <label
+                                style="font-size:0.65rem; color:var(--text-dim); display:flex; align-items:center; justify-content:center; gap:3px">
+                                <input type="checkbox" id="edit-d-4-inv"> Geçersiz
+                            </label>
+                        </div>
+                        <div style="display:flex; flex-direction:column; gap:5px; text-align:center">
+                            <label style="font-size:0.8rem; font-weight:bold; color:var(--text-dim)">D5</label>
+                            <input type="text" class="d-move-input" id="edit-d-5"
+                                style="text-align:center; padding:8px 5px" placeholder="-">
+                            <label
+                                style="font-size:0.65rem; color:var(--text-dim); display:flex; align-items:center; justify-content:center; gap:3px">
+                                <input type="checkbox" id="edit-d-5-inv"> Geçersiz
+                            </label>
+                        </div>
+                        <div style="display:flex; flex-direction:column; gap:5px; text-align:center">
+                            <label style="font-size:0.8rem; font-weight:bold; color:var(--text-dim)">D6</label>
+                            <input type="text" class="d-move-input" id="edit-d-6"
+                                style="text-align:center; padding:8px 5px" placeholder="-">
+                            <label
+                                style="font-size:0.65rem; color:var(--text-dim); display:flex; align-items:center; justify-content:center; gap:3px">
+                                <input type="checkbox" id="edit-d-6-inv"> Geçersiz
+                            </label>
+                        </div>
+                        <div style="display:flex; flex-direction:column; gap:5px; text-align:center">
+                            <label style="font-size:0.8rem; font-weight:bold; color:var(--text-dim)">D7</label>
+                            <input type="text" class="d-move-input" id="edit-d-7"
+                                style="text-align:center; padding:8px 5px" placeholder="-">
+                            <label
+                                style="font-size:0.65rem; color:var(--text-dim); display:flex; align-items:center; justify-content:center; gap:3px">
+                                <input type="checkbox" id="edit-d-7-inv"> Geçersiz
+                            </label>
+                        </div>
+                        <div style="display:flex; flex-direction:column; gap:5px; text-align:center">
+                            <label style="font-size:0.8rem; font-weight:bold; color:var(--text-dim)">D8</label>
+                            <input type="text" class="d-move-input" id="edit-d-8"
+                                style="text-align:center; padding:8px 5px" placeholder="-">
+                            <label
+                                style="font-size:0.65rem; color:var(--text-dim); display:flex; align-items:center; justify-content:center; gap:3px">
+                                <input type="checkbox" id="edit-d-8-inv"> Geçersiz
+                            </label>
+                        </div>
+                        <div style="display:flex; flex-direction:column; gap:5px; text-align:center">
+                            <label style="font-size:0.8rem; font-weight:bold; color:var(--text-dim)">D9</label>
+                            <input type="text" class="d-move-input" id="edit-d-9"
+                                style="text-align:center; padding:8px 5px" placeholder="-">
+                            <label
+                                style="font-size:0.65rem; color:var(--text-dim); display:flex; align-items:center; justify-content:center; gap:3px">
+                                <input type="checkbox" id="edit-d-9-inv"> Geçersiz
+                            </label>
+                        </div>
+                        <div style="display:flex; flex-direction:column; gap:5px; text-align:center">
+                            <label style="font-size:0.8rem; font-weight:bold; color:var(--text-dim)">D10</label>
+                            <input type="text" class="d-move-input" id="edit-d-10"
+                                style="text-align:center; padding:8px 5px" placeholder="-">
+                            <label
+                                style="font-size:0.65rem; color:var(--text-dim); display:flex; align-items:center; justify-content:center; gap:3px">
+                                <input type="checkbox" id="edit-d-10-inv"> Geçersiz
+                            </label>
+                        </div>
+                        <div style="display:flex; flex-direction:column; gap:5px; text-align:center">
+                            <label style="font-size:0.8rem; font-weight:bold; color:var(--text-dim)">D11</label>
+                            <input type="text" class="d-move-input" id="edit-d-11"
+                                style="text-align:center; padding:8px 5px" placeholder="-">
+                        </div>
+                    </div>
+                </div>
+
+                <div style="display:flex; gap:10px; margin-top:20px">
+                    <button type="button" class="primary-btn" onclick="saveVideoEdit()" style="flex:1">Kaydet</button>
+                    <button type="button" class="reset-btn" onclick="closeEditModal()" style="flex:1">İptal</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Scripts -->
+    <script src="data.js"></script>
+    <script src="excel-export.js"></script>
+    <script src="app.js?v=2.55"></script>
+</body>
+
+</html>

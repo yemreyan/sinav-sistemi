@@ -1,0 +1,767 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Final Sonuçlar - Aktif Yarışma</title>
+    <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
+    <script src="https://www.gstatic.com/firebasejs/9.6.7/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.6.7/firebase-database-compat.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Oswald:wght@500;700&family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            /* Ana renk paleti */
+            --bg-gradient: radial-gradient(circle at top left, #22d3ee 0%, #0f172a 45%, #020617 100%);
+            --bg-color: #020617;
+            --card-color: rgba(15, 23, 42, 0.96);
+            --card-elevated: rgba(15, 23, 42, 0.98);
+
+            --primary-color: #22d3ee;
+            --primary-soft: rgba(34, 211, 238, 0.15);
+            --accent-color: #a855f7;
+            --accent-soft: rgba(168, 85, 247, 0.15);
+            --success-color: #4ade80;
+
+            --text-color: #e5e7eb;
+            --text-muted: #9ca3af;
+            --border-color: rgba(148, 163, 184, 0.4);
+
+            --gold-color: #facc15;
+            --silver-color: #e5e7eb;
+            --bronze-color: #fb923c;
+
+            --danger-color: #f97373;
+            --warning-color: #facc15;
+
+            --border-radius: 16px;
+            --shadow-soft: 0 18px 40px rgba(15, 23, 42, 0.9);
+            --transition-speed: 0.25s;
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background: var(--bg-gradient);
+            color: var(--text-color);
+            line-height: 1.6;
+            min-height: 100vh;
+        }
+
+        .container {
+            max-width: 1680px;
+            margin: 0 auto;
+            padding: 20px 16px 40px;
+        }
+
+        /* HEADER */
+        .header {
+            margin: -10px -16px 28px;
+            padding: 28px 16px 40px;
+            background: radial-gradient(circle at top, rgba(34, 211, 238, 0.2), rgba(15, 23, 42, 0.95));
+            border-bottom: 1px solid rgba(148, 163, 184, 0.35);
+            box-shadow: 0 18px 40px rgba(15, 23, 42, 0.9);
+        }
+
+        .header h1 {
+            font-family: 'Oswald', sans-serif;
+            font-size: clamp(2.2rem, 3.5vw, 3rem);
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
+            text-align: center;
+            margin-bottom: 6px;
+            background: linear-gradient(to right, #22d3ee, #a855f7, #f97316);
+            -webkit-background-clip: text;
+            color: transparent;
+        }
+
+        .header p {
+            color: var(--text-muted);
+            font-size: 1.05rem;
+            text-align: center;
+        }
+
+        /* CARD */
+        .content-card {
+            background-color: var(--card-color);
+            border-radius: var(--border-radius);
+            box-shadow: var(--shadow-soft);
+            border: 1px solid var(--border-color);
+            padding: 22px 20px 26px;
+            margin-bottom: 24px;
+            backdrop-filter: blur(16px);
+        }
+
+        .content-card h2 {
+            font-family: 'Oswald', sans-serif;
+            font-size: 1.6rem;
+            color: var(--primary-color);
+            margin-top: 0;
+            margin-bottom: 18px;
+            padding-bottom: 8px;
+            border-bottom: 1px solid rgba(148, 163, 184, 0.35);
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .content-card h2::before {
+            content: '';
+            width: 6px;
+            height: 22px;
+            border-radius: 999px;
+            background: linear-gradient(to bottom, #22d3ee, #a855f7);
+        }
+
+        /* BUTTONS */
+        .content-card > div:first-child {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 12px;
+            margin-bottom: 22px;
+        }
+
+        .action-button {
+            padding: 10px 18px;
+            border-radius: 999px;
+            font-weight: 600;
+            font-size: 0.95rem;
+            color: #0f172a;
+            border: none;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            transition: transform var(--transition-speed), box-shadow var(--transition-speed);
+            box-shadow: 0 14px 30px rgba(15, 23, 42, 0.9);
+        }
+
+        .action-button i { font-size: 20px; }
+        .action-button.excel { background: linear-gradient(135deg, #22c55e, #4ade80); }
+        .action-button.excel:hover { transform: translateY(-1px) scale(1.02); }
+        .action-button.pdf { background: linear-gradient(135deg, #f97373, #f97316); color: #fef2f2; }
+        .action-button.pdf:hover { transform: translateY(-1px) scale(1.02); }
+        .action-button.deduction { background: linear-gradient(135deg, #facc15, #fb923c); color: #3b2300; }
+        .action-button.deduction:hover { transform: translateY(-1px) scale(1.02); }
+        .action-button.danger {
+            background: rgba(248, 113, 113, 0.12); color: #fecaca;
+            border-radius: 999px; border: 1px solid rgba(248, 113, 113, 0.6); box-shadow: none;
+        }
+        .action-button.danger:hover { background: rgba(248, 113, 113, 0.2); }
+
+        /* TABS */
+        .tabs {
+            display: inline-flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            padding: 5px;
+            background: rgba(15, 23, 42, 0.95);
+            border-radius: 999px;
+            border: 1px solid rgba(148, 163, 184, 0.4);
+            margin-bottom: 18px;
+        }
+
+        .tab {
+            padding: 8px 18px;
+            background-color: transparent;
+            border: none;
+            color: var(--text-muted);
+            cursor: pointer;
+            border-radius: 999px;
+            font-weight: 600;
+            font-size: 0.9rem;
+            transition: all var(--transition-speed);
+        }
+        .tab:hover { background: rgba(148, 163, 184, 0.18); color: #e5e7eb; }
+        .tab.active {
+            background: radial-gradient(circle at top left, var(--primary-soft), var(--accent-soft));
+            color: #f9fafb;
+            box-shadow: 0 0 0 1px rgba(34, 211, 238, 0.7);
+        }
+
+        .tab-content { display: none; }
+        .tab-content.active { display: block; }
+
+        .table-responsive {
+            width: 100%;
+            overflow-x: auto;
+            scrollbar-width: thin;
+            scrollbar-color: #22d3ee #020617;
+        }
+
+        /* TABLES */
+        table {
+            width: 100%;
+            border-collapse: separate;
+            border-spacing: 0 10px;
+            margin-top: 6px;
+        }
+
+        thead th {
+            padding: 10px 12px;
+            text-align: left;
+            color: var(--text-muted);
+            background: transparent;
+            font-weight: 700;
+            text-transform: uppercase;
+            font-size: 0.8rem;
+            letter-spacing: 0.06em;
+        }
+
+        tbody tr {
+            background-color: var(--card-elevated);
+            transition: background-color var(--transition-speed), transform var(--transition-speed);
+        }
+
+        tbody tr:hover {
+            background: radial-gradient(circle at left, rgba(34, 211, 238, 0.15), rgba(15, 23, 42, 1));
+            transform: translateY(-1px);
+            box-shadow: 0 14px 30px rgba(15, 23, 42, 0.9);
+        }
+
+        td { padding: 14px 12px; vertical-align: middle; }
+        tr td:first-child { border-top-left-radius: 10px; border-bottom-left-radius: 10px; }
+        tr td:last-child { border-top-right-radius: 10px; border-bottom-right-radius: 10px; }
+
+        .rank-cell {
+            font-family: 'Oswald', sans-serif; font-size: 1.4rem; text-align: center;
+            width: 60px; font-weight: 700; color: #e5e7eb;
+        }
+        .name-cell { font-weight: 600; font-size: 1rem; }
+        .club-cell { color: var(--text-muted); font-size: 0.9rem; }
+        .score-cell { text-align: center; font-weight: 600; font-size: 0.95rem; white-space: nowrap; }
+        .total-score-cell {
+            font-family: 'Oswald', sans-serif; text-align: right;
+            font-weight: 800; font-size: 1.4rem; color: var(--success-color); white-space: nowrap;
+        }
+        .deduction-cell {
+            text-align: center; font-weight: 600; font-size: 0.9rem; color: var(--danger-color); white-space: nowrap;
+        }
+        .final-score-cell {
+            font-family: 'Oswald', sans-serif; text-align: right;
+            font-weight: 800; font-size: 1.4rem; color: var(--success-color); white-space: nowrap;
+        }
+
+        tr.gold { border-left: 4px solid var(--gold-color); box-shadow: 0 0 0 1px rgba(250, 204, 21, 0.18); }
+        tr.silver { border-left: 4px solid var(--silver-color); box-shadow: 0 0 0 1px rgba(229, 231, 235, 0.12); }
+        tr.bronze { border-left: 4px solid var(--bronze-color); box-shadow: 0 0 0 1px rgba(249, 115, 22, 0.15); }
+
+        .detailed-score { text-align: right !important; font-weight: normal; }
+        .score-main { font-weight: 700; font-size: 0.95rem; display: block; }
+        .score-rank { font-size: 0.75rem; color: var(--text-muted); margin-left: 4px; font-weight: 500; }
+        .score-breakdown { font-size: 0.75rem; color: var(--text-muted); margin-top: 4px; display: none; }
+        .score-breakdown span { display: block; text-align: right; white-space: nowrap; }
+        .p-score { color: #f97373; } .d-score { color: #38bdf8; } .e-score { color: #4ade80; }
+
+        /* MODAL */
+        .modal-overlay { 
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%; 
+            background-color: rgba(15, 23, 42, 0.8); display: none; 
+            justify-content: center; align-items: center; z-index: 9999; backdrop-filter: blur(6px);
+        }
+        .modal-content {
+            background-color: var(--card-color); border-radius: 18px; padding: 22px 20px 20px;
+            width: 90%; max-width: 520px; box-shadow: 0 22px 40px rgba(15, 23, 42, 0.95);
+            border: 1px solid rgba(148, 163, 184, 0.5);
+        }
+        .modal-header {
+            display: flex; justify-content: space-between; align-items: center;
+            border-bottom: 1px solid rgba(148, 163, 184, 0.4); padding-bottom: 12px; margin-bottom: 16px;
+        }
+        .modal-header h3 { color: #e5e7eb; margin: 0; font-size: 1.4rem; font-weight: 600; }
+        .modal-close { background: none; border: none; font-size: 1.6rem; cursor: pointer; color: var(--text-muted); }
+        .form-group { margin-bottom: 12px; }
+        .form-group label { display: block; margin-bottom: 4px; font-weight: 600; font-size: 0.9rem; color: var(--text-muted); }
+        .form-group input, .form-group select, .form-group textarea {
+            width: 100%; padding: 8px 10px; border: 1px solid rgba(148, 163, 184, 0.6);
+            border-radius: 10px; font-family: inherit; font-size: 0.9rem;
+            background: rgba(15, 23, 42, 0.95); color: #e5e7eb;
+        }
+
+        .team-filter-container {
+            margin-bottom: 16px; padding: 10px; background: radial-gradient(circle at top left, rgba(34, 211, 238, 0.14), rgba(15, 23, 42, 0.95));
+            border-radius: 14px; border: 1px solid rgba(148, 163, 184, 0.45);
+            display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 6px;
+        }
+        .team-filter-item {
+            display: flex; align-items: center; gap: 8px; cursor: pointer;
+            padding: 4px 8px; border-radius: 999px; color: var(--text-muted);
+        }
+        .team-filter-item:hover { background-color: rgba(15, 23, 42, 0.9); color: #e5e7eb; }
+
+        #print-header { display: none; }
+
+        @media (max-width: 900px) {
+            .content-card { padding: 18px 14px 20px; }
+            .content-card > div:first-child { flex-direction: column; }
+            .action-button { width: 100%; justify-content: center; }
+        }
+
+        @media print {
+            @page { size: A4; margin: 15mm; }
+            body { font-family: Arial, sans-serif !important; background-color: #fff !important; color: #333 !important; }
+            .action-button, .header, .tabs, #apparatus-tab, #deductionModal, #team-exclusion-filter { display: none !important; }
+            
+            #print-header { 
+                display: flex !important; align-items: flex-start; justify-content: space-between; 
+                padding: 10mm 0 5mm 0; border-bottom: 2px solid #333; margin-bottom: 10mm; width: 100%;
+            }
+            #print-header .logo-container { flex: 0 0 40px; }
+            #print-header img { height: 40px !important; width: auto !important; }
+            #print-title { text-align: left; flex-grow: 1; margin-left: 10mm; }
+            #print-title-main { font-size: 12pt !important; font-weight: bold !important; color: #000; text-transform: uppercase; }
+            #print-title-sub { font-size: 10pt !important; color: #555 !important; }
+            #print-category-and-date { font-size: 9pt !important; color: #666; }
+            #print-report-date { font-size: 8pt; color: #666; text-align: right; flex: 0 0 35mm; }
+            
+            .container, .content-card { padding: 0 5mm !important; margin: 0 !important; border: none !important; box-shadow: none !important; background-color: #fff !important; }
+            .tab-content { page-break-inside: avoid; }
+            h2 { color: #000 !important; font-size: 12pt; margin-bottom: 4mm; font-weight: bold; }
+            
+            table { border-collapse: collapse; width: 100%; border-spacing: 0 !important; }
+            thead th { border: 1px solid #000; background: #f0f0f0 !important; padding: 3mm 1mm !important; font-size: 8pt; color: #333; }
+            td { padding: 1mm 2mm !important; font-size: 9pt; border: 1px solid #ccc; vertical-align: top; }
+            .detailed-score { text-align: right !important; }
+            .score-main { font-size: 9pt; font-weight: bold; color: #000; display: block !important; order: 1; }
+            .score-breakdown { display: block !important; order: 2; font-size: 8pt; color: #555; margin-top: 1mm; }
+            .p-score { color: #d32f2f !important; font-weight: bold; }
+            .d-score { color: #1e88e5 !important; }
+            .e-score { color: #388e3c !important; }
+            tr.gold, tr.silver, tr.bronze { border: none !important; }
+        }
+    </style>
+</head>
+<body>
+    <div id="print-header">
+        <div class="logo-container">
+            <img src="https://www.tcf.gov.tr/wp-content/uploads/2021/04/TCF-Logo-2021-01.png" alt="TCF Logo">
+        </div>
+        <div id="print-title">
+            <div id="print-title-main">TÜRKİYE CIMNASTIK FEDERASYONU</div>
+            <div id="print-title-sub">YILDIZLAR KATEGORİSİ</div>
+            <div id="print-category-and-date">Genel Tasnif/All Around</div>
+        </div>
+        <div id="print-report-date">Rapor Tarihi: <span id="reportDate"></span></div>
+    </div>
+
+    <div class="container">
+        <header class="header">
+            <h1 id="competitionNameHeader">Yarışma Yükleniyor...</h1>
+            <p>Final Sonuçları ve Madalya Sıralamaları</p>
+        </header>
+        
+        <div class="content-card">
+            <div style="display: flex; flex-wrap: wrap; gap: 15px; margin-bottom: 30px;">
+                <button onclick="exportPdf()" class="action-button pdf"><i class="material-icons">picture_as_pdf</i> PDF Olarak İndir</button>
+                <button onclick="exportResults()" class="action-button excel"><i class="material-icons">download</i> Excel Olarak İndir</button>
+                <button onclick="openDeductionModal()" class="action-button deduction"><i class="material-icons">remove_circle</i> Takım Kesintisi</button>
+            </div>
+        
+            <div class="tabs">
+                <button class="tab active" onclick="openTab(event, 'all-around-tab')">Genel Sıralama</button>
+                <button class="tab" onclick="openTab(event, 'apparatus-tab')">Alet Finalleri</button>
+                <button class="tab" onclick="openTab(event, 'team-tab')">Takım Sıralaması</button>
+            </div>
+            
+            <div id="all-around-tab" class="tab-content active">
+                <h2>Bireysel Genel Tasnif</h2>
+                <div class="table-responsive"><table class="leaderboard"><thead id="allAroundTableHead"></thead><tbody id="allAroundTableBody"></tbody></table></div>
+            </div>
+            <div id="apparatus-tab" class="tab-content"><div id="apparatusResultsContainer"></div></div>
+            <div id="team-tab" class="tab-content">
+                <h2>Takım Genel Tasnif</h2>
+                <div id="team-exclusion-filter" class="team-filter-container"></div>
+                <div class="table-responsive"><table><thead id="teamTableHead"></thead><tbody id="teamTableBody"></tbody></table></div>
+            </div>
+        </div>
+    </div>
+    
+    <div id="deductionModal" class="modal-overlay">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Takım Genel Ceza Yönetimi</h3>
+                <button class="modal-close" onclick="closeDeductionModal()">&times;</button>
+            </div>
+            <form id="deductionForm">
+                <div class="form-group">
+                    <label for="teamSelect">Takım Seçin</label>
+                    <select id="teamSelect" required><option value="">Takım yükleniyor...</option></select>
+                </div>
+                <div class="form-group">
+                    <label for="deductionAmount">Ceza Puanı (Örn: 0.500)</label>
+                    <input type="number" id="deductionAmount" step="0.001" min="0.100" required>
+                </div>
+                <div class="form-group">
+                    <label for="deductionReason">Ceza Nedeni (Örn: Geç başlama, Kural ihlali)</label>
+                    <textarea id="deductionReason" rows="3" required></textarea>
+                </div>
+                <div style="text-align: right; margin-top: 20px;">
+                    <button type="submit" class="action-button deduction" style="color: var(--primary-dark);"><i class="material-icons">add</i> Cezayı Kaydet</button>
+                </div>
+            </form>
+            <div id="existingDeductions" style="margin-top: 30px;"></div>
+        </div>
+    </div>
+
+    <script>
+        const firebaseConfig = { apiKey: "AIzaSyA5VNkBsZkZqaDr8YgOnhiGCDql9-lJ6Gk", authDomain: "analig2025.firebaseapp.com", databaseURL: "https://analig2025-default-rtdb.firebaseio.com" };
+        firebase.initializeApp(firebaseConfig);
+        const db = firebase.database();
+        
+        let activeCompetitionId=null, competitionData={}, globalSporcular={}, teamDeductions={};
+        let excludedTeams = new Set();
+        let fullResults = []; 
+
+        const APPARATUS_CONFIG = { minikler: { yer: 'Yer', atlama: 'Atlama', barfiks: 'Barfiks', denge: 'Denge' }, kucukler: { yer: 'Yer', atlama: 'Atlama', barfiks: 'Barfiks', denge: 'Denge', asimetrik_paralel: 'Asimetrik Paralel' } };
+        const APPARATUS_PATHS = { yer: 'yerPuanlari', atlama: 'atlamaPuanlari', barfiks: 'barfiksPuanlari', denge: 'dengePuanlari', asimetrik_paralel: 'asimetrikParalelPuanlari'};
+
+        document.addEventListener('DOMContentLoaded', initializePage);
+        document.getElementById('reportDate').textContent = new Date().toLocaleDateString('tr-TR');
+
+        async function initializePage() {
+            activeCompetitionId = new URLSearchParams(window.location.search).get('competitionId') || localStorage.getItem('activeCompetitionId');
+            if (!activeCompetitionId) { document.getElementById('competitionNameHeader').textContent = "Yarışma Seçilmedi"; return; }
+            await loadGlobalSporcular();
+            loadCompetitionData();
+        }
+
+        async function loadGlobalSporcular() {
+            const snapshot = await db.ref('globalSporcular').once('value');
+            if (snapshot.exists()) { 
+                globalSporcular = {}; 
+                snapshot.forEach(child => {
+                    const athlete = child.val();
+                    if(athlete.id) { globalSporcular[athlete.id] = athlete; }
+                }); 
+            }
+        }
+        
+        function loadCompetitionData() {
+            const competitionRef = db.ref(`competitions/${activeCompetitionId}`);
+            competitionRef.on('value', (snapshot) => {
+                if (!snapshot.exists()) { document.getElementById('competitionNameHeader').textContent = "Yarışma Bulunamadı"; return; }
+                competitionData = snapshot.val();
+                if(!teamDeductions) teamDeductions = competitionData.teamDeductions || {};
+                
+                const competitionName = competitionData.isim || "İsimsiz Yarışma";
+                const category = competitionData.kategori || 'minikler';
+
+                document.getElementById('competitionNameHeader').textContent = competitionName;
+                document.getElementById('print-title-main').textContent = "ARTİSTİK CİMNASTİK KADINLAR TÜRKİYE ŞAMPİYONASI";
+                document.getElementById('print-title-sub').textContent = category.toUpperCase() + " KATEGORİSİ";
+                document.getElementById('print-category-and-date').textContent = "Genel Tasnif/All Around";
+
+                processAllData();
+            });
+            
+             db.ref(`competitions/${activeCompetitionId}/teamDeductions`).on('value', (snapshot) => {
+                teamDeductions = snapshot.val() || {};
+                const apparatuses = APPARATUS_CONFIG[competitionData.kategori || 'minikler'];
+                if(fullResults.length > 0) renderTeamTable(fullResults, apparatuses);
+                displayExistingDeductions();
+            });
+        }
+        
+        function assignApparatusRanks(results, apparatusKeys) {
+            const ranks = {};
+            apparatusKeys.forEach(key => {
+                const scoredAthletes = results.filter(r => r.scores[key] > 0);
+                scoredAthletes.sort((a, b) => b.scores[key] - a.scores[key]);
+                let lastScore = -Infinity;
+                let lastRank = 0;
+                scoredAthletes.forEach((result, index) => {
+                    const score = result.scores[key];
+                    if (score !== lastScore) { lastRank = index + 1; }
+                    if (!ranks[result.id]) ranks[result.id] = {};
+                    ranks[result.id][key] = lastRank;
+                    lastScore = score;
+                });
+            });
+            return ranks;
+        }
+
+        // --- VERİ İŞLEME VE HAREKETLERİ ÇEKME ---
+        function processAllData() {
+            const participantIds = Object.keys(competitionData.katilimcilar || {});
+            const scoresData = competitionData.cimnastikVerileri || {};
+            const category = competitionData.kategori || 'minikler';
+            const apparatuses = APPARATUS_CONFIG[category];
+            const apparatusKeys = Object.keys(apparatuses);
+            
+            let initialResults = participantIds.map(id => {
+                const athlete = globalSporcular[id]; 
+                if (!athlete || !athlete.id) return null; 
+                
+                let totalScore = 0;
+                const scores = {};
+                const allScoreDetails = {}; 
+                
+                apparatusKeys.forEach(key => {
+                    const path = APPARATUS_PATHS[key];
+                    const scoreData = scoresData[path]?.[id];
+                    const score = parseFloat(scoreData?.sonPuan || 0);
+                    scores[key] = score;
+
+                    // Hareket detaylarını (Seçilen Kriterler) veritabanından alıyoruz
+                    const rawMoves = scoreData?.secilenKriterler || scoreData?.kriterler || {};
+                    
+                    const detail = {
+                        final: score,
+                        D: parseFloat(scoreData?.dToplami || 0),
+                        E: parseFloat(scoreData?.ePuani || 0),
+                        P: parseFloat(scoreData?.TarafsizKesinti || 0),
+                        ME: parseFloat(scoreData?.eksikElementKesintisi || 0),
+                        moves: rawMoves // Veriyi sakla
+                    };
+                    allScoreDetails[key] = detail;
+                    totalScore += scores[key];
+                });
+                
+                return { ...athlete, scores, allScoreDetails, totalScore, id: parseInt(id) };
+            }).filter(r => r !== null) 
+            .sort((a, b) => b.totalScore - a.totalScore);
+            
+            const apparatusRanks = assignApparatusRanks(initialResults, apparatusKeys);
+            fullResults = initialResults.map(r => ({ ...r, apparatusRanks: apparatusRanks[r.id] || {} }));
+            
+            renderAllAroundTable(fullResults, apparatuses);
+            renderApparatusTables(fullResults, apparatuses);
+            renderTeamExclusionChecklist(fullResults);
+            renderTeamTable(fullResults, apparatuses);
+            populateTeamSelect(fullResults);
+        }
+
+        function renderAllAroundTable(results, apparatuses) { 
+            const tableHead = document.getElementById('allAroundTableHead'); 
+            const tableBody = document.getElementById('allAroundTableBody'); 
+            let headersHTML = '<tr><th class="rank-cell">S.N.</th><th style="text-align:left;">Soyadı</th><th style="text-align:left;">Adı</th><th style="text-align:left;">Takım</th>'; 
+            for (const key in apparatuses) { headersHTML += `<th class="score-cell apparatus-header apparatus-${key}">${apparatuses[key]}</th>`; } 
+            headersHTML += '<th class="total-score-cell">Toplam</th></tr>'; 
+            tableHead.innerHTML = headersHTML; 
+            tableBody.innerHTML = ''; 
+            
+            results.forEach((result, index) => { 
+                const rank = index + 1; 
+                const medalClass = rank <= 3 ? (rank === 1 ? 'gold' : rank === 2 ? 'silver' : 'bronze') : '';
+                let scoresHTML = '';
+                for (const key in apparatuses) {
+                    const detail = result.allScoreDetails[key];
+                    const appRank = result.apparatusRanks[key] || '';
+                    const finalScore = detail?.final || 0;
+                    const totalPenalty = detail.P + detail.ME;
+                    if (finalScore > 0) {
+                        scoresHTML += `<td class="score-cell detailed-score">
+                            <span class="score-main">${formatScore(finalScore)} <span class="score-rank">(${appRank})</span></span>
+                            <div class="score-breakdown">
+                                <span class="d-score">D ${formatScore(detail.D)}</span>
+                                <span class="e-score">E ${formatScore(detail.E)}</span>
+                                ${totalPenalty > 0 ? `<span class="p-score">P -${formatScore(totalPenalty)}</span>` : ''}
+                            </div>
+                        </td>`;
+                    } else { scoresHTML += `<td class="score-cell detailed-score">-</td>`; }
+                }
+                const row = document.createElement('tr'); 
+                if (medalClass) row.classList.add(medalClass);
+                row.innerHTML = `<td class="rank-cell">${rank}</td><td class="name-cell">${result.soyad || '-'}</td><td class="club-cell">${result.ad || '-'}</td><td class="club-cell">${result.kulup || '-'}</td>${scoresHTML}<td class="total-score-cell">${formatScore(result.totalScore)}</td>`;
+                tableBody.appendChild(row); 
+            }); 
+        }
+
+        function renderTeamTable(allAroundResults, apparatuses) {
+            const filteredResults = allAroundResults.filter(res => !excludedTeams.has(res.kulup));
+            const tableHead = document.getElementById('teamTableHead');
+            const tableBody = document.getElementById('teamTableBody');
+            const apparatusKeys = Object.keys(apparatuses);
+            let headersHTML = '<tr><th class="rank-cell">S.N.</th><th style="text-align:left;">Takım</th>';
+            apparatusKeys.forEach(key => { headersHTML += `<th class="score-cell apparatus-header apparatus-${key}">${apparatuses[key]}</th>`; });
+            headersHTML += '<th class="total-score-cell">Toplam</th><th class="deduction-cell">Kesinti</th><th class="final-score-cell">Son Skor</th></tr>';
+            tableHead.innerHTML = headersHTML;
+            const clubScores = {};
+            
+            filteredResults.forEach(res => {
+                if (!res.kulup) return;
+                if (!clubScores[res.kulup]) {
+                    clubScores[res.kulup] = { name: res.kulup, scores: {} };
+                    apparatusKeys.forEach(key => clubScores[res.kulup].scores[key] = []);
+                }
+                apparatusKeys.forEach(key => clubScores[res.kulup].scores[key].push(res.scores[key]));
+            });
+
+            const teamResults = Object.values(clubScores).map(team => {
+                let totalScore = 0;
+                const topScores = (arr) => arr.sort((a,b)=>b-a).slice(0,3).reduce((sum,s)=>sum+s,0);
+                const apparatusTotals = {};
+                apparatusKeys.forEach(key => {
+                    const appTotal = topScores(team.scores[key]);
+                    apparatusTotals[key] = appTotal;
+                    totalScore += appTotal;
+                });
+                const teamDeductionTotal = calculateTeamDeduction(team.name);
+                const finalScore = totalScore - teamDeductionTotal;
+                return { name: team.name, apparatusTotals, totalScore, deduction: teamDeductionTotal, finalScore };
+            }).sort((a,b) => b.finalScore - a.finalScore);
+            
+            tableBody.innerHTML = '';
+            teamResults.forEach((team, index) => {
+                const rank = index + 1;
+                let scoresHTML = '';
+                apparatusKeys.forEach(key => scoresHTML += `<td class="score-cell">${formatScore(team.apparatusTotals[key])}</td>`);
+                const row = document.createElement('tr');
+                if (rank <= 3) row.classList.add(rank === 1 ? 'gold' : rank === 2 ? 'silver' : 'bronze');
+                row.innerHTML = `<td class="rank-cell">${rank}</td><td class="name-cell" style="text-align:left;">${team.name}</td>${scoresHTML}<td class="total-score-cell">${formatScore(team.totalScore)}</td><td class="deduction-cell">${team.deduction > 0 ? '-' + formatScore(team.deduction) : '0.000'}</td><td class="final-score-cell">${formatScore(team.finalScore)}</td>`;
+                tableBody.appendChild(row);
+            });
+        }
+        
+        function renderApparatusTables(allResults, apparatuses) { 
+            const container = document.getElementById('apparatusResultsContainer'); 
+            container.innerHTML = ''; 
+            for (const key in apparatuses) { 
+                const name = apparatuses[key]; 
+                const apparatusResults = allResults.map(r => ({ 
+                    ...r, 
+                    score: r.scores[key] || 0,
+                    D: r.allScoreDetails[key]?.D || 0,
+                    E: r.allScoreDetails[key]?.E || 0,
+                    P: r.allScoreDetails[key]?.P || 0,
+                    ME: r.allScoreDetails[key]?.ME || 0
+                })).filter(r => r.score > 0).sort((a, b) => b.score - a.score); 
+                
+                let tableHTML = `<div class="content-card"><h2>${name} Finali</h2><div class="table-responsive"><table><thead><tr><th class="rank-cell">S.N.</th><th style="text-align:left;">Soyadı</th><th style="text-align:left;">Adı</th><th style="text-align:left;">Kulüp</th><th class="total-score-cell">D Puanı</th><th class="total-score-cell">E Puanı</th><th class="deduction-cell">Ceza Puanı</th><th class="final-score-cell">Puan</th></tr></thead><tbody>`; 
+                
+                apparatusResults.forEach((result, index) => { 
+                    const rank = index + 1; 
+                    const medalClass = rank <= 3 ? (rank === 1 ? 'gold' : rank === 2 ? 'silver' : 'bronze') : '';
+                    const totalPenalty = result.P + result.ME;
+                    tableHTML += `<tr class="${medalClass}">
+                        <td class="rank-cell">${rank}</td><td class="name-cell">${result.soyad}</td><td class="club-cell">${result.ad}</td><td class="club-cell">${result.kulup}</td>
+                        <td class="total-score-cell">${formatScore(result.D)}</td><td class="total-score-cell">${formatScore(result.E)}</td>
+                        <td class="deduction-cell">${totalPenalty > 0 ? '-' + formatScore(totalPenalty) : '0.000'}</td><td class="final-score-cell">${formatScore(result.score)}</td>
+                    </tr>`; 
+                });
+                tableHTML += '</tbody></table></div></div>'; 
+                container.innerHTML += tableHTML; 
+            } 
+        }
+
+        // --- EXCEL EXPORT GÜNCELLENDİ (Hareket Sütunları Eklendi) ---
+        function exportResults() { 
+            if (!competitionData || !competitionData.isim) { alert("Excel için verilerin yüklenmesini bekleyin."); return; } 
+            
+            try { 
+                const wb = XLSX.utils.book_new();
+                const category = competitionData.kategori || 'minikler';
+                const apparatuses = APPARATUS_CONFIG[category];
+                const apparatusKeys = Object.keys(apparatuses);
+
+                // 1. Genel Tasnif
+                const generalData = fullResults.map((r, index) => {
+                    const row = { 'S.N.': index + 1, 'Soyadı': r.soyad, 'Adı': r.ad, 'Takım': r.kulup };
+                    apparatusKeys.forEach(key => {
+                        const scoreDetail = r.allScoreDetails[key];
+                        const appName = apparatuses[key];
+                        const totalPenalty = scoreDetail.P + scoreDetail.ME;
+                        const cellValue = [`Final: ${formatScore(scoreDetail.final)} (${r.apparatusRanks[key] || '-'})`, `D: ${formatScore(scoreDetail.D)}`, `E: ${formatScore(scoreDetail.E)}`, `Ceza: ${totalPenalty > 0 ? '-' + formatScore(totalPenalty) : '0.000'}`].join('\n');
+                        row[`${appName} Puan Detayı`] = cellValue;
+                    });
+                    row['GENEL TOPLAM'] = formatScore(r.totalScore);
+                    return row;
+                });
+                XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(generalData), "1-Bireysel Genel Tasnif");
+
+                // 2. Takım Sıralaması
+                const teamTable = document.querySelector('#team-tab table');
+                if (teamTable) { XLSX.utils.book_append_sheet(wb, XLSX.utils.table_to_sheet(teamTable), "2-Takım Sıralaması"); }
+
+                // 3. Alet Finalleri (HAREKET SÜTUNLARI İLE)
+                apparatusKeys.forEach(key => {
+                    const appName = apparatuses[key];
+                    const appResults = fullResults.map(r => ({
+                        ...r,
+                        score: r.scores[key] || 0,
+                        D: r.allScoreDetails[key]?.D || 0,
+                        E: r.allScoreDetails[key]?.E || 0,
+                        TotalPenalty: (r.allScoreDetails[key]?.P || 0) + (r.allScoreDetails[key]?.ME || 0),
+                        Moves: r.allScoreDetails[key]?.moves || {}
+                    })).filter(r => r.score > 0).sort((a, b) => b.score - a.score);
+
+                    const appData = appResults.map((r, index) => {
+                        let row = {
+                            'S.N.': index + 1, 'Soyadı': r.soyad, 'Adı': r.ad, 'Kulüp': r.kulup,
+                            'D Puanı': formatScore(r.D), 'E Puanı': formatScore(r.E),
+                            'Ceza Puanı': formatScore(r.TotalPenalty), 'FINAL PUAN': formatScore(r.score)
+                        };
+
+                        // Hareketleri sütunlara yayma
+                        if (r.Moves && typeof r.Moves === 'object') {
+                            Object.values(r.Moves).forEach((move, i) => {
+                                let moveScore = 0;
+                                if (typeof move === 'object' && move !== null) {
+                                    moveScore = parseFloat(move.deger || move.puan || move.score || 0);
+                                } else { moveScore = parseFloat(move); }
+                                row[`Hareket ${i + 1}`] = formatScore(moveScore);
+                            });
+                        }
+                        return row;
+                    });
+                    
+                    if (appData.length > 0) { XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(appData), `3-${appName} Final`); }
+                });
+
+                const f = competitionData.isim.replace(/[^a-z0-9]/gi, '_').toLowerCase(); 
+                XLSX.writeFile(wb, `${f}_SONUC_RAPORU.xlsx`); 
+            } catch (e) { console.error(e); alert("Excel hatası. Konsolu kontrol edin."); } 
+        }
+
+        // Helper functions
+        function renderTeamExclusionChecklist(allAroundResults) {
+            const container = document.getElementById('team-exclusion-filter');
+            const teams = [...new Set(allAroundResults.map(r => r.kulup).filter(Boolean))].sort();
+            container.innerHTML = ''; 
+            teams.forEach(teamName => {
+                const isChecked = !excludedTeams.has(teamName);
+                const item = document.createElement('div');
+                item.className = 'team-filter-item';
+                item.innerHTML = `<input type="checkbox" id="team-filter-${teamName.replace(/\s/g,'')}achsen" value="${teamName}" ${isChecked ? 'checked' : ''}><label for="team-filter-${teamName.replace(/\s/g,'')}">${teamName}</label>`;
+                item.querySelector('input').addEventListener('change', (e) => {
+                    if (e.target.checked) excludedTeams.delete(teamName); else excludedTeams.add(teamName);
+                    const apparatuses = APPARATUS_CONFIG[competitionData.kategori || 'minikler'];
+                    renderTeamTable(fullResults, apparatuses);
+                });
+                container.appendChild(item);
+            });
+        }
+
+        function calculateTeamDeduction(teamName) { if (!teamDeductions || Object.keys(teamDeductions).length === 0) return 0; return Object.values(teamDeductions).filter(d => d.teamName === teamName).reduce((t, d) => t + (parseFloat(d.amount) || 0), 0); }
+        function populateTeamSelect(allAroundResults) { const teamSelect = document.getElementById('teamSelect'); if(!teamSelect) return; const teams = [...new Set(allAroundResults.map(r => r.kulup).filter(Boolean))].sort(); const currentTeams = Array.from(teamSelect.options).map(o => o.value).join(','); const newTeams = ['', ...teams].join(','); if (currentTeams !== newTeams) { const selectedValue = teamSelect.value; teamSelect.innerHTML = '<option value="">Takım seçiniz...</option>'; teams.forEach(t => { teamSelect.innerHTML += `<option value="${t}">${t}</option>`; }); teamSelect.value = selectedValue; } }
+        function openDeductionModal() { const modal = document.getElementById('deductionModal'); if(modal) { modal.style.display = 'flex'; displayExistingDeductions(); populateTeamSelect(fullResults); } }
+        function closeDeductionModal() { const modal = document.getElementById('deductionModal'); if(modal) { modal.style.display = 'none'; document.getElementById('deductionForm')?.reset(); } }
+        function displayExistingDeductions() { 
+            const container = document.getElementById('existingDeductions'); if(!container) return; 
+            let html = '<h4>Mevcut Kesintiler</h4>';
+            if (!teamDeductions || Object.keys(teamDeductions).length === 0) { html += '<p>Henüz kesinti eklenmemiş.</p>'; } else {
+                for (const id in teamDeductions) { 
+                    const d = teamDeductions[id]; 
+                    html += `<div class="deduction-item" style="border-bottom: 1px dashed #ccc; margin-bottom: 5px;">
+                            <div style="font-size: 0.9em;"><strong>${d.teamName}</strong><br><span style="color: var(--text-muted);">${d.reason}</span></div>
+                            <div style="display: flex; align-items: center; gap: 10px;"><div class="deduction-amount">-${formatScore(parseFloat(d.amount))}</div><button class="action-button danger" style="padding: 5px 10px;" onclick="removeDeduction('${id}')"><i class="material-icons">delete</i></button></div></div>`;
+                } 
+            }
+            container.innerHTML = html;
+        }
+        document.getElementById('deductionForm')?.addEventListener('submit', async function(e) { 
+            e.preventDefault(); const t = document.getElementById('teamSelect').value; const a = document.getElementById('deductionAmount'); const r = document.getElementById('deductionReason').value.trim(); const v = a.value.trim().replace(',', '.'); 
+            if (!t || !r || v === '') { alert('Lütfen tüm alanları doldurunuz.'); return; } 
+            const m = parseFloat(v); if (isNaN(m) || m <= 0) { alert('Ceza sıfırdan büyük bir sayı olmalıdır.'); a.focus(); return; } 
+            const ref = db.ref(`competitions/${activeCompetitionId}/teamDeductions`).push(); 
+            try { await ref.set({ teamName: t, amount: m.toFixed(3), reason: r, timestamp: new Date().toISOString() }); document.getElementById('deductionForm').reset(); alert(`"${t}" takımına ceza eklendi!`); } catch (err) { console.error(err); alert('Ceza kaydedilemedi.'); } 
+        });
+        async function removeDeduction(id) { if (confirm('Bu ceza kaydı silinecek. Emin misiniz?')) { try { await db.ref(`competitions/${activeCompetitionId}/teamDeductions/${id}`).remove(); alert("Ceza kaydı silindi."); } catch (err) { console.error(err); alert("Ceza kaydı silinemedi."); } } }
+        function openTab(evt, tabName) { document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active')); document.querySelectorAll('.tab').forEach(t => t.classList.remove('active')); document.getElementById(tabName).classList.add('active'); evt.currentTarget.classList.add('active'); }
+        function formatScore(s) { const score = Number(s); if (s === null || s === undefined || isNaN(score)) return '0.000'; return score.toFixed(3); }
+        function exportPdf() { window.print(); }
+        window.onclick = function(event) { if (event.target == document.getElementById('deductionModal')) closeDeductionModal(); }
+    </script>
+</body>
+</html>

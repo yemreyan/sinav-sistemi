@@ -1,0 +1,791 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sporcu Yönetimi - Cimnastik OS</title>
+    
+    <script src="https://www.gstatic.com/firebasejs/9.6.7/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.6.7/firebase-database-compat.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Sortable/1.15.0/Sortable.min.js"></script>
+    
+    <link href="https://fonts.googleapis.com/icon?family=Material+Icons+Round" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    
+    <style>
+        :root {
+            --bg-body: #030712;
+            --surface-1: rgba(17, 24, 39, 0.7);
+            --surface-glass: rgba(30, 41, 59, 0.4);
+            --border-glass: rgba(255, 255, 255, 0.08);
+            
+            --primary: #6366f1;
+            --primary-glow: rgba(99, 102, 241, 0.4);
+            --accent: #06b6d4;
+            --success: #22c55e;
+            --danger: #ef4444;
+            --warning: #f59e0b;
+
+            --text-main: #ffffff;
+            --text-muted: #94a3b8;
+            
+            --transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            --shadow-card: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; outline: none; }
+        
+        body { 
+            font-family: 'Plus Jakarta Sans', sans-serif; 
+            background-color: var(--bg-body); 
+            background-image: 
+                radial-gradient(circle at 0% 0%, rgba(99, 102, 241, 0.15), transparent 40%),
+                radial-gradient(circle at 100% 100%, rgba(6, 182, 212, 0.1), transparent 40%);
+            color: var(--text-main); 
+            height: 100vh; 
+            overflow: hidden; 
+            display: flex;
+        }
+
+        /* --- SIDEBAR (SOL PANEL) --- */
+        .sidebar {
+            width: 320px;
+            background: var(--surface-1);
+            backdrop-filter: blur(20px);
+            border-right: 1px solid var(--border-glass);
+            display: flex;
+            flex-direction: column;
+            padding: 24px;
+            z-index: 100;
+        }
+
+        .app-brand {
+            display: flex; align-items: center; gap: 12px;
+            font-size: 1.25rem; font-weight: 800; color: white;
+            margin-bottom: 30px; text-decoration: none;
+        }
+
+        .sidebar-label {
+            font-size: 0.75rem; font-weight: 600; text-transform: uppercase;
+            letter-spacing: 1.2px; color: var(--text-muted); margin-bottom: 16px; padding-left: 8px;
+        }
+
+        .competition-list { list-style: none; flex: 1; overflow-y: auto; padding-right: 5px; }
+        .competition-list::-webkit-scrollbar { width: 4px; }
+        .competition-list::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 4px; }
+
+        .comp-item {
+            padding: 14px 16px; margin-bottom: 8px; border-radius: 12px;
+            background: rgba(255,255,255,0.02); border: 1px solid transparent;
+            cursor: pointer; transition: var(--transition);
+        }
+        .comp-item:hover { background: rgba(255,255,255,0.05); transform: translateX(4px); }
+        .comp-item.active {
+            background: rgba(99, 102, 241, 0.15); border-color: rgba(99, 102, 241, 0.5);
+            box-shadow: 0 0 15px rgba(99, 102, 241, 0.1);
+        }
+        .comp-name { font-weight: 600; font-size: 0.9rem; margin-bottom: 4px; color: #fff; }
+        .comp-date { font-size: 0.75rem; color: var(--text-muted); }
+
+        /* --- MAIN CONTENT (SAĞ PANEL) --- */
+        .main-content { flex: 1; display: flex; flex-direction: column; position: relative; overflow: hidden; }
+
+        /* Header Area */
+        .top-bar {
+            padding: 20px 40px;
+            border-bottom: 1px solid var(--border-glass);
+            background: rgba(3, 7, 18, 0.6);
+            backdrop-filter: blur(10px);
+            display: flex; justify-content: space-between; align-items: center;
+        }
+
+        .page-title h1 { font-size: 1.5rem; font-weight: 700; }
+        .page-title p { font-size: 0.9rem; color: var(--text-muted); display: flex; align-items: center; gap: 5px; }
+
+        .action-group { display: flex; gap: 12px; }
+
+        .btn {
+            padding: 10px 20px; border-radius: 10px; font-weight: 600; font-size: 0.9rem;
+            border: none; cursor: pointer; display: flex; align-items: center; gap: 8px;
+            transition: var(--transition);
+        }
+        .btn-primary {
+            background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
+            color: white; box-shadow: 0 4px 12px rgba(99, 102, 241, 0.3);
+        }
+        .btn-primary:hover { transform: translateY(-2px); box-shadow: 0 6px 20px rgba(99, 102, 241, 0.4); }
+        
+        .btn-secondary {
+            background: rgba(255, 255, 255, 0.1); color: white; border: 1px solid rgba(255,255,255,0.1);
+        }
+        .btn-secondary:hover { background: rgba(255, 255, 255, 0.15); }
+
+        .btn-back {
+            text-decoration: none; color: var(--text-muted); font-weight: 500; 
+            display: flex; align-items: center; gap: 5px; font-size: 0.9rem;
+            margin-bottom: 5px; transition: 0.2s;
+        }
+        .btn-back:hover { color: white; }
+
+        /* Management Grid */
+        .management-area {
+            flex: 1; padding: 30px 40px; overflow-y: auto;
+            display: grid; grid-template-columns: 1fr 1fr; gap: 30px;
+        }
+        
+        .list-column {
+            background: var(--surface-glass);
+            border: 1px solid var(--border-glass);
+            border-radius: 20px;
+            display: flex; flex-direction: column;
+            overflow: hidden; backdrop-filter: blur(10px);
+        }
+
+        .column-header {
+            padding: 20px; border-bottom: 1px solid var(--border-glass);
+            background: rgba(0,0,0,0.2);
+        }
+        .column-title { font-size: 1.1rem; font-weight: 700; display: flex; justify-content: space-between; align-items: center; }
+        .count-badge { background: rgba(255,255,255,0.1); padding: 4px 10px; border-radius: 20px; font-size: 0.8rem; }
+
+        .search-wrapper {
+            position: relative; margin-top: 15px;
+        }
+        .search-wrapper i {
+            position: absolute; left: 12px; top: 50%; transform: translateY(-50%);
+            color: var(--text-muted); pointer-events: none;
+        }
+        .search-input {
+            width: 100%; padding: 10px 10px 10px 40px;
+            background: rgba(0,0,0,0.3); border: 1px solid var(--border-glass);
+            border-radius: 10px; color: white; transition: 0.3s;
+        }
+        .search-input:focus { border-color: var(--primary); background: rgba(0,0,0,0.5); }
+
+        .athlete-list {
+            list-style: none; flex: 1; overflow-y: auto; padding: 15px;
+        }
+        .athlete-list::-webkit-scrollbar { width: 6px; }
+        .athlete-list::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 10px; }
+
+        .athlete-card {
+            display: flex; align-items: center; justify-content: space-between;
+            padding: 12px 16px; margin-bottom: 8px;
+            background: rgba(255,255,255,0.03); border-radius: 12px;
+            border: 1px solid transparent; transition: var(--transition);
+        }
+        .athlete-card:hover {
+            background: rgba(255,255,255,0.06); transform: translateX(2px);
+            border-color: rgba(255,255,255,0.1);
+        }
+
+        .athlete-info { display: flex; flex-direction: column; }
+        .athlete-name { font-weight: 600; font-size: 0.95rem; }
+        .athlete-club { font-size: 0.8rem; color: var(--text-muted); display: flex; align-items: center; gap: 4px; }
+
+        .card-actions { display: flex; gap: 6px; opacity: 0.6; transition: 0.2s; }
+        .athlete-card:hover .card-actions { opacity: 1; }
+
+        .icon-btn {
+            width: 32px; height: 32px; border-radius: 8px; border: none;
+            display: flex; align-items: center; justify-content: center;
+            cursor: pointer; transition: 0.2s; background: rgba(255,255,255,0.1);
+            color: var(--text-muted);
+        }
+        .icon-btn:hover { color: white; transform: scale(1.1); }
+        .btn-add:hover { background: var(--success); }
+        .btn-remove:hover { background: var(--warning); }
+        .btn-delete:hover { background: var(--danger); }
+        .btn-edit:hover { background: var(--primary); }
+
+        /* Sürükle Bırak Stilleri (YENİ) */
+        .athlete-card.draggable-item { cursor: grab; }
+        .athlete-card.draggable-item:active { cursor: grabbing; }
+        .sortable-ghost {
+            opacity: 0.4; background: rgba(99, 102, 241, 0.2);
+            border: 1px dashed var(--primary);
+        }
+        .drag-handle {
+            cursor: grab; margin-right: 12px; color: var(--text-muted); font-size: 20px;
+        }
+        .drag-handle:hover { color: white; }
+
+        /* Placeholder */
+        .placeholder-state {
+            flex: 1; display: flex; flex-direction: column;
+            align-items: center; justify-content: center;
+            color: var(--text-muted); text-align: center;
+        }
+        .placeholder-icon { font-size: 5rem; margin-bottom: 20px; opacity: 0.2; }
+
+        /* MODAL STYLES */
+        .modal-overlay {
+            position: fixed; inset: 0; background: rgba(0,0,0,0.8);
+            backdrop-filter: blur(5px); z-index: 1000;
+            display: none; align-items: center; justify-content: center;
+            animation: fadeIn 0.3s ease;
+        }
+        .modal {
+            background: #1e293b; border: 1px solid var(--border-glass);
+            border-radius: 24px; padding: 30px; width: 90%; max-width: 500px;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+            transform: scale(0.95); animation: popIn 0.3s ease forwards;
+        }
+        .modal h3 { margin-bottom: 20px; font-size: 1.5rem; color: white; }
+        
+        .form-row { display: flex; gap: 15px; margin-bottom: 15px; }
+        .form-group { margin-bottom: 15px; flex: 1; }
+        .form-group label { display: block; margin-bottom: 8px; color: var(--text-muted); font-size: 0.9rem; }
+        .form-control {
+            width: 100%; padding: 12px; background: rgba(0,0,0,0.3);
+            border: 1px solid var(--border-glass); border-radius: 10px;
+            color: white; font-family: inherit; transition: 0.3s;
+        }
+        .form-control:focus { border-color: var(--primary); background: rgba(0,0,0,0.5); }
+
+        .checkbox-wrapper {
+            background: rgba(255,255,255,0.03); padding: 15px; border-radius: 10px;
+            display: flex; align-items: center; gap: 10px; cursor: pointer;
+        }
+        .checkbox-wrapper input { width: 18px; height: 18px; accent-color: var(--primary); }
+
+        /* TOAST */
+        .toast-notification {
+            position: fixed; bottom: 30px; right: 30px;
+            background: #1e293b; border: 1px solid var(--border-glass);
+            padding: 16px 24px; border-radius: 12px;
+            display: flex; align-items: center; gap: 12px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+            transform: translateY(100px); animation: slideUp 0.4s forwards;
+            z-index: 9999; font-weight: 500;
+        }
+        .toast-notification.success { border-left: 4px solid var(--success); }
+        .toast-notification.error { border-left: 4px solid var(--danger); }
+        .toast-notification.info { border-left: 4px solid var(--accent); }
+
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+        @keyframes popIn { to { transform: scale(1); } }
+        @keyframes slideUp { to { transform: translateY(0); } }
+
+        @media (max-width: 1024px) {
+            .management-area { grid-template-columns: 1fr; }
+            .sidebar { display: none; }
+        }
+    </style>
+</head>
+<body>
+
+    <aside class="sidebar">
+        <a href="index.html" class="app-brand">
+            <i class="material-icons-round" style="color:var(--primary);">arrow_back</i> Ana Sayfa
+        </a>
+        
+        <div class="sidebar-label">YARIŞMALAR</div>
+        <ul id="competition-list" class="competition-list">
+            <li style="text-align: center; padding: 20px; color: var(--text-muted);">Yükleniyor...</li>
+        </ul>
+    </aside>
+
+    <main class="main-content">
+        
+        <div class="top-bar">
+            <div class="page-title">
+                <h1 id="selected-competition-name">Sporcu Yönetimi</h1>
+                <p id="selected-competition-details">
+                    <i class="material-icons-round" style="font-size:16px;">info</i> 
+                    İşlem yapmak için soldan bir yarışma seçin.
+                </p>
+            </div>
+            <div class="action-group" id="actionButtons" style="display: none;">
+                <button class="btn btn-secondary" id="bulkAddBtn">
+                    <i class="material-icons-round">upload_file</i> Excel Yükle
+                </button>
+                <button class="btn btn-primary" id="addAthleteBtn">
+                    <i class="material-icons-round">person_add</i> Yeni Sporcu
+                </button>
+            </div>
+        </div>
+
+        <div id="managementPanel" class="management-area" style="display: none;">
+            
+            <div class="list-column">
+                <div class="column-header">
+                    <div class="column-title">
+                        Yarışma Katılımcıları 
+                        <span class="count-badge" id="participant-count">0</span>
+                    </div>
+                    <div class="search-wrapper">
+                        <i class="material-icons-round">search</i>
+                        <input type="text" id="participant-search" class="search-input" placeholder="Katılımcı ara...">
+                    </div>
+                </div>
+                <ul id="participant-list" class="athlete-list">
+                    </ul>
+            </div>
+
+            <div class="list-column">
+                <div class="column-header">
+                    <div class="column-title">
+                        Sporcu Havuzu (Eklenebilir)
+                        <span class="count-badge" id="available-count">0</span>
+                    </div>
+                    <div class="search-wrapper">
+                        <i class="material-icons-round">search</i>
+                        <input type="text" id="available-search" class="search-input" placeholder="Havuzda ara...">
+                    </div>
+                </div>
+                <ul id="available-list" class="athlete-list">
+                    </ul>
+            </div>
+        </div>
+
+        <div id="placeholder" class="placeholder-state">
+            <i class="material-icons-round placeholder-icon">touch_app</i>
+            <h2>Bir Yarışma Seçin</h2>
+            <p>Sporcuları yönetmek için sol menüden bir yarışma seçmelisiniz.</p>
+        </div>
+
+    </main>
+
+    <div id="athleteModal" class="modal-overlay"></div>
+    <div id="bulkAddModal" class="modal-overlay"></div>
+
+    <script>
+        const firebaseConfig = { apiKey: "AIzaSyA5VNkBsZkZqaDr8YgOnhiGCDql9-lJ6Gk", authDomain: "analig2025.firebaseapp.com", databaseURL: "https://analig2025-default-rtdb.firebaseio.com" };
+        firebase.initializeApp(firebaseConfig);
+        const db = firebase.database();
+
+        let globalSporcular = [], allCompetitions = {}, selectedCompetitionId = null;
+        let sortableInstance = null; // Sıralama değişkeni
+
+        document.addEventListener('DOMContentLoaded', initializePage);
+
+        async function initializePage() {
+            const params = new URLSearchParams(window.location.search);
+            const compIdFromUrl = params.get('competitionId');
+            
+            buildModals(); 
+            setupEventListeners();
+            initSortable(); // Sortable'ı başlat
+
+            const [globalSporcularSnapshot, competitionsSnapshot] = await Promise.all([db.ref('globalSporcular').once('value'), db.ref('competitions').once('value')]);
+            
+            if (globalSporcularSnapshot.exists()) { 
+                const data = globalSporcularSnapshot.val(); 
+                for (const key in data) globalSporcular.push({ firebaseKey: key, ...data[key] }); 
+            }
+            
+            allCompetitions = competitionsSnapshot.val() || {};
+            renderCompetitionList();
+            
+            const savedId = compIdFromUrl || localStorage.getItem('activeCompetitionId');
+            if (savedId && allCompetitions[savedId]) selectCompetition(savedId);
+            
+            startRealtimeListeners();
+        }
+
+        // Sortable Başlatıcı (Sürükle Bırak)
+        function initSortable() {
+            const el = document.getElementById('participant-list');
+            sortableInstance = Sortable.create(el, {
+                animation: 150,
+                handle: '.drag-handle', // Sadece ikonundan tutunca sürükle
+                ghostClass: 'sortable-ghost',
+                onEnd: function (evt) {
+                    saveNewOrder(); // Sürükleme bitince kaydet
+                }
+            });
+        }
+        
+        function startRealtimeListeners() {
+            db.ref('globalSporcular').on('value', snapshot => {
+                globalSporcular = [];
+                if (snapshot.exists()){ const data = snapshot.val(); for(const key in data){ globalSporcular.push({ firebaseKey: key, ...data[key] }); } }
+                if (selectedCompetitionId) updateParticipantLists();
+            });
+            db.ref('competitions').on('value', snapshot => {
+                allCompetitions = snapshot.val() || {};
+                renderCompetitionList();
+                if (selectedCompetitionId && !allCompetitions[selectedCompetitionId]) resetSelection();
+                else if (selectedCompetitionId) updateParticipantLists();
+            });
+        }
+        
+        function setupEventListeners() {
+            document.getElementById('addAthleteBtn').onclick = () => openAthleteModal();
+            document.getElementById('bulkAddBtn').onclick = () => openBulkAddModal();
+            document.getElementById('participant-search').onkeyup = (e) => filterAthleteList(e.target.value, 'participant-list');
+            document.getElementById('available-search').onkeyup = (e) => filterAthleteList(e.target.value, 'available-list');
+        }
+
+        function renderCompetitionList() {
+            const listEl = document.getElementById('competition-list');
+            const sorted = Object.entries(allCompetitions).filter(([,c]) => c.durum === 'aktif').sort(([,a],[,b]) => new Date(b.tarih) - new Date(a.tarih));
+            listEl.innerHTML = '';
+            sorted.forEach(([id, comp]) => {
+                const li = document.createElement('li'); 
+                li.className = `comp-item ${id === selectedCompetitionId ? 'active' : ''}`;
+                li.dataset.id = id;
+                li.innerHTML = `<div class="comp-name">${comp.isim}</div><div class="comp-date"><i class="material-icons-round" style="font-size:12px; margin-right:4px;">event</i>${new Date(comp.tarih).toLocaleDateString('tr-TR')}</div>`;
+                li.onclick = () => selectCompetition(id);
+                listEl.appendChild(li);
+            });
+        }
+        
+        function selectCompetition(compId) {
+            selectedCompetitionId = compId; 
+            localStorage.setItem('activeCompetitionId', compId);
+            
+            const comp = allCompetitions[compId]; 
+            if (!comp) return; 
+            
+            // UI Güncellemeleri
+            document.getElementById('placeholder').style.display = 'none';
+            document.getElementById('managementPanel').style.display = 'grid';
+            document.getElementById('actionButtons').style.display = 'flex';
+            
+            document.querySelectorAll('.comp-item').forEach(li => li.classList.toggle('active', li.dataset.id === compId));
+            
+            document.getElementById('selected-competition-name').textContent = comp.isim;
+            document.getElementById('selected-competition-details').innerHTML = `<i class="material-icons-round" style="font-size:16px;">category</i> ${comp.kategori || 'Genel'} • ${new Date(comp.tarih).toLocaleDateString('tr-TR')}`;
+            
+            updateParticipantLists(); 
+        }
+
+        function resetSelection() {
+            selectedCompetitionId = null; localStorage.removeItem('activeCompetitionId');
+            document.getElementById('placeholder').style.display = 'flex';
+            document.getElementById('managementPanel').style.display = 'none';
+            document.getElementById('actionButtons').style.display = 'none';
+        }
+
+        function updateParticipantLists() {
+            const comp = allCompetitions[selectedCompetitionId]; if (!comp) return;
+            const participantIds = new Set(Object.keys(comp.katilimcilar || {}));
+            
+            // Katılımcıları al
+            let participants = globalSporcular.filter(s => participantIds.has(String(s.id)));
+            
+            // SIRALAMA MANTIĞI: Veritabanında siralama varsa ona göre diz
+            if (comp.siralama && Array.isArray(comp.siralama)) {
+                participants.sort((a, b) => {
+                    const indexA = comp.siralama.indexOf(String(a.id));
+                    const indexB = comp.siralama.indexOf(String(b.id));
+                    // Listede olmayanları (hata durumunda) sona at
+                    return (indexA === -1 ? 9999 : indexA) - (indexB === -1 ? 9999 : indexB);
+                });
+            } else {
+                // Sıralama yoksa isme göre
+                participants.sort((a,b) => (a.soyadAd || '').localeCompare(b.soyadAd || ''));
+            }
+
+            const available = globalSporcular.filter(s => !participantIds.has(String(s.id)));
+            // Havuz hep isme göre sıralı
+            available.sort((a,b) => (a.soyadAd || '').localeCompare(b.soyadAd || ''));
+            
+            document.getElementById('participant-count').textContent = participants.length;
+            document.getElementById('available-count').textContent = available.length;
+            
+            renderAthleteList('participant-list', participants, 'remove');
+            renderAthleteList('available-list', available, 'add');
+        }
+
+        function renderAthleteList(listId, athleteArray, actionType) {
+            const listEl = document.getElementById(listId); 
+            listEl.innerHTML = '';
+            
+            athleteArray.forEach(athlete => {
+                const li = document.createElement('li'); 
+                li.className = 'athlete-card';
+                if(actionType === 'remove') li.classList.add('draggable-item'); // Sol liste sürüklenebilir
+                li.dataset.id = athlete.id; // Sıralama için ID
+
+                const editButton = `
+                    <button class="icon-btn btn-edit" title="Bilgileri Düzenle" onclick="openAthleteModal('${athlete.firebaseKey}')">
+                        <i class="material-icons-round">edit</i>
+                    </button>`;
+
+                let actions = '';
+                let dragHandle = '';
+
+                if (actionType === 'add') {
+                    // SAĞ LİSTE: Ekle, Düzenle, Sil
+                    actions = `
+                        <button class="icon-btn btn-add" title="Yarışmaya Ekle" onclick="addAthleteToCompetition('${athlete.id}')"><i class="material-icons-round">add</i></button>
+                        ${editButton}
+                        <button class="icon-btn btn-delete" title="Sil" onclick="deleteAthlete('${athlete.firebaseKey}', '${athlete.soyadAd}', '${athlete.id}')"><i class="material-icons-round">delete</i></button>
+                    `;
+                } else {
+                    // SOL LİSTE: Çıkar, Düzenle + Sürükleme İkonu
+                    dragHandle = `<i class="material-icons-round drag-handle">drag_indicator</i>`;
+                    actions = `
+                        <button class="icon-btn btn-remove" title="Yarışmadan Çıkar" onclick="removeAthleteFromCompetition('${athlete.id}')"><i class="material-icons-round">remove</i></button>
+                        ${editButton}
+                    `;
+                }
+
+                li.innerHTML = `
+                    <div style="display:flex; align-items:center;">
+                        ${dragHandle}
+                        <div class="athlete-info">
+                            <div class="athlete-name">${athlete.soyadAd}</div>
+                            <div class="athlete-club"><i class="material-icons-round" style="font-size:12px;">groups</i> ${athlete.kulup || '-'}</div>
+                        </div>
+                    </div>
+                    <div class="card-actions">${actions}</div>
+                `;
+                listEl.appendChild(li);
+            });
+        }
+        
+        function filterAthleteList(filterText, listId) {
+            document.querySelectorAll(`#${listId} .athlete-card`).forEach(item => {
+                item.style.display = item.textContent.toLowerCase().includes(filterText.toLowerCase()) ? 'flex' : 'none';
+            });
+        }
+        
+        // Yeni Sıralamayı Veritabanına Kaydet
+        async function saveNewOrder() {
+            if (!selectedCompetitionId) return;
+            const listItems = document.querySelectorAll('#participant-list .athlete-card');
+            const newOrder = Array.from(listItems).map(item => String(item.dataset.id));
+            
+            // Firebase'de 'siralama' dizisine kaydet
+            await db.ref(`competitions/${selectedCompetitionId}/siralama`).set(newOrder);
+        }
+
+        async function addAthleteToCompetition(athleteId) {
+            if (selectedCompetitionId) {
+                const updates = {};
+                updates[`competitions/${selectedCompetitionId}/katilimcilar/${athleteId}`] = true;
+                
+                // Sıralamanın sonuna ekle
+                const comp = allCompetitions[selectedCompetitionId];
+                let currentOrder = comp.siralama || [];
+                if (!currentOrder.includes(String(athleteId))) {
+                    currentOrder.push(String(athleteId));
+                    updates[`competitions/${selectedCompetitionId}/siralama`] = currentOrder;
+                }
+                
+                await db.ref().update(updates);
+            }
+        }
+
+        async function removeAthleteFromCompetition(athleteId) {
+            if (selectedCompetitionId) {
+                const updates = {};
+                updates[`competitions/${selectedCompetitionId}/katilimcilar/${athleteId}`] = null;
+                
+                // Sıralamadan da çıkart
+                const comp = allCompetitions[selectedCompetitionId];
+                if (comp.siralama) {
+                    const newOrder = comp.siralama.filter(id => String(id) !== String(athleteId));
+                    updates[`competitions/${selectedCompetitionId}/siralama`] = newOrder;
+                }
+                
+                await db.ref().update(updates);
+            }
+        }
+
+        async function deleteAthlete(firebaseKey, name, athleteId) {
+            if (confirm(`DİKKAT! '${name}' adlı sporcuyu sistemden kalıcı olarak silmek üzeresiniz. Bu işlem geri alınamaz. Emin misiniz?`)) {
+                const updates = {}; updates[`/globalSporcular/${firebaseKey}`] = null;
+                for (const compId in allCompetitions) {
+                    if (allCompetitions[compId].katilimcilar?.[athleteId]) {
+                        updates[`/competitions/${compId}/katilimcilar/${athleteId}`] = null;
+                        // Silinen sporcuyu sıralama dizisinden de temizlemek iyi olur (isteğe bağlı ama temizlik için iyidir)
+                        if(allCompetitions[compId].siralama) {
+                             const newOrder = allCompetitions[compId].siralama.filter(id => String(id) !== String(athleteId));
+                             updates[`/competitions/${compId}/siralama`] = newOrder;
+                        }
+                    }
+                }
+                await db.ref().update(updates);
+                showNotification("Sporcu başarıyla silindi.", "success");
+            }
+        }
+        
+        // MODALS
+        function buildModals() {
+            // Add/Edit Athlete Modal
+            document.getElementById('athleteModal').innerHTML = `
+                <div class="modal">
+                    <h3 id="athleteModalTitle">Yeni Sporcu Ekle</h3>
+                    <form id="athleteForm">
+                        <input type="hidden" id="athleteFirebaseKey"><input type="hidden" id="athleteId">
+                        <div class="form-row">
+                            <div class="form-group"><label>Ad</label><input type="text" class="form-control" id="athleteName" required></div>
+                            <div class="form-group"><label>Soyad</label><input type="text" class="form-control" id="athleteSurname" required></div>
+                        </div>
+                        <div class="form-group"><label>Kulüp</label><input type="text" class="form-control" id="athleteClub"></div>
+                        <label class="checkbox-wrapper" id="addToCompetitionWrapper">
+                            <input type="checkbox" id="addToCompetitionCheckbox">
+                            <span id="addToCompetitionLabel">Bu yarışmaya da ekle</span>
+                        </label>
+                        <div style="text-align: right; margin-top: 20px; display:flex; gap:10px; justify-content:flex-end;">
+                            <button type="button" class="btn btn-secondary" onclick="closeModal('athleteModal')">İptal</button>
+                            <button type="submit" class="btn btn-primary">Kaydet</button>
+                        </div>
+                    </form>
+                </div>`;
+            document.getElementById('athleteForm').addEventListener('submit', saveAthlete);
+            
+            // Bulk Upload Modal
+            document.getElementById('bulkAddModal').innerHTML = `
+                <div class="modal">
+                    <h3><i class="material-icons-round">upload_file</i> Toplu Sporcu Ekle</h3>
+                    <p style="color:var(--text-muted); font-size:0.9rem; margin-bottom:20px;">Excel dosyasından (.xlsx) çoklu sporcu yükleyebilirsiniz.</p>
+                    
+                    <div style="background:rgba(255,255,255,0.03); padding:20px; border-radius:12px; text-align:center; border:1px dashed var(--border-glass); margin-bottom:20px;">
+                        <input type="file" id="excelUploadInput" accept=".xlsx, .xls" style="color:white;">
+                    </div>
+                    
+                    <label class="checkbox-wrapper" id="bulkAddToCompetitionWrapper">
+                        <input type="checkbox" id="bulkAddToCompetitionCheckbox">
+                        <span id="bulkAddToCompetitionLabel">Yüklenenleri bu yarışmaya ekle</span>
+                    </label>
+
+                    <div style="display:flex; justify-content:space-between; margin-top:20px;">
+                        <a href="#" id="downloadTemplateBtn" style="color:var(--accent); text-decoration:none; display:flex; align-items:center; gap:5px; font-size:0.9rem;"><i class="material-icons-round">download</i> Örnek Şablon</a>
+                        <div style="display:flex; gap:10px;">
+                            <button type="button" class="btn btn-secondary" onclick="closeModal('bulkAddModal')">Kapat</button>
+                            <button id="saveBulkBtn" class="btn btn-primary" disabled>Yükle</button>
+                        </div>
+                    </div>
+                </div>`;
+            document.getElementById('excelUploadInput').addEventListener('change', handleFileUpload);
+            document.getElementById('downloadTemplateBtn').addEventListener('click', downloadTemplate);
+        }
+
+        function openAthleteModal(firebaseKey = null) {
+            const modal = document.getElementById('athleteModal'); 
+            const form = document.getElementById('athleteForm'); form.reset();
+            document.getElementById('athleteFirebaseKey').value = firebaseKey || '';
+            const wrapper = document.getElementById('addToCompetitionWrapper'); 
+            const checkbox = document.getElementById('addToCompetitionCheckbox');
+            
+            if (selectedCompetitionId && !firebaseKey) {
+                wrapper.style.display = 'flex'; checkbox.checked = true;
+            } else { wrapper.style.display = 'none'; }
+            
+            if (firebaseKey) {
+                const athlete = globalSporcular.find(s => s.firebaseKey === firebaseKey);
+                document.getElementById('athleteModalTitle').textContent = 'Sporcu Düzenle';
+                document.getElementById('athleteId').value = athlete.id; 
+                document.getElementById('athleteName').value = athlete.ad;
+                document.getElementById('athleteSurname').value = athlete.soyad; 
+                document.getElementById('athleteClub').value = athlete.kulup;
+            } else { document.getElementById('athleteModalTitle').textContent = 'Yeni Sporcu Ekle'; }
+            
+            modal.style.display = 'flex';
+        }
+        
+        async function saveAthlete(e) {
+            e.preventDefault();
+            const firebaseKey = document.getElementById('athleteFirebaseKey').value;
+            const id = document.getElementById('athleteId').value;
+            const ad = document.getElementById('athleteName').value.trim(); 
+            const soyad = document.getElementById('athleteSurname').value.trim();
+            const athleteData = { ad, soyad, soyadAd: `${soyad} ${ad}`, kulup: document.getElementById('athleteClub').value.trim() };
+            
+            if (firebaseKey) {
+                await db.ref(`globalSporcular/${firebaseKey}`).update({ ...athleteData, id: parseInt(id) });
+                showNotification('Sporcu bilgileri güncellendi.', 'info');
+            } else {
+                const maxId = globalSporcular.length > 0 ? Math.max(...globalSporcular.map(s => s.id)) : 0;
+                athleteData.id = maxId + 1;
+                await db.ref('globalSporcular').push(athleteData);
+                showNotification('Yeni sporcu eklendi.', 'success');
+                
+                if (document.getElementById('addToCompetitionCheckbox').checked && selectedCompetitionId) {
+                    await addAthleteToCompetition(athleteData.id);
+                }
+            }
+            closeModal('athleteModal');
+        }
+        
+        function openBulkAddModal() {
+            const modal = document.getElementById('bulkAddModal');
+            const wrapper = document.getElementById('bulkAddToCompetitionWrapper'); 
+            const checkbox = document.getElementById('bulkAddToCompetitionCheckbox');
+            
+            if (selectedCompetitionId) {
+                wrapper.style.display = 'flex'; checkbox.checked = true;
+            } else { wrapper.style.display = 'none'; }
+            
+            modal.style.display = 'flex';
+        }
+
+        let parsedAthletesData = [];
+        function handleFileUpload(event) {
+            const file = event.target.files[0]; if (!file) return;
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                const data = new Uint8Array(e.target.result); const workbook = XLSX.read(data, {type: 'array'});
+                parsedAthletesData = XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]]);
+                showNotification(`${parsedAthletesData.length} sporcu bulundu.`, 'info');
+                document.getElementById('saveBulkBtn').disabled = false;
+                document.getElementById('saveBulkBtn').onclick = saveBulkAthletes;
+            };
+            reader.readAsArrayBuffer(file);
+        }
+
+        async function saveBulkAthletes() {
+            if (parsedAthletesData.length === 0) return showNotification("Sporcu bulunamadı.", "error");
+            
+            const shouldAddToCompetition = document.getElementById('bulkAddToCompetitionCheckbox').checked && selectedCompetitionId;
+            let maxId = globalSporcular.reduce((max, s) => s.id > max ? s.id : max, 0);
+            const updates = {};
+            
+            // Eğer yarışmaya da eklenecekse, mevcut sıralama listesini almamız gerek (sıranın sonuna eklemek için)
+            let currentOrder = [];
+            if(shouldAddToCompetition && allCompetitions[selectedCompetitionId].siralama) {
+                currentOrder = [...allCompetitions[selectedCompetitionId].siralama];
+            }
+
+            parsedAthletesData.forEach(row => {
+                maxId++; const ad = row['Ad'] || ''; const soyad = row['Soyad'] || '';
+                const newAthlete = { id: maxId, ad, soyad, soyadAd: `${soyad} ${ad}`.trim(), kulup: row['Kulüp'] || '', sehir: row['Şehir'] || '' };
+                const newKey = db.ref('globalSporcular').push().key;
+                updates[`/globalSporcular/${newKey}`] = newAthlete;
+                
+                if (shouldAddToCompetition) {
+                    updates[`/competitions/${selectedCompetitionId}/katilimcilar/${newAthlete.id}`] = true;
+                    // Yeni eklenenleri de sıraya koy
+                    currentOrder.push(String(newAthlete.id));
+                }
+            });
+            
+            if(shouldAddToCompetition) {
+                updates[`/competitions/${selectedCompetitionId}/siralama`] = currentOrder;
+            }
+
+            await db.ref().update(updates);
+            showNotification(`${parsedAthletesData.length} sporcu başarıyla eklendi.`, 'success');
+            closeModal('bulkAddModal');
+        }
+
+        function downloadTemplate() {
+            const ws = XLSX.utils.aoa_to_sheet([["Ad", "Soyad", "Kulüp", "Şehir"]]);
+            const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, "Sporcular");
+            XLSX.writeFile(wb, "Sporcu_Ekleme_Sablonu.xlsx");
+        }
+
+        function closeModal(id) { document.getElementById(id).style.display = 'none'; }
+
+        function showNotification(message, type = 'success'){
+            const toast = document.createElement('div');
+            toast.className = `toast-notification ${type}`;
+            toast.innerHTML = `<i class="material-icons-round">${type==='success'?'check_circle': type==='info'?'info':'error'}</i><span>${message}</span>`;
+            document.body.appendChild(toast);
+            setTimeout(() => { 
+                toast.style.animation = 'none'; 
+                toast.style.opacity = '0'; 
+                setTimeout(()=>toast.remove(), 300); 
+            }, 4000); 
+        }
+
+    </script>
+</body>
+</html>

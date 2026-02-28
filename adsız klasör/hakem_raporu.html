@@ -1,0 +1,1553 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8" />
+    <title>Hakem Analizi - Firebase Realtime DB'den PDF Rapor</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+
+    <!-- Firebase (Compat v9) -->
+    <script src="https://www.gstatic.com/firebasejs/9.6.7/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.6.7/firebase-database-compat.js"></script>
+
+    <!-- Chart.js: Grafikler -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- html2canvas: HTML'den görüntü -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <!-- jsPDF: PDF oluşturma -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+
+    <style>
+        :root {
+            --bg: #f3f4f6;
+            --card: #ffffff;
+            --accent: #f97316;
+            --accent-soft: rgba(249, 115, 22, 0.08);
+            --text: #111827;
+            --muted: #6b7280;
+            --border: #e5e7eb;
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            padding: 16px;
+            font-family: system-ui, -apple-system, BlinkMacSystemFont, "Inter", sans-serif;
+            background: #e5e7eb;
+            color: var(--text);
+        }
+
+        .container {
+            max-width: 1100px;
+            margin: 0 auto;
+        }
+
+        h1, h2, h3 {
+            margin: 0;
+        }
+
+        .card {
+            background: var(--card);
+            border-radius: 18px;
+            padding: 16px 20px;
+            margin-bottom: 16px;
+            border: 1px solid var(--border);
+            box-shadow:
+                0 8px 20px rgba(15, 23, 42, 0.08),
+                0 0 0 1px rgba(15, 23, 42, 0.02);
+        }
+
+        .card-header {
+            display: flex;
+            justify-content: space-between;
+            gap: 12px;
+            align-items: center;
+            margin-bottom: 12px;
+        }
+
+        .pill {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 4px 10px;
+            border-radius: 999px;
+            font-size: 11px;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            background: var(--accent-soft);
+            color: var(--accent);
+        }
+        .pill::before {
+            content: "";
+            width: 6px;
+            height: 6px;
+            border-radius: 999px;
+            background: var(--accent);
+        }
+
+        .muted {
+            color: var(--muted);
+            font-size: 13px;
+        }
+
+        .btn {
+            border-radius: 999px;
+            border: 1px solid rgba(148, 163, 184, 0.6);
+            background: linear-gradient(135deg, #fbbf24, #f97316);
+            color: #111827;
+            font-weight: 600;
+            font-size: 13px;
+            padding: 8px 16px;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            box-shadow:
+                0 10px 20px rgba(249, 115, 22, 0.35),
+                0 0 0 1px rgba(248, 250, 252, 0.5);
+        }
+
+        .btn:disabled {
+            opacity: 0.4;
+            cursor: not-allowed;
+            box-shadow: none;
+        }
+
+        .btn-ghost {
+            background: #ffffff;
+            color: var(--muted);
+            border-color: rgba(148, 163, 184, 0.6);
+            box-shadow: none;
+        }
+
+        .btn .icon {
+            font-size: 16px;
+        }
+
+        .row {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+            align-items: center;
+        }
+
+        .tagline {
+            font-size: 13px;
+            color: var(--muted);
+            margin-top: 4px;
+        }
+
+        .chart-card {
+            margin-top: 12px;
+        }
+
+        .chart-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: baseline;
+            gap: 8px;
+            margin-bottom: 6px;
+        }
+
+        .chart-title {
+            font-size: 16px;
+        }
+
+        .chart-subtitle {
+            font-size: 12px;
+            color: var(--muted);
+        }
+
+        canvas {
+            max-width: 100%;
+            background: #ffffff;
+            border-radius: 12px;
+        }
+
+        .analysis-text {
+            margin-top: 8px;
+            font-size: 13px;
+            color: var(--muted);
+            line-height: 1.6;
+        }
+
+        .analysis-text strong {
+            color: #111827;
+        }
+
+        .two-col {
+            display: grid;
+            grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr);
+            gap: 12px;
+        }
+
+        .sheet-title {
+            font-size: 15px;
+            margin-bottom: 4px;
+        }
+
+        .sheet-subtitle {
+            font-size: 12px;
+            color: var(--muted);
+            margin-bottom: 6px;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 11px;
+        }
+
+        thead {
+            background: #f9fafb;
+        }
+
+        th, td {
+            border: 1px solid #e5e7eb;
+            padding: 3px 5px;
+            text-align: left;
+            white-space: nowrap;
+        }
+
+        th {
+            font-weight: 600;
+            color: #111827;
+        }
+
+        tbody tr:nth-child(even) {
+            background: #f9fafb;
+        }
+
+        tbody tr:nth-child(odd) {
+            background: #ffffff;
+        }
+
+        .sheet-card {
+            margin-top: 10px;
+        }
+
+        .sheet-note {
+            font-size: 11px;
+            color: var(--muted);
+            margin-top: 4px;
+        }
+
+        @media (max-width: 900px) {
+            .two-col {
+                grid-template-columns: minmax(0, 1fr);
+            }
+        }
+
+        #reportContainer {
+            margin-top: 8px;
+        }
+
+        .input-compact {
+            padding: 6px 10px;
+            border-radius: 999px;
+            border: 1px solid var(--border);
+            font-size: 12px;
+            min-width: 260px;
+        }
+    </style>
+</head>
+<body>
+<div class="container">
+    <!-- ÜST KART: Firebase'den çek + PDF butonları -->
+    <div class="card">
+        <div class="card-header">
+            <div>
+                <div class="pill">Hakem Analizi • Firebase Realtime DB</div>
+                <h1>Canlı Veriden Otomatik PDF Hakem Raporu</h1>
+                <p class="tagline">
+                    Firebase Realtime DB'deki <strong>-Od9Tcbf6CnbTVmzOjiA</strong> yarışmasının
+                    verilerini çek, zorunlu seri mantığıyla tüm istatistikleri hesapla ve
+                    <strong>grafik + metin + tüm ham tabloları</strong> tek bir PDF çıktıda topla.
+                    Tüm sayısal değerler 3 basamaklı (0.000) formatındadır.
+                </p>
+            </div>
+            <div class="row">
+                <input
+                    id="competitionIdInput"
+                    class="input-compact"
+                    type="text"
+                    value="-Od9Tcbf6CnbTVmzOjiA"
+                    title="Yarışma ID"
+                />
+                <button id="fetchBtn" class="btn">
+                    <span class="icon">🔥</span> Firebase'den Verileri Çek
+                </button>
+                <button id="pdfBtn" class="btn btn-ghost" disabled>
+                    <span class="icon">📄</span> PDF Raporu Oluştur
+                </button>
+            </div>
+        </div>
+        <p id="status" class="muted">Adım 1: Firebase yapılandırmasını doldur, yarışma ID'sini kontrol et ve verileri çek.</p>
+    </div>
+
+    <!-- RAPOR İÇERİĞİ (PDF bu alanı çekecek) -->
+    <div id="reportContainer">
+        <!-- JS ile doldurulacak -->
+    </div>
+</div>
+
+<script>
+    /****************************************************
+     * 1) Firebase Ayarları
+     ****************************************************/
+    // TODO: Burayı kendi Firebase projenle doldur
+    const firebaseConfig = {
+        apiKey: "API_KEYIN",
+        authDomain: "PROJEN.firebaseapp.com",
+        databaseURL: "https://analig2025-default-rtdb.firebaseio.com",
+        projectId: "PROJE_ID",
+        storageBucket: "PROJE_ID.appspot.com",
+        messagingSenderId: "MESAJ_ID",
+        appId: "APP_ID"
+    };
+
+    if (!firebase.apps.length) {
+        firebase.initializeApp(firebaseConfig);
+    }
+
+    /****************************************************
+     * 2) Global Değişkenler ve Yardımcılar
+     ****************************************************/
+    const fetchBtn = document.getElementById("fetchBtn");
+    const pdfBtn   = document.getElementById("pdfBtn");
+    const statusEl = document.getElementById("status");
+    const reportContainer = document.getElementById("reportContainer");
+    const competitionIdInput = document.getElementById("competitionIdInput");
+
+    let parsedData = null;
+    let charts = [];
+
+    const nf3 = new Intl.NumberFormat("tr-TR", {
+        minimumFractionDigits: 3,
+        maximumFractionDigits: 3
+    });
+
+    function fmt3(value) {
+        const num = Number(value);
+        if (!isFinite(num)) return "";
+        return nf3.format(num);
+    }
+
+    function isNumeric(val) {
+        return typeof val === "number" || (!isNaN(val) && val !== null && val !== "");
+    }
+
+    function clearCharts() {
+        charts.forEach(ch => ch.destroy());
+        charts = [];
+    }
+
+    /****************************************************
+     * 3) Firebase'den Veriyi Çek ve İstatistikleri Hesapla
+     ****************************************************/
+    fetchBtn.addEventListener("click", () => {
+        const compId = competitionIdInput.value.trim();
+        if (!compId) {
+            alert("Lütfen yarışma ID gir.");
+            return;
+        }
+        fetchFromFirebase(compId);
+    });
+
+    async function fetchFromFirebase(compId) {
+        try {
+            statusEl.textContent = "Firebase'den veriler çekiliyor...";
+            fetchBtn.disabled = true;
+            pdfBtn.disabled = true;
+
+            const db = firebase.database();
+            const compRef = db.ref("competitions/" + compId);
+            const sporRef = db.ref("globalSporcular");
+
+            const [compSnap, sporSnap] = await Promise.all([
+                compRef.once("value"),
+                sporSnapOnce(sporRef)
+            ]);
+
+            const comp = compSnap.val();
+            const globalSporcular = sporSnap.val();
+
+            if (!comp) {
+                throw new Error("Belirtilen ID için competition kaydı bulunamadı: " + compId);
+            }
+
+            const athleteById = {};
+            if (globalSporcular) {
+                Object.values(globalSporcular).forEach(s => {
+                    if (s && typeof s.id !== "undefined") {
+                        athleteById[s.id] = s;
+                    }
+                });
+            }
+
+            parsedData = computeStatsFromRealtime(comp, athleteById);
+            buildReport(parsedData);
+
+            statusEl.textContent = "Veriler çekildi ve rapor oluşturuldu. PDF için 'PDF Raporu Oluştur' butonuna bas.";
+            pdfBtn.disabled = false;
+        } catch (err) {
+            console.error(err);
+            alert("Firebase'den veri çekilirken hata: " + err.message);
+            statusEl.textContent = "Hata: " + err.message;
+        } finally {
+            fetchBtn.disabled = false;
+        }
+    }
+
+    function sporSnapOnce(ref) {
+        // Bazı ortamlarda doğrudan ref.once kullanımı sorun çıkarırsa diye ayrı fonksiyon
+        return ref.once("value");
+    }
+
+    function computeStatsFromRealtime(comp, athleteById) {
+        const cim = comp.cimnastikVerileri || {};
+        const apps = {
+            "Yer": "yerPuanlari",
+            "Denge": "dengePuanlari",
+            "Barfiks": "barfiksPuanlari",
+            "Atlama": "atlamaPuanlari"
+        };
+        const baseKeys = {
+            "Yer": "yer",
+            "Denge": "denge",
+            "Barfiks": "barfiks",
+            "Atlama": "atlama"
+        };
+
+        const apparatusStats = [];
+        const judge_stats = {};
+        const clubRows = [];
+        const eDiffRoutines = [];
+
+        // 3.1) Alet istatistikleri + hakem & kulüp & E farkları
+        Object.entries(apps).forEach(([appName, scoresKey]) => {
+            const scores = (cim[scoresKey] || {});
+            const baseKey = baseKeys[appName];
+            const kriter = (cim.kriterler && cim.kriterler[baseKey]) || {};
+            const hakemler = kriter.hakemler || {};
+
+            const d_vals = [];
+            const e_vals = [];
+            const final_vals = [];
+
+            Object.entries(scores).forEach(([athleteId, s]) => {
+                if (!s || s.durumNotu !== "Yarıştı") return;
+
+                const dTop = s.dToplami;
+                const ePuani = s.ePuani;
+                const sonPuan = s.sonPuan;
+                if (isNumeric(dTop) && isNumeric(ePuani) && isNumeric(sonPuan)) {
+                    d_vals.push(Number(dTop));
+                    e_vals.push(Number(ePuani));
+                    final_vals.push(Number(sonPuan));
+                }
+
+                const E1 = isNumeric(s.E1) ? Number(s.E1) : null;
+                const E2 = isNumeric(s.E2) ? Number(s.E2) : null;
+
+                // Hakem global E istatistikleri
+                if (E1 !== null) {
+                    const jName = hakemler.E1 || "E1";
+                    const key = jName + "||E1";
+                    if (!judge_stats[key]) {
+                        judge_stats[key] = {
+                            Hakem: jName,
+                            Panel: "E1",
+                            ToplamEKesinti: 0,
+                            SeriSayisi: 0
+                        };
+                    }
+                    judge_stats[key].ToplamEKesinti += E1;
+                    judge_stats[key].SeriSayisi += 1;
+                }
+                if (E2 !== null) {
+                    const jName = hakemler.E2 || "E2";
+                    const key = jName + "||E2";
+                    if (!judge_stats[key]) {
+                        judge_stats[key] = {
+                            Hakem: jName,
+                            Panel: "E2",
+                            ToplamEKesinti: 0,
+                            SeriSayisi: 0
+                        };
+                    }
+                    judge_stats[key].ToplamEKesinti += E2;
+                    judge_stats[key].SeriSayisi += 1;
+                }
+
+                // Kulüp bazlı E ortalama (E1+E2)/2
+                if (E1 !== null && E2 !== null) {
+                    const athlete = athleteById[Number(athleteId)];
+                    const kulup = athlete && athlete.kulup ? athlete.kulup : "Bilinmiyor";
+                    const avgE = (E1 + E2) / 2;
+                    const bonus = isNumeric(s.bonus) ? Number(s.bonus) : 0;
+                    clubRows.push({ kulup, appName, avgE, bonus });
+
+                    // E fark rutinler
+                    const diff = E1 - E2;
+                    const absdiff = Math.abs(diff);
+                    const sporcu = athlete && athlete.soyadAd ? athlete.soyadAd : "ID " + athleteId;
+                    eDiffRoutines.push({
+                        Sporcu: sporcu,
+                        Kulup: kulup,
+                        Alet: appName,
+                        E1,
+                        E2,
+                        Fark: diff,
+                        MutlakFark: absdiff,
+                        HakemE1: hakemler.E1 || "E1",
+                        HakemE2: hakemler.E2 || "E2"
+                    });
+                }
+            });
+
+            if (d_vals.length > 0) {
+                const sum = arr => arr.reduce((a, v) => a + v, 0);
+                apparatusStats.push({
+                    Alet: appName,
+                    SeriSayisi: d_vals.length,
+                    OrtalamaD: sum(d_vals) / d_vals.length,
+                    OrtalamaE_Puani: sum(e_vals) / e_vals.length,
+                    OrtalamaFinal: sum(final_vals) / final_vals.length
+                });
+            }
+        });
+
+        // 3.2) Hakem global E
+        const judgeGlobalStats = Object.values(judge_stats).map(st => {
+            return {
+                Hakem: st.Hakem,
+                Panel: st.Panel,
+                ToplamEKesinti: st.ToplamEKesinti,
+                SeriSayisi: st.SeriSayisi,
+                OrtalamaEKesinti: st.ToplamEKesinti / (st.SeriSayisi || 1)
+            };
+        });
+
+        // 3.3) Kulüp_E_Kesinti_Detay
+        const clubMap = {};
+        clubRows.forEach(r => {
+            const key = r.kulup + "||" + r.appName;
+            if (!clubMap[key]) {
+                clubMap[key] = {
+                    Kulup: r.kulup,
+                    Alet: r.appName,
+                    ToplamEKesinti: 0,
+                    SeriSayisi: 0,
+                    ToplamBonus: 0,
+                    BonusSeriSayisi: 0
+                };
+            }
+            const st = clubMap[key];
+            st.ToplamEKesinti += r.avgE;
+            st.SeriSayisi += 1;
+            st.ToplamBonus += r.bonus;
+            if (r.bonus > 0) st.BonusSeriSayisi += 1;
+        });
+        const clubEPenalty = Object.values(clubMap).map(st => {
+            st.OrtalamaEKesinti = st.ToplamEKesinti / (st.SeriSayisi || 1);
+            return st;
+        });
+
+        // 3.4) FIG_E_Fark_Ozet
+        const bins = [
+            { name: "0.0 – 0.1", lo: 0.0, hi: 0.1000000000001 },
+            { name: "0.1 – 0.3", lo: 0.1, hi: 0.3000000000001 },
+            { name: "0.3 – 0.5", lo: 0.3, hi: 0.5000000000001 },
+            { name: "> 0.5",      lo: 0.5, hi: Infinity }
+        ];
+        const counts = {};
+        bins.forEach(b => { counts[b.name] = 0; });
+        eDiffRoutines.forEach(r => {
+            const d = r.MutlakFark;
+            for (const b of bins) {
+                if (d >= b.lo && d < b.hi) {
+                    counts[b.name] += 1;
+                    break;
+                }
+            }
+        });
+        const figDiffSummary = Object.entries(counts).map(([name, count]) => ({
+            Kategori: name,
+            SeriSayisi: count
+        }));
+
+        return {
+            apparatusStats,
+            judgeGlobalStats,
+            clubEPenalty,
+            figDiffSummary,
+            eDiffRoutines
+        };
+    }
+
+    /****************************************************
+     * 4) Raporı Ekrana Çiz (Grafikler + Metin + Tablolar)
+     ****************************************************/
+    function buildReport(data) {
+        clearCharts();
+        reportContainer.innerHTML = "";
+
+        // ANA BAŞLIK KARTI
+        const headerCard = document.createElement("div");
+        headerCard.className = "card";
+        headerCard.innerHTML = `
+            <h2>Hakem Analizi Genel Raporu</h2>
+            <p class="muted">
+                Bu rapor; zorunlu seriler üzerinden yapılan bu yarışmada
+                <strong>alet içi performans</strong>, <strong>kulüp bazlı E profili</strong>
+                ve <strong>hakem panel tutarlılığı</strong> hakkında kapsamlı bir bakış sunar.
+                Aşağıdaki grafikler ve metinler, her alet için D/E dağılımını, bonus alan serileri,
+                hakemler arası farkları ve kulüplerin kesinti profillerini detaylandırır.
+                Tüm sayılar 3 basamaklı (0.000) formatta gösterilir.
+            </p>
+        `;
+        reportContainer.appendChild(headerCard);
+
+        buildApparatusCard(data.apparatusStats);
+        buildJudgeGlobalCard(data.judgeGlobalStats);
+        buildClubPenaltyCard(data.clubEPenalty);
+        buildFIGDiffCard(data.figDiffSummary);
+        buildEDiffScatterCard(data.eDiffRoutines);
+        buildApparatusConsistencyExtraCard(data.eDiffRoutines);
+        buildJudgePairConsistencyCard(data.eDiffRoutines);
+        buildGlobalSummaryCard();
+        buildRawSheetsSection(data);
+    }
+
+    function buildApparatusCard(apparatusStats) {
+        if (!apparatusStats || !apparatusStats.length) return;
+
+        const card = document.createElement("div");
+        card.className = "card chart-card two-col";
+
+        const left = document.createElement("div");
+        const right = document.createElement("div");
+
+        const chartContainer = document.createElement("div");
+        chartContainer.innerHTML = `
+            <div class="chart-header">
+                <div class="chart-title">Alet Bazında Ortalama D, E ve Final Puanları</div>
+                <div class="chart-subtitle">Zorunlu seride D puanı 4.700, E puanı 10.000 üzerinden başlar.</div>
+            </div>
+            <canvas id="apChart"></canvas>
+        `;
+        left.appendChild(chartContainer);
+
+        const labels = apparatusStats.map(r => r.Alet);
+        const avgD = apparatusStats.map(r => Number(r.OrtalamaD || 0));
+        const avgE = apparatusStats.map(r => Number(r.OrtalamaE_Puani || 0));
+        const avgFinal = apparatusStats.map(r => Number(r.OrtalamaFinal || 0));
+
+        const ctx = chartContainer.querySelector("canvas").getContext("2d");
+        const apChart = new Chart(ctx, {
+            type: "bar",
+            data: {
+                labels,
+                datasets: [
+                    { label: "Ortalama D", data: avgD, borderWidth: 1 },
+                    { label: "Ortalama E", data: avgE, borderWidth: 1 },
+                    { label: "Ortalama Final", data: avgFinal, borderWidth: 1 }
+                ]
+            },
+            options: {
+                responsive: true,
+                plugins: {
+                    legend: { labels: { color: "#111827", font: { size: 11 } } }
+                },
+                scales: {
+                    x: {
+                        ticks: { color: "#6b7280", font: { size: 11 } },
+                        grid: { display: false }
+                    },
+                    y: {
+                        ticks: {
+                            color: "#6b7280",
+                            font: { size: 11 },
+                            callback: (value) => fmt3(value)
+                        },
+                        grid: { color: "#e5e7eb" }
+                    }
+                }
+            }
+        });
+        charts.push(apChart);
+
+        const analysis = document.createElement("div");
+        analysis.className = "analysis-text";
+        analysis.innerHTML = `
+            <p>
+                Bu yarışma <strong>zorunlu seriler</strong> üzerinden yürütülmektedir. Her alette
+                sporcular FIG’e uygun standart bir seri yapmakla yükümlüdür. D puanı için hedef
+                <strong>4.700</strong>, E puanı için başlangıç <strong>10.000</strong>’dir.
+                Alet bazında görülen D/E/Final ortalamaları, bu zorunlu serinin
+                <strong>alet içindeki uygulama kalitesini</strong> gösterir;
+                aletler arası doğrudan kıyaslama için kullanılmamalıdır.
+            </p>
+            <p>
+                D puanının 4.700’ün altına düştüğü seriler, genellikle zorunlu eleman eksikliği
+                veya kompozisyon hatası içerir. İlgili alette D ortalamasının 4.700’e ne kadar
+                yakın olduğu ve 4.700 altına düşen seri oranı, sporcuların zorunlu seriye
+                <strong>yapısal hakimiyetini</strong> yansıtır.
+            </p>
+            <p>
+                E puanı 10.000’den başlar ve hatalarla aşağı çekilir. Aynı alet içinde
+                ortalama E puanının yüksek olması, zorunlu serinin <strong>temiz ve ritmik
+                icra edildiğini</strong>; düşük olması ise form, iniş ve bağlantı hatalarının
+                daha sık tekrarlandığını gösterir. Toplam E kesintisinin belirlenmiş eşik
+                değerinin altında kalması durumunda verilen <strong>+0.300 bonus</strong>,
+                bu temizlik seviyesinin üst segmentini temsil eder. Raporun ilerleyen
+                bölümlerinde her alet için E dağılımı, bonus alan seri sayısı ve hakem
+                farkları ayrıca detaylandırılmaktadır.
+            </p>
+        `;
+        right.appendChild(analysis);
+
+        card.appendChild(left);
+        card.appendChild(right);
+        reportContainer.appendChild(card);
+    }
+
+    function buildJudgeGlobalCard(judgeGlobalStats) {
+        if (!judgeGlobalStats || !judgeGlobalStats.length) return;
+
+        const card = document.createElement("div");
+        card.className = "card chart-card two-col";
+
+        const left = document.createElement("div");
+        const right = document.createElement("div");
+
+        const sorted = [...judgeGlobalStats].sort((a, b) =>
+            Number(b.ToplamEKesinti || 0) - Number(a.ToplamEKesinti || 0)
+        );
+
+        const labels = sorted.map(r => `${r.Hakem} (${r.Panel})`);
+        const avgE = sorted.map(r => Number(r.OrtalamaEKesinti || 0));
+
+        const chartContainer = document.createElement("div");
+        chartContainer.innerHTML = `
+            <div class="chart-header">
+                <div class="chart-title">Hakem Bazlı Ortalama E Kesintisi</div>
+                <div class="chart-subtitle">Zorunlu seride hakemlerin genel "sıkılık" seviyesini gösterir.</div>
+            </div>
+            <canvas id="judgeGlobalChart"></canvas>
+        `;
+        left.appendChild(chartContainer);
+
+        const ctx = chartContainer.querySelector("canvas").getContext("2d");
+        const judgeChart = new Chart(ctx, {
+            type: "bar",
+            data: {
+                labels,
+                datasets: [
+                    {
+                        label: "Ort. E Kesinti",
+                        data: avgE,
+                        borderWidth: 1
+                    }
+                ]
+            },
+            options: {
+                indexAxis: "y",
+                responsive: true,
+                plugins: {
+                    legend: { labels: { color: "#111827", font: { size: 11 } } }
+                },
+                scales: {
+                    x: {
+                        ticks: {
+                            color: "#6b7280",
+                            font: { size: 11 },
+                            callback: (value) => fmt3(value)
+                        },
+                        grid: { color: "#e5e7eb" }
+                    },
+                    y: {
+                        ticks: { color: "#6b7280", font: { size: 11 } },
+                        grid: { display: false }
+                    }
+                }
+            }
+        });
+        charts.push(judgeChart);
+
+        const analysis = document.createElement("div");
+        analysis.className = "analysis-text";
+        analysis.innerHTML = `
+            <p>
+                Bu grafikte her hakem için <strong>tüm aletler ve tüm kulüpler</strong> üzerinden
+                uygulanan ortalama E kesintisi görülmektedir. Zorunlu seri yapısı nedeniyle
+                sporcuların içerik zorlukları birbirine çok yakın olduğundan, ortalama E kesintisi
+                hakemlerin genel <strong>"sıkılık" düzeyini</strong> yansıtır.
+            </p>
+            <p>
+                Ortalama E kesintisi yüksek olan hakemler serilere daha sert yaklaşmış; düşük olanlar
+                ise daha yumuşak değerlendirme eğilimi göstermiş olabilir. FIG açısından ideal durum,
+                panel içindeki hakemlerin bu grafikte birbirine <strong>yakın kümelenmesidir</strong>.
+                Grafikte birbirinden ciddi olarak ayrışan hakemler, eğitim ve kalibrasyon toplantılarında
+                <strong>öncelikli inceleme</strong> grubuna alınmalıdır.
+            </p>
+            <p>
+                Bu grafiği kulüp bazlı E analizleriyle birlikte okuyarak, “belirli kulüplere sistematik
+                olarak daha az / daha çok kesinti uygulanıyor mu?” sorusu da yanıtlanabilir.
+                Eğer bir hakem, bazı kulüplerde belirgin şekilde düşük kesinti, bazı kulüplerde
+                belirgin şekilde yüksek kesinti uyguluyorsa; bu durum <strong>panel içi tarafsızlık</strong>
+                açısından yakından takip edilmelidir.
+            </p>
+        `;
+        right.appendChild(analysis);
+
+        card.appendChild(left);
+        card.appendChild(right);
+        reportContainer.appendChild(card);
+    }
+
+    function buildClubPenaltyCard(clubEPenalty) {
+        if (!clubEPenalty || !clubEPenalty.length) return;
+
+        const card = document.createElement("div");
+        card.className = "card chart-card two-col";
+
+        const left = document.createElement("div");
+        const right = document.createElement("div");
+
+        const agg = {};
+        clubEPenalty.forEach(r => {
+            const club = r.Kulup || "Bilinmiyor";
+            const sumE = Number(r.ToplamEKesinti || 0);
+            if (!agg[club]) agg[club] = 0;
+            agg[club] += sumE;
+        });
+
+        const entries = Object.entries(agg).map(([club, sumE]) => ({ club, sumE }));
+        entries.sort((a, b) => b.sumE - a.sumE);
+        const top10 = entries.slice(0, 10);
+
+        const labels = top10.map(x => x.club);
+        const values = top10.map(x => x.sumE);
+
+        const chartContainer = document.createElement("div");
+        chartContainer.innerHTML = `
+            <div class="chart-header">
+                <div class="chart-title">Kulüpler İçin Toplam E Kesintisi (Top 10)</div>
+                <div class="chart-subtitle">Zorunlu seride teknik kalite ve panel yaklaşımı beraber okunmalıdır.</div>
+            </div>
+            <canvas id="clubChart"></canvas>
+        `;
+        left.appendChild(chartContainer);
+
+        const ctx = chartContainer.querySelector("canvas").getContext("2d");
+        const clubChart = new Chart(ctx, {
+            type: "bar",
+            data: {
+                labels,
+                datasets: [
+                    { label: "Toplam E Kesintisi", data: values, borderWidth: 1 }
+                ]
+            },
+            options: {
+                responsive: true,
+                plugins: {
+                    legend: { labels: { color: "#111827", font: { size: 11 } } }
+                },
+                scales: {
+                    x: {
+                        ticks: { color: "#6b7280", font: { size: 11 } },
+                        grid: { display: false }
+                    },
+                    y: {
+                        ticks: {
+                            color: "#6b7280",
+                            font: { size: 11 },
+                            callback: (value) => fmt3(value)
+                        },
+                        grid: { color: "#e5e7eb" }
+                    }
+                }
+            }
+        });
+        charts.push(clubChart);
+
+        const analysis = document.createElement("div");
+        analysis.className = "analysis-text";
+        analysis.innerHTML = `
+            <p>
+                Zorunlu seride tüm sporcular aynı içeriği icra ettiğinden, kulüpler arası toplam E kesintisi
+                farkları doğrudan <strong>serilerin teknik kalitesini</strong> ve kısmen de hakem panelinin
+                bu kulüplere yaklaşımını yansıtır. Toplam E kesintisi en yüksek olan kulüplerin serilerinde,
+                form, iniş ve bağlantı hatalarının daha sık görüldüğü; toplam E kesintisi düşük kulüplerin
+                ise zorunlu seriyi daha temiz icra ettiği söylenebilir.
+            </p>
+            <p>
+                Bu grafiği alet bazlı detaylar ve hakem farkları ile birlikte okuyarak şu sorulara yanıt aranabilir:
+            </p>
+            <ul>
+                <li>Hangi kulüpler belirli aletlerde sistematik olarak <strong>daha fazla</strong> kesinti alıyor?</li>
+                <li>Aynı kulübün sporcuları, farklı hakem panellerinde benzer kesinti profilini koruyor mu?</li>
+                <li>Bonus alan seriler kulüplere nasıl dağılmış; bazı kulüpler bonuslarda öne çıkıyor mu?</li>
+            </ul>
+            <p>
+                Eğer belirli kulüpler için, birden fazla alette ve farklı hakem kombinasyonlarında
+                <strong>sürekli yüksek</strong> veya <strong>sürekli düşük</strong> kesinti profili görülüyorsa,
+                bu durum teknik komite ve hakem kurulu için detaylı bir inceleme konusu haline gelebilir.
+            </p>
+        `;
+        right.appendChild(analysis);
+
+        card.appendChild(left);
+        card.appendChild(right);
+        reportContainer.appendChild(card);
+    }
+
+    function buildFIGDiffCard(figDiffSummary) {
+        if (!figDiffSummary || !figDiffSummary.length) return;
+
+        const card = document.createElement("div");
+        card.className = "card chart-card two-col";
+
+        const left = document.createElement("div");
+        const right = document.createElement("div");
+
+        const labels = figDiffSummary.map(r => r.Kategori);
+        const counts = figDiffSummary.map(r => Number(r.SeriSayisi || 0));
+
+        const chartContainer = document.createElement("div");
+        chartContainer.innerHTML = `
+            <div class="chart-header">
+                <div class="chart-title">E1–E2 Fark Dağılımı (FIG Benzeri Eşikler)</div>
+                <div class="chart-subtitle">Fark ne kadar düşükse, hakem paneli o kadar uyumlu kabul edilir.</div>
+            </div>
+            <canvas id="figChart"></canvas>
+        `;
+        left.appendChild(chartContainer);
+
+        const ctx = chartContainer.querySelector("canvas").getContext("2d");
+        const figChart = new Chart(ctx, {
+            type: "doughnut",
+            data: {
+                labels,
+                datasets: [
+                    { label: "Seri Sayısı", data: counts }
+                ]
+            },
+            options: {
+                responsive: true,
+                plugins: {
+                    legend: { labels: { color: "#111827", font: { size: 11 } } }
+                }
+            }
+        });
+        charts.push(figChart);
+
+        const total = counts.reduce((a, v) => a + v, 0);
+        const cat0 = figDiffSummary.find(r => r.Kategori === "0.0 – 0.1");
+        const cat3 = figDiffSummary.find(r => r.Kategori === "> 0.5");
+        const rate0 = cat0 ? (Number(cat0.SeriSayisi || 0) / (total || 1)) * 100 : 0;
+        const rate3 = cat3 ? (Number(cat3.SeriSayisi || 0) / (total || 1)) * 100 : 0;
+
+        const analysis = document.createElement("div");
+        analysis.className = "analysis-text";
+        analysis.innerHTML = `
+            <p>
+                Tüm serilerin yaklaşık <strong>${fmt3(rate0)}</strong>%'inde E1–E2 farkı
+                <strong>0.1 puan ve altında</strong>. Bu, hakem panelinde oldukça yüksek bir temel uyum
+                bulunduğunu ve FIG beklentileri açısından olumlu bir tabloyu gösterir.
+            </p>
+            <p>
+                Farkın <strong>0.5 puandan büyük</strong> olduğu serilerin oranı ise yaklaşık
+                <strong>${fmt3(rate3)}</strong>% seviyesindedir. FIG uygulamalarında bu tür farklar genellikle
+                “daha yakından incelenmesi gereken seri” olarak işaretlenir. Bu seriler, hakem değerlendirme
+                toplantılarında <strong>vak’a örneği</strong> olarak kullanılabilir.
+            </p>
+            <p>
+                Uygulamada öneri: Farkı 0.5 üzerindeki seriler için kısa bir <em>“panel review” listesi</em>
+                çıkarılabilir. Bu listede, hakemlerin notları, video linkleri ve varsa itirazlar bir araya
+                getirilerek, bir sonraki yarışma için panel içi standardizasyon derinleştirilebilir.
+            </p>
+        `;
+        right.appendChild(analysis);
+
+        card.appendChild(left);
+        card.appendChild(right);
+        reportContainer.appendChild(card);
+    }
+
+    function buildEDiffScatterCard(eDiffRoutines) {
+        if (!eDiffRoutines || !eDiffRoutines.length) return;
+
+        const card = document.createElement("div");
+        card.className = "card chart-card two-col";
+
+        const left = document.createElement("div");
+        const right = document.createElement("div");
+
+        const points = eDiffRoutines.map(r => ({
+            x: Number(r.E1 || 0),
+            y: Number(r.E2 || 0),
+            label: `${r.Sporcu || ""} (${r.Alet || ""})`
+        }));
+
+        const chartContainer = document.createElement("div");
+        chartContainer.innerHTML = `
+            <div class="chart-header">
+                <div class="chart-title">E1 ve E2 Kesintileri Arasındaki İlişki</div>
+                <div class="chart-subtitle">Noktalar y=x doğrusuna ne kadar yakınsa, iki hakem o kadar paralel çalışıyor.</div>
+            </div>
+            <canvas id="scatterChart"></canvas>
+        `;
+        left.appendChild(chartContainer);
+
+        const ctx = chartContainer.querySelector("canvas").getContext("2d");
+        const scatterChart = new Chart(ctx, {
+            type: "scatter",
+            data: {
+                datasets: [
+                    {
+                        label: "Seriler",
+                        data: points,
+                        pointRadius: 3
+                    }
+                ]
+            },
+            options: {
+                parsing: false,
+                plugins: {
+                    legend: { labels: { color: "#111827", font: { size: 11 } } },
+                    tooltip: {
+                        callbacks: {
+                            label: function (ctx) {
+                                const d = ctx.raw;
+                                return `${d.label}: E1=${fmt3(d.x)}, E2=${fmt3(d.y)}`;
+                            }
+                        }
+                    }
+                },
+                scales: {
+                    x: {
+                        title: { display: true, text: "E1 Kesintisi", color: "#111827" },
+                        ticks: {
+                            color: "#6b7280",
+                            font: { size: 11 },
+                            callback: (value) => fmt3(value)
+                        },
+                        grid: { color: "#e5e7eb" }
+                    },
+                    y: {
+                        title: { display: true, text: "E2 Kesintisi", color: "#111827" },
+                        ticks: {
+                            color: "#6b7280",
+                            font: { size: 11 },
+                            callback: (value) => fmt3(value)
+                        },
+                        grid: { color: "#e5e7eb" }
+                    }
+                }
+            }
+        });
+        charts.push(scatterChart);
+
+        const xs = points.map(p => p.x);
+        const ys = points.map(p => p.y);
+        const rVal = pearson(xs, ys);
+
+        const analysis = document.createElement("div");
+        analysis.className = "analysis-text";
+        analysis.innerHTML = `
+            <p>
+                Nokta bulutunun genel formu, E1 ve E2 hakemlerinin puanlama desenlerini görselleştirir.
+                Noktalar y=x hattına sıkı şekilde toplanmış ise, panel içi uyum yüksek kabul edilir.
+                Bu dağılım için basit bir hesapla E1–E2 korelasyon katsayısı yaklaşık
+                <strong>${isNaN(rVal) ? "N/A" : fmt3(rVal)}</strong> olarak bulunmaktadır.
+            </p>
+            <p>
+                Korelasyonun 1'e yaklaşması, hakemlerin “aynı dili konuştuğu” anlamına gelir. Korelasyon
+                düşmeye başlarsa, hakem kalibrasyon toplantılarında bu grafikten yola çıkarak, uç noktadaki
+                seriler üzerinde ortak değerlendirmeler yapmak etkili olacaktır.
+            </p>
+            <p>
+                Özellikle grafikte yoğunlaşan kümeler ile ayrı kalan aykırı noktalar karşılaştırılarak;
+                hangi tür serilerde hakemler arasında fikir ayrılığı oluştuğu belirlenebilir (örneğin,
+                belirli bir bağlantı tipi, iniş varyasyonu ya da riskli elemanlar).
+            </p>
+            <p>
+                Zorunlu seri bağlamında, aynı rutine bakan iki hakemin E kesintileri arasındaki farkın
+                <strong>tesadüfi dalgalanma</strong> sınırlarında kalması beklenir. Bu grafikte
+                E1–E2 farkının belirli bir eşik değerinin (örneğin 0.500) üzerine sık sık çıktığı
+                seriler, hakem kurulu tarafından belirlenip ortak video izleme ve tekrar puanlama
+                oturumlarıyla incelenmelidir.
+            </p>
+        `;
+        right.appendChild(analysis);
+
+        card.appendChild(left);
+        card.appendChild(right);
+        reportContainer.appendChild(card);
+    }
+
+    function pearson(xs, ys) {
+        const n = xs.length;
+        if (n < 2) return NaN;
+        const mx = xs.reduce((a, v) => a + v, 0) / n;
+        const my = ys.reduce((a, v) => a + v, 0) / n;
+        let num = 0;
+        let sx = 0;
+        let sy = 0;
+        for (let i = 0; i < n; i++) {
+            const dx = xs[i] - mx;
+            const dy = ys[i] - my;
+            num += dx * dy;
+            sx += dx * dx;
+            sy += dy * dy;
+        }
+        if (sx === 0 || sy === 0) return NaN;
+        return num / Math.sqrt(sx * sy);
+    }
+
+    function buildApparatusConsistencyExtraCard(eDiffRoutines) {
+        if (!eDiffRoutines || !eDiffRoutines.length) return;
+
+        const card = document.createElement("div");
+        card.className = "card chart-card two-col";
+
+        const left = document.createElement("div");
+        const right = document.createElement("div");
+
+        const byAlet = {};
+        eDiffRoutines.forEach(r => {
+            const alet = r.Alet || "Bilinmiyor";
+            const diff = Math.abs(Number(r.MutlakFark || 0));
+            if (!byAlet[alet]) byAlet[alet] = { sum: 0, count: 0, max: 0 };
+            byAlet[alet].sum += diff;
+            byAlet[alet].count += 1;
+            if (diff > byAlet[alet].max) byAlet[alet].max = diff;
+        });
+
+        const labels = Object.keys(byAlet);
+        const avgDiffs = labels.map(a => byAlet[a].sum / (byAlet[a].count || 1));
+
+        const chartContainer = document.createElement("div");
+        chartContainer.innerHTML = `
+            <div class="chart-header">
+                <div class="chart-title">Alet Bazında Ortalama |E1–E2| Farkı</div>
+                <div class="chart-subtitle">Hangi alette hakemler daha tutarlı, hangisinde farklar açılıyor?</div>
+            </div>
+            <canvas id="apDiffChart"></canvas>
+        `;
+        left.appendChild(chartContainer);
+
+        const ctx = chartContainer.querySelector("canvas").getContext("2d");
+        const apDiffChart = new Chart(ctx, {
+            type: "bar",
+            data: {
+                labels,
+                datasets: [
+                    { label: "Ort. |E1–E2|", data: avgDiffs, borderWidth: 1 }
+                ]
+            },
+            options: {
+                responsive: true,
+                plugins: {
+                    legend: { labels: { color: "#111827", font: { size: 11 } } }
+                },
+                scales: {
+                    x: {
+                        ticks: { color: "#6b7280", font: { size: 11 } },
+                        grid: { display: false }
+                    },
+                    y: {
+                        ticks: {
+                            color: "#6b7280",
+                            font: { size: 11 },
+                            callback: (value) => fmt3(value)
+                        },
+                        grid: { color: "#e5e7eb" }
+                    }
+                }
+            }
+        });
+        charts.push(apDiffChart);
+
+        const minIndex = avgDiffs.indexOf(Math.min(...avgDiffs));
+        const maxIndex = avgDiffs.indexOf(Math.max(...avgDiffs));
+        const bestAlet = labels[minIndex];
+        const worstAlet = labels[maxIndex];
+
+        const analysis = document.createElement("div");
+        analysis.className = "analysis-text";
+        analysis.innerHTML = `
+            <p>
+                Ortalama |E1–E2| farkı en düşük olan alet <strong>${bestAlet}</strong>
+                (≈ <strong>${fmt3(avgDiffs[minIndex])}</strong>). Bu alette hakem paneli,
+                kesintileri oldukça benzer düzeyde uygulamış görünüyor.
+            </p>
+            <p>
+                Ortalama farkın en yüksek olduğu alet ise <strong>${worstAlet}</strong>
+                (≈ <strong>${fmt3(avgDiffs[maxIndex])}</strong>). FIG’e göre bu tür aletlerde,
+                hakemlerin aynı teknik detaylara nasıl baktığını netleştirmek için ek kalibrasyon
+                çalışmaları yapılması önerilir. Özellikle zorunlu seride her sporcu aynı içeriği
+                yaparken bu farkın yüksek olması, panel içi algı farklılığını işaret eder.
+            </p>
+        `;
+        right.appendChild(analysis);
+
+        card.appendChild(left);
+        card.appendChild(right);
+        reportContainer.appendChild(card);
+    }
+
+    function buildJudgePairConsistencyCard(eDiffRoutines) {
+        if (!eDiffRoutines || !eDiffRoutines.length) return;
+
+        const card = document.createElement("div");
+        card.className = "card chart-card two-col";
+
+        const left = document.createElement("div");
+        const right = document.createElement("div");
+
+        const byPair = {};
+        eDiffRoutines.forEach(r => {
+            const h1 = r.HakemE1 || "E1";
+            const h2 = r.HakemE2 || "E2";
+            const pair = `${h1} – ${h2}`;
+            const diff = Math.abs(Number(r.MutlakFark || 0));
+            if (!byPair[pair]) byPair[pair] = { sum: 0, count: 0 };
+            byPair[pair].sum += diff;
+            byPair[pair].count += 1;
+        });
+
+        const pairs = Object.entries(byPair).map(([pair, st]) => ({
+            pair,
+            avg: st.sum / (st.count || 1),
+            count: st.count
+        }));
+
+        const filtered = pairs.filter(p => p.count >= 3);
+        if (!filtered.length) return;
+
+        filtered.sort((a, b) => b.avg - a.avg);
+        const topN = filtered.slice(0, 8);
+
+        const labels = topN.map(p => p.pair);
+        const avgDiffs = topN.map(p => p.avg);
+
+        const chartContainer = document.createElement("div");
+        chartContainer.innerHTML = `
+            <div class="chart-header">
+                <div class="chart-title">Hakem İkilisi Bazında Ortalama |E1–E2| Farkı</div>
+                <div class="chart-subtitle">Hangi E1–E2 ikilisi daha uyumlu, hangisi daha "geniş aralıklı"?</div>
+            </div>
+            <canvas id="judgePairChart"></canvas>
+        `;
+        left.appendChild(chartContainer);
+
+        const ctx = chartContainer.querySelector("canvas").getContext("2d");
+        const judgePairChart = new Chart(ctx, {
+            type: "bar",
+            data: {
+                labels,
+                datasets: [
+                    { label: "Ort. |E1–E2|", data: avgDiffs, borderWidth: 1 }
+                ]
+            },
+            options: {
+                indexAxis: "y",
+                responsive: true,
+                plugins: {
+                    legend: { labels: { color: "#111827", font: { size: 11 } } }
+                },
+                scales: {
+                    x: {
+                        ticks: {
+                            color: "#6b7280",
+                            font: { size: 11 },
+                            callback: (value) => fmt3(value)
+                        },
+                        grid: { color: "#e5e7eb" }
+                    },
+                    y: {
+                        ticks: { color: "#6b7280", font: { size: 11 } },
+                        grid: { display: false }
+                    }
+                }
+            }
+        });
+        charts.push(judgePairChart);
+
+        const worstPair = topN[0];
+        const bestPair = topN[topN.length - 1];
+
+        const analysis = document.createElement("div");
+        analysis.className = "analysis-text";
+        analysis.innerHTML = `
+            <p>
+                Ortalama farkı en yüksek olan hakem ikilisi: <strong>${worstPair.pair}</strong>
+                (≈ <strong>${fmt3(worstPair.avg)}</strong>). Bu ikili için ortak video değerlendirme oturumları
+                ve örnek seri çalışmaları planlamak, panel içi uyumu artıracaktır.
+            </p>
+            <p>
+                En düşük ortalama farka sahip ikili ise <strong>${bestPair.pair}</strong>
+                (≈ <strong>${fmt3(bestPair.avg)}</strong>). Bu ikili, panel içi tutarlılık açısından
+                referans alınabilecek bir “benchmark çifti” olarak değerlendirilebilir.
+            </p>
+        `;
+        right.appendChild(analysis);
+
+        card.appendChild(left);
+        card.appendChild(right);
+        reportContainer.appendChild(card);
+    }
+
+    function buildGlobalSummaryCard() {
+        const card = document.createElement("div");
+        card.className = "card";
+
+        card.innerHTML = `
+            <h3>Genel Değerlendirme – Zorunlu Seriler Bağlamında Hakem Analizi</h3>
+            <div class="analysis-text">
+                <p>
+                    Bu yarışma <strong>zorunlu seriler</strong> üzerinden yürütülmektedir. Her alette
+                    sporcular FIG’e uygun <strong>standart bir seri</strong>yi icra eder:
+                    D puanı için hedef <strong>4.700</strong>, E puanı için başlangıç
+                    <strong>10.000</strong>’dir. Tüm zorunlu elemanlar eksiksiz yapıldığında
+                    D puanı 4.700’de kalır; eksik elemanlarda D puanı düşer ve “eksik eleman kesintisi”
+                    devreye girer.
+                </p>
+                <p>
+                    E puanı tarafında ise hakemler 10.000 üzerinden kesinti uygulayarak seriyi değerlendirir.
+                    Bazı sporcular için, toplam E kesintisi belirlenen eşik değerin altında kaldığında
+                    <strong>+0.300 bonus</strong> uygulanmaktadır. Bu bonus, hem teknik temizliğin
+                    hem de zorunlu seriye hakimiyetin önemli bir göstergesidir.
+                </p>
+                <p>
+                    Bu raporda aletler birbirleriyle kıyaslanmamalıdır; her alet <strong>kendi içinde</strong>
+                    değerlendirilmelidir. Örneğin, atlama ile denge aletindeki ortalama E puanını
+                    doğrudan karşılaştırmak anlamlı değildir. Bunun yerine:
+                </p>
+                <ul>
+                    <li><strong>D puanı için:</strong> Her alette 4.700 tam D puanı ile bunun altına düşen
+                    serilerin oranı, zorunlu hareketlerin eksiksiz yapılıp yapılmadığı hakkında bilgi verir.</li>
+                    <li><strong>E puanı için:</strong> Her alette ortalama E kesintisi, dağılımı ve bonus alan
+                    seri oranı; serilerin ne kadar temiz icra edildiğini gösterir.</li>
+                    <li><strong>Hakemler için:</strong> Alet içi E1–E2 farkları, hakem ikilileri ve kulüp bazlı
+                    kesinti profilinde sapma olup olmadığı, panelin ne kadar tutarlı ve tarafsız çalıştığını
+                    ortaya koyar.</li>
+                </ul>
+                <p>
+                    Aşağıdaki grafikler ve tablolar, her alet için <strong>D/E dağılımını</strong>,
+                    <strong>bonus alan serileri</strong>, hakemler arası <strong>E farklarını</strong>
+                    ve kulüpler için <strong>daha az / daha fazla kesinti</strong> uygulanan durumları
+                    detaylı biçimde göstermektedir. Bu çıktılar; hem teknik komite hem de antrenörler için
+                    gelişim planlamasında <strong>kanıta dayalı</strong> bir temel sunar.
+                </p>
+            </div>
+        `;
+        reportContainer.appendChild(card);
+    }
+
+    function buildRawSheetsSection(data) {
+        const card = document.createElement("div");
+        card.className = "card";
+
+        const container = document.createElement("div");
+
+        const title = document.createElement("h3");
+        title.textContent = "Ham Veri Sheet'leri (Firebase'den türetilen tablolar)";
+        container.appendChild(title);
+
+        const sub = document.createElement("p");
+        sub.className = "muted";
+        sub.innerHTML = `
+            Aşağıda, PDF raporunun eklerinde yer alan tüm tablolar
+            <strong>oldukları gibi, satır satır</strong> gösterilmiştir. Bu bölüm, akademik kullanım,
+            teknik analiz ve gerektiğinde yeniden işlem yapmak için tam veri görünürlüğü sağlar.
+            Sayısal hücreler 3 basamaklı (0.000) formatta gösterilir.
+        `;
+        container.appendChild(sub);
+
+        buildSheetTableCard(
+            container,
+            "Alet_Global_Stats",
+            "Alet bazında global istatistikler (ortalama D / E / Final ve seri sayısı).",
+            data.apparatusStats
+        );
+
+        buildSheetTableCard(
+            container,
+            "Hakem_Global_E",
+            "Hakem bazında tüm aletler üzerinden hesaplanan global E kesinti istatistikleri.",
+            data.judgeGlobalStats
+        );
+
+        buildSheetTableCard(
+            container,
+            "Kulup_E_Kesinti_Detay",
+            "Kulüp + alet bazında toplam ve ortalama E kesintilerinin detayı.",
+            data.clubEPenalty
+        );
+
+        buildSheetTableCard(
+            container,
+            "FIG_E_Fark_Ozet",
+            "E1–E2 farklarının FIG benzeri eşiklere göre dağılım özeti.",
+            data.figDiffSummary
+        );
+
+        buildSheetTableCard(
+            container,
+            "E_Diff_Rutinler",
+            "Her seri için E1 ve E2 kesintileri, fark ve yön bilgisi (tam detay).",
+            data.eDiffRoutines
+        );
+
+        card.appendChild(container);
+        reportContainer.appendChild(card);
+    }
+
+    function buildSheetTableCard(parent, sheetName, desc, rows) {
+        const wrapper = document.createElement("div");
+        wrapper.className = "sheet-card";
+
+        const title = document.createElement("div");
+        title.className = "sheet-title";
+        title.textContent = sheetName;
+        wrapper.appendChild(title);
+
+        const subtitle = document.createElement("div");
+        subtitle.className = "sheet-subtitle";
+        subtitle.textContent = desc;
+        wrapper.appendChild(subtitle);
+
+        if (!rows || !rows.length) {
+            const note = document.createElement("div");
+            note.className = "sheet-note";
+            note.textContent = "Bu sheet için veri bulunamadı.";
+            wrapper.appendChild(note);
+            parent.appendChild(wrapper);
+            return;
+        }
+
+        const table = document.createElement("table");
+        const thead = document.createElement("thead");
+        const tbody = document.createElement("tbody");
+
+        const firstRow = rows[0];
+        const cols = Object.keys(firstRow);
+
+        const headTr = document.createElement("tr");
+        cols.forEach(col => {
+            const th = document.createElement("th");
+            th.textContent = col;
+            headTr.appendChild(th);
+        });
+        thead.appendChild(headTr);
+
+        rows.forEach(r => {
+            const tr = document.createElement("tr");
+            cols.forEach(col => {
+                const td = document.createElement("td");
+                const val = r[col];
+                if (isNumeric(val)) {
+                    td.textContent = fmt3(val);
+                } else {
+                    td.textContent = (val === undefined || val === null) ? "" : String(val);
+                }
+                tr.appendChild(td);
+            });
+            tbody.appendChild(tr);
+        });
+
+        table.appendChild(thead);
+        table.appendChild(tbody);
+        wrapper.appendChild(table);
+
+        const note = document.createElement("div");
+        note.className = "sheet-note";
+        note.textContent = "Not: Bu tablo, yarışmadaki gerçek kayıtlardan hesaplanmış tam veri görünümüdür.";
+        wrapper.appendChild(note);
+
+        parent.appendChild(wrapper);
+    }
+
+    /****************************************************
+     * 5) PDF Oluşturma (Tüm Kartlar + Tablolar Alt Alta)
+     ****************************************************/
+    pdfBtn.addEventListener("click", generatePDF);
+
+    async function generatePDF() {
+        if (!parsedData) return;
+        statusEl.textContent = "PDF hazırlanıyor, içerik sayfalara bölünüyor...";
+
+        const { jsPDF } = window.jspdf;
+        const pdf = new jsPDF("p", "mm", "a4");
+        const margin = 10;
+
+        const reportElement = reportContainer;
+        const canvas = await html2canvas(reportElement, {
+            scale: 2,
+            backgroundColor: "#ffffff"
+        });
+
+        const pageWidth = pdf.internal.pageSize.getWidth();
+        const pageHeight = pdf.internal.pageSize.getHeight();
+        const imgWidth = pageWidth - margin * 2;
+        const imgHeight = canvas.height * imgWidth / canvas.width;
+
+        const pageContentHeightMm = pageHeight - margin * 2;
+        const pageHeightPx = canvas.height * (pageContentHeightMm / imgHeight);
+
+        let renderedHeight = 0;
+        let pageIndex = 0;
+
+        while (renderedHeight < canvas.height) {
+            const pageCanvas = document.createElement("canvas");
+            pageCanvas.width = canvas.width;
+            const sliceHeight = Math.min(pageHeightPx, canvas.height - renderedHeight);
+            pageCanvas.height = sliceHeight;
+
+            const ctx = pageCanvas.getContext("2d");
+            ctx.drawImage(
+                canvas,
+                0,
+                renderedHeight,
+                canvas.width,
+                sliceHeight,
+                0,
+                0,
+                canvas.width,
+                sliceHeight
+            );
+
+            const imgData = pageCanvas.toDataURL("image/png");
+
+            if (pageIndex > 0) {
+                pdf.addPage();
+            }
+
+            const sliceHeightMm = (sliceHeight / canvas.height) * imgHeight;
+
+            pdf.addImage(
+                imgData,
+                "PNG",
+                margin,
+                margin,
+                imgWidth,
+                sliceHeightMm
+            );
+
+            renderedHeight += sliceHeight;
+            pageIndex++;
+        }
+
+        pdf.save("hakem_analiz_raporu_firebase.pdf");
+        statusEl.textContent = "PDF hazırlandı ve indirildi.";
+    }
+</script>
+</body>
+</html>

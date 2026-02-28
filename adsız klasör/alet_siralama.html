@@ -1,0 +1,1050 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Alet Sıralama Yönetimi - Cimnastik OS</title>
+    
+    <script src="https://www.gstatic.com/firebasejs/9.6.7/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.6.7/firebase-database-compat.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    
+    <link href="https://fonts.googleapis.com/icon?family=Material+Icons+Round" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    
+    <style>
+        :root {
+            --bg-body: #030712;
+            --surface-1: rgba(17, 24, 39, 0.8);
+            --surface-glass: rgba(30, 41, 59, 0.4);
+            --border-glass: rgba(255, 255, 255, 0.08);
+            
+            --primary: #6366f1;
+            --accent: #a855f7;
+            --success: #22c55e;
+            --warning: #f59e0b;
+            --danger: #ef4444;
+
+            --text-main: #ffffff;
+            --text-muted: #94a3b8;
+            
+            --transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; outline: none; user-select: none; }
+        
+        body { 
+            font-family: 'Plus Jakarta Sans', sans-serif; 
+            background-color: var(--bg-body); 
+            background-image: 
+                radial-gradient(circle at 0% 0%, rgba(99, 102, 241, 0.15), transparent 40%),
+                radial-gradient(circle at 100% 100%, rgba(168, 85, 247, 0.1), transparent 40%);
+            color: var(--text-main); 
+            height: 100vh; 
+            overflow: hidden; 
+            display: flex;
+        }
+
+        /* SIDEBAR */
+        .sidebar {
+            width: 280px;
+            background: var(--surface-1);
+            backdrop-filter: blur(20px);
+            border-right: 1px solid var(--border-glass);
+            display: flex; flex-direction: column; padding: 24px; z-index: 100;
+        }
+
+        .app-brand {
+            display: flex; align-items: center; gap: 12px;
+            font-size: 1.1rem; font-weight: 800; color: white;
+            margin-bottom: 40px; text-decoration: none;
+        }
+
+        .nav-item {
+            padding: 14px 16px; margin-bottom: 8px; border-radius: 12px;
+            color: var(--text-muted); text-decoration: none; font-weight: 600;
+            display: flex; align-items: center; gap: 12px; transition: var(--transition);
+            border: 1px solid transparent; cursor: pointer;
+        }
+        .nav-item:hover { background: rgba(255,255,255,0.05); color: white; }
+        .nav-item.active { 
+            background: rgba(99, 102, 241, 0.15); color: var(--primary); 
+            border-color: rgba(99, 102, 241, 0.2);
+        }
+
+        /* MAIN CONTENT */
+        .main-content { flex: 1; display: flex; flex-direction: column; position: relative; overflow: hidden; }
+
+        .top-bar {
+            padding: 20px 40px;
+            border-bottom: 1px solid var(--border-glass);
+            background: rgba(3, 7, 18, 0.6);
+            backdrop-filter: blur(10px);
+            display: flex; justify-content: space-between; align-items: center;
+        }
+
+        .page-title h1 { font-size: 1.5rem; font-weight: 700; margin: 0; }
+        .page-title p { font-size: 0.9rem; color: var(--text-muted); margin: 5px 0 0 0; }
+        
+        .action-btns {
+            display: flex; gap: 10px; align-items: center;
+        }
+        
+        .action-btn {
+            padding: 10px 20px; border-radius: 10px; font-weight: 600; font-size: 0.9rem;
+            border: none; cursor: pointer; display: flex; align-items: center; gap: 8px;
+            transition: var(--transition); text-decoration: none;
+        }
+        .action-btn:disabled { opacity: 0.7; cursor: not-allowed; }
+        
+        .btn-primary { background: var(--primary); color: white; }
+        .btn-primary:hover:not(:disabled) { transform: translateY(-2px); box-shadow: 0 5px 15px rgba(99, 102, 241, 0.3); }
+        .btn-success { background: var(--success); color: black; }
+        .btn-success:hover:not(:disabled) { transform: translateY(-2px); box-shadow: 0 5px 15px rgba(34, 197, 94, 0.3); }
+
+        /* FILE UPLOAD AREA */
+        .upload-area {
+            margin: 20px 40px;
+            padding: 30px;
+            background: var(--surface-glass);
+            border: 2px dashed var(--border-glass);
+            border-radius: 16px;
+            text-align: center;
+            transition: var(--transition);
+        }
+        .upload-area:hover { border-color: var(--primary); background: rgba(99, 102, 241, 0.05); }
+        .upload-area.dragover { border-color: var(--success); background: rgba(34, 197, 94, 0.1); }
+        
+        .upload-icon { font-size: 48px; color: var(--primary); margin-bottom: 15px; }
+        .upload-text { font-size: 1rem; font-weight: 600; margin-bottom: 8px; }
+        .upload-hint { font-size: 0.85rem; color: var(--text-muted); margin-bottom: 15px; }
+        
+        #fileInput { display: none; }
+        
+        .upload-info {
+            margin-top: 20px;
+            padding: 15px;
+            background: rgba(0,0,0,0.3);
+            border-radius: 10px;
+            text-align: left;
+            font-size: 0.85rem;
+            color: var(--text-muted);
+        }
+        .upload-info strong { color: white; display: block; margin-bottom: 8px; }
+        .upload-info ul { margin-left: 20px; margin-top: 8px; }
+
+        /* CONTENT AREA */
+        .content-area { flex: 1; padding: 30px 40px; overflow-y: auto; position: relative; }
+        
+        .tab-content { display: none; animation: fadeIn 0.4s ease-out; }
+        .tab-content.active { display: block; }
+
+        /* APPARATUS TABS */
+        .apparatus-tabs {
+            display: flex; gap: 10px; margin-bottom: 30px;
+            padding: 5px; background: rgba(0,0,0,0.3); border-radius: 16px;
+            width: fit-content; border: 1px solid var(--border-glass);
+        }
+        .tab-btn {
+            padding: 10px 20px; border-radius: 12px; border: none; cursor: pointer;
+            background: transparent; color: var(--text-muted); font-weight: 600;
+            transition: 0.3s; display: flex; align-items: center; gap: 8px;
+        }
+        .tab-btn:hover { color: white; }
+        .tab-btn.active { background: var(--surface-glass); color: white; box-shadow: 0 2px 10px rgba(0,0,0,0.2); }
+
+        /* TEAM LIST */
+        .team-list {
+            display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 20px;
+        }
+        
+        .team-card {
+            background: var(--surface-glass); border: 1px solid var(--border-glass);
+            border-radius: 16px; overflow: hidden; display: flex; flex-direction: column;
+            transition: transform 0.2s;
+        }
+        .team-card:hover { border-color: rgba(255,255,255,0.2); }
+        
+        .team-header {
+            padding: 15px; background: rgba(255,255,255,0.05); border-bottom: 1px solid var(--border-glass);
+            display: flex; align-items: center; justify-content: space-between; cursor: grab;
+        }
+        .team-header:active { cursor: grabbing; }
+        .team-name { font-weight: 700; font-size: 1rem; display: flex; align-items: center; gap: 10px; }
+        
+        .rank-number {
+            background: rgba(99, 102, 241, 0.2); color: var(--primary);
+            width: 24px; height: 24px; border-radius: 6px; 
+            display: flex; align-items: center; justify-content: center;
+            font-size: 0.85rem; font-weight: 800;
+        }
+
+        .team-count { font-size: 0.8rem; color: var(--text-muted); background: rgba(0,0,0,0.3); padding: 2px 8px; border-radius: 10px; }
+        
+        .athlete-list {
+            list-style: none; padding: 10px; min-height: 50px;
+        }
+        
+        .athlete-item {
+            padding: 10px 12px; background: rgba(0,0,0,0.2); border-radius: 8px;
+            margin-bottom: 6px; display: flex; align-items: center; gap: 10px;
+            cursor: grab; border: 1px solid transparent; transition: 0.2s;
+        }
+        .athlete-item:hover { background: rgba(255,255,255,0.05); border-color: rgba(255,255,255,0.1); }
+        .athlete-item:last-child { margin-bottom: 0; }
+        .drag-handle { color: var(--text-muted); cursor: grab; font-size: 18px; }
+        
+        /* Sortable Styles */
+        .sortable-ghost { opacity: 0.4; background: var(--primary); }
+        .sortable-drag { background: var(--surface-1); transform: scale(1.02); box-shadow: 0 10px 20px rgba(0,0,0,0.5); }
+
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+        
+        /* Competition Cards */
+        .comp-card {
+            padding: 20px;
+            background: rgba(0,0,0,0.3);
+            border: 1px solid var(--border-glass);
+            border-radius: 12px;
+            cursor: pointer;
+            transition: var(--transition);
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+        .comp-card:hover {
+            background: rgba(99, 102, 241, 0.1);
+            border-color: var(--primary);
+            transform: translateX(5px);
+        }
+        .comp-icon {
+            width: 50px;
+            height: 50px;
+            background: rgba(99, 102, 241, 0.2);
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: var(--primary);
+            font-size: 24px;
+        }
+        .comp-info h3 {
+            font-size: 1.1rem;
+            font-weight: 700;
+            margin-bottom: 5px;
+        }
+        .comp-info p {
+            font-size: 0.85rem;
+            color: var(--text-muted);
+        }
+        
+        /* Toast */
+        #toast-container { position: fixed; bottom: 30px; right: 30px; z-index: 9999; }
+        .toast { padding: 15px 25px; border-radius: 12px; color: white; font-weight: 600; box-shadow: 0 10px 30px rgba(0,0,0,0.5); margin-top: 10px; animation: slideIn 0.3s ease; }
+        .toast.success { background: var(--success); color: black; }
+        .toast.error { background: var(--danger); }
+        .toast.warning { background: var(--warning); color: black; }
+        @keyframes slideIn { from { transform: translateX(100%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+        
+        /* COMPETITION SELECTOR */
+        .comp-selector-overlay {
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0,0,0,0.85);
+            backdrop-filter: blur(10px);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            z-index: 10000;
+        }
+        
+        .comp-selector-modal {
+            background: var(--surface-1);
+            border: 1px solid var(--border-glass);
+            border-radius: 20px;
+            padding: 40px;
+            max-width: 600px;
+            width: 90%;
+            max-height: 80vh;
+            overflow-y: auto;
+        }
+        
+        .modal-header {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        
+        .modal-header h2 {
+            font-size: 1.8rem;
+            font-weight: 800;
+            margin-bottom: 10px;
+            background: linear-gradient(135deg, var(--primary), var(--accent));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        
+        .modal-header p {
+            color: var(--text-muted);
+            font-size: 0.95rem;
+        }
+        
+        .comp-list {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+        
+        .comp-item {
+            padding: 20px;
+            background: var(--surface-glass);
+            border: 2px solid var(--border-glass);
+            border-radius: 12px;
+            cursor: pointer;
+            transition: var(--transition);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+        
+        .comp-item:hover {
+            border-color: var(--primary);
+            background: rgba(99, 102, 241, 0.1);
+            transform: translateX(5px);
+        }
+        
+        .comp-item-info h3 {
+            font-size: 1.1rem;
+            font-weight: 700;
+            margin-bottom: 5px;
+        }
+        
+        .comp-item-info p {
+            font-size: 0.85rem;
+            color: var(--text-muted);
+        }
+        
+        .comp-item-icon {
+            font-size: 32px;
+            color: var(--primary);
+        }
+        
+        .no-competitions {
+            text-align: center;
+            padding: 40px;
+            color: var(--text-muted);
+        }
+        
+        .no-competitions i {
+            font-size: 64px;
+            margin-bottom: 20px;
+            opacity: 0.3;
+        }
+        
+        /* LOADING SPINNER */
+        .loading-overlay {
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(3, 7, 18, 0.95);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            z-index: 9999;
+        }
+        
+        .spinner {
+            width: 50px;
+            height: 50px;
+            border: 4px solid rgba(99, 102, 241, 0.2);
+            border-top-color: var(--primary);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+        
+        .loading-text {
+            margin-top: 20px;
+            font-size: 1rem;
+            color: var(--text-muted);
+        }
+
+        .spinner-loading {
+            animation: spin 1s linear infinite;
+            font-size: 18px;
+        }
+        
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        @media (max-width: 768px) {
+            .sidebar { display: none; }
+            .team-list { grid-template-columns: 1fr; }
+            .comp-selector-modal {
+                padding: 30px 20px;
+            }
+        }
+    </style>
+</head>
+<body>
+    
+    <div class="loading-overlay" id="loadingOverlay">
+        <div class="spinner"></div>
+        <div class="loading-text">Firebase bağlantısı kuruluyor...</div>
+    </div>
+    
+    <div class="comp-selector-overlay" id="compSelectorOverlay">
+        <div class="comp-selector-modal">
+            <div class="modal-header">
+                <h2>🏆 Yarışma Seçin</h2>
+                <p>Alet sıralaması düzenlemek için bir yarışma seçin</p>
+            </div>
+            <div class="comp-list" id="compList">
+                </div>
+        </div>
+    </div>
+
+    <aside class="sidebar">
+        <a href="javascript:void(0)" onclick="backToCompetitionSelector()" class="app-brand">
+            <i class="material-icons-round" style="color:var(--primary);">arrow_back</i> Yarışma Seç
+        </a>
+        
+        <div style="flex:1;"></div>
+        
+        <div class="nav-item" style="opacity: 0.5; cursor: default;">
+            <i class="material-icons-round">info</i>
+            Sıralama Modülü
+        </div>
+    </aside>
+
+    <main class="main-content">
+        <header class="top-bar">
+            <div class="page-title">
+                <h1 id="pageTitle">🎯 Alet Sıralama Yönetimi</h1>
+                <p id="pageSubtitle">Kulüp ve sporcu sıralamasını Excel'den yükleyin veya manuel düzenleyin</p>
+            </div>
+            <div class="action-btns">
+                <button class="action-btn btn-success" onclick="saveAllOrders()">
+                    <i class="material-icons-round">save</i> Kaydet
+                </button>
+            </div>
+        </header>
+
+        <div class="upload-area" id="uploadArea" onclick="document.getElementById('fileInput').click()" style="display: none;">
+            <i class="material-icons-round upload-icon">cloud_upload</i>
+            <div class="upload-text">Excel Dosyası Yükle</div>
+            <div class="upload-hint">Kulüp sıralaması içeren Excel dosyanızı buraya sürükleyin veya tıklayın</div>
+            <input type="file" id="fileInput" accept=".xlsx,.xls" onchange="handleFileUpload(event)">
+            
+            <div class="upload-info">
+                <strong>📋 Excel Formatı:</strong>
+                Excel dosyanızda her alet için ayrı sayfa olmalı. Örnek:
+                <ul>
+                    <li><strong>Atlama</strong> sayfasında: kulüp isimleri alt alta (A sütunu)</li>
+                    <li><strong>Barfiks</strong> sayfasında: kulüp isimleri alt alta</li>
+                    <li><strong>Denge</strong> sayfasında: kulüp isimleri alt alta</li>
+                    <li><strong>Yer</strong> sayfasında: kulüp isimleri alt alta</li>
+                    <li><strong>Asimetrik P.</strong> sayfasında: kulüp isimleri alt alta</li>
+                </ul>
+                <div style="margin-top:10px; padding:10px; background:rgba(99,102,241,0.1); border-radius:8px; border:1px solid rgba(99,102,241,0.2);">
+                    <strong style="color: var(--primary);">ℹ️ Not:</strong> Listede olmayan kulüpler otomatik olarak sıranın sonuna eklenecektir.
+                </div>
+            </div>
+        </div>
+
+        <div class="content-area" style="display: none;">
+            <div class="apparatus-tabs" id="apparatusTabs"></div>
+            <div id="tabsContent"></div>
+        </div>
+    </main>
+
+    <div id="toast-container"></div>
+
+    <script>
+        // Firebase konfigürasyonu
+        const firebaseConfig = {
+            apiKey: "AIzaSyA5VNkBsZkZqaDr8YgOnhiGCDql9-lJ6Gk",
+            authDomain: "analig2025.firebaseapp.com",
+            databaseURL: "https://analig2025-default-rtdb.firebaseio.com",
+            projectId: "analig2025",
+            storageBucket: "analig2025.appspot.com",
+            messagingSenderId: "835759576581",
+            appId: "1:835759576581:web:561d073115b02584ebee6c"
+        };
+
+        let db = null;
+
+        const APPARATUSES = {
+            atlama: { label: 'Atlama', icon: 'sports_gymnastics' },
+            barfiks: { label: 'Barfiks', icon: 'horizontal_rule' },
+            denge: { label: 'Denge', icon: 'balance' },
+            yer: { label: 'Yer', icon: 'grid_on' },
+            asimetrik_paralel: { label: 'Asimetrik P.', icon: 'show_chart' }
+        };
+
+        let activeCompetitionId = null;
+        let allTeams = {};
+        let currentOrders = {};
+        let excelOrders = {};
+        let dragDropInitialized = false;
+        
+        // Sortable instance'larını takip etmek için
+        let sortableInstances = {};
+
+        // Helper: String Normalizasyonu
+        const normalizeName = (str) => {
+            return String(str || '').trim().toLocaleLowerCase('tr');
+        };
+
+        function encodeFirebaseKey(str) {
+            if (!str) return str;
+            return str
+                .replace(/\./g, '___DOT___')
+                .replace(/\#/g, '___HASH___')
+                .replace(/\$/g, '___DOLLAR___')
+                .replace(/\//g, '___SLASH___')
+                .replace(/\[/g, '___LBRACKET___')
+                .replace(/\]/g, '___RBRACKET___');
+        }
+
+        window.addEventListener('load', function() {
+            initializeApp();
+        });
+
+        function initializeApp() {
+            try {
+                if (!firebase.apps.length) {
+                    firebase.initializeApp(firebaseConfig);
+                }
+                db = firebase.database();
+                
+                setTimeout(() => {
+                    document.getElementById('loadingOverlay').style.display = 'none';
+                }, 500);
+                
+                const params = new URLSearchParams(window.location.search);
+                activeCompetitionId = params.get('competitionId') || params.get('compId');
+
+                if (!activeCompetitionId) {
+                    showCompetitionSelector();
+                } else {
+                    loadCompetitionData();
+                }
+            } catch (error) {
+                console.error('Firebase başlatma hatası:', error);
+                document.getElementById('loadingOverlay').style.display = 'none';
+                showToast('Firebase bağlantı hatası: ' + error.message, 'error');
+                setTimeout(() => { showCompetitionSelector(); }, 1000);
+            }
+        }
+
+        async function showCompetitionSelector() {
+            document.getElementById('compSelectorOverlay').style.display = 'flex';
+            document.getElementById('uploadArea').style.display = 'none';
+            document.querySelector('.content-area').style.display = 'none';
+            
+            if (!db) {
+                showToast('Firebase bağlantısı kurulamadı!', 'error');
+                return;
+            }
+            
+            try {
+                const snapshot = await db.ref('competitions').once('value');
+                const competitions = snapshot.val();
+                
+                if (!competitions) {
+                    document.getElementById('compList').innerHTML = `
+                        <div class="no-competitions">
+                            <i class="material-icons-round">error_outline</i>
+                            <h3>Yarışma Bulunamadı</h3>
+                            <p>Henüz hiç yarışma oluşturulmamış.</p>
+                        </div>
+                    `;
+                    return;
+                }
+
+                const listContainer = document.getElementById('compList');
+                listContainer.innerHTML = '';
+
+                Object.entries(competitions).forEach(([compId, compData]) => {
+                    const card = document.createElement('div');
+                    card.className = 'comp-item';
+                    card.onclick = () => selectCompetition(compId);
+                    
+                    const participantCount = compData.katilimcilar ? Object.keys(compData.katilimcilar).length : 0;
+                    const dateStr = compData.tarih ? compData.tarih : 'Tarih yok';
+                    
+                    card.innerHTML = `
+                        <div class="comp-item-info">
+                            <h3>${compData.isim || 'İsimsiz Yarışma'}</h3>
+                            <p>${dateStr} • ${participantCount} Katılımcı</p>
+                        </div>
+                        <i class="material-icons-round comp-item-icon">emoji_events</i>
+                    `;
+                    listContainer.appendChild(card);
+                });
+            } catch (error) {
+                console.error('Yarışmalar yüklenemedi:', error);
+                showToast('Yarışmalar yüklenirken hata oluştu: ' + error.message, 'error');
+            }
+        }
+
+        function selectCompetition(compId) {
+            activeCompetitionId = compId;
+            localStorage.setItem('lastSelectedCompetition', compId);
+            
+            const newUrl = new URL(window.location);
+            newUrl.searchParams.set('competitionId', compId);
+            window.history.pushState({}, '', newUrl);
+            
+            document.getElementById('compSelectorOverlay').style.display = 'none';
+            document.getElementById('uploadArea').style.display = 'block';
+            document.querySelector('.content-area').style.display = 'block';
+            
+            document.getElementById('pageTitle').textContent = '🎯 Alet Sıralama Yönetimi';
+            initDragDrop();
+            loadCompetitionData();
+        }
+        
+        function initDragDrop() {
+            if (dragDropInitialized) return;
+            
+            const uploadArea = document.getElementById('uploadArea');
+            if (!uploadArea) return;
+            
+            uploadArea.addEventListener('dragover', handleDragOver);
+            uploadArea.addEventListener('dragleave', handleDragLeave);
+            uploadArea.addEventListener('drop', handleDrop);
+            
+            dragDropInitialized = true;
+        }
+        
+        function handleDragOver(e) { e.preventDefault(); e.currentTarget.classList.add('dragover'); }
+        function handleDragLeave(e) { e.currentTarget.classList.remove('dragover'); }
+        function handleDrop(e) {
+            e.preventDefault();
+            e.currentTarget.classList.remove('dragover');
+            const files = e.dataTransfer.files;
+            if (files.length > 0) {
+                document.getElementById('fileInput').files = files;
+                handleFileUpload({ target: { files: files } });
+            }
+        }
+
+        function backToCompetitionSelector() {
+            activeCompetitionId = null;
+            const newUrl = new URL(window.location);
+            newUrl.searchParams.delete('competitionId');
+            newUrl.searchParams.delete('compId');
+            window.history.pushState({}, '', newUrl);
+            
+            document.getElementById('compSelectorOverlay').style.display = 'flex';
+            document.getElementById('uploadArea').style.display = 'none';
+            document.querySelector('.content-area').style.display = 'none';
+            showCompetitionSelector();
+        }
+
+        async function loadCompetitionData() {
+            if (!db) { showToast('Firebase bağlantısı kurulamadı!', 'error'); return; }
+            
+            try {
+                const [compSnapshot, sporcularSnapshot, ordersSnapshot] = await Promise.all([
+                    db.ref(`competitions/${activeCompetitionId}`).once('value'),
+                    db.ref('globalSporcular').once('value'),
+                    db.ref(`competitions/${activeCompetitionId}/siralama`).once('value')
+                ]);
+
+                const competitionData = compSnapshot.val();
+                if (!competitionData) {
+                    showToast('Yarışma bulunamadı!', 'error');
+                    backToCompetitionSelector();
+                    return;
+                }
+                
+                document.getElementById('pageTitle').textContent = `🎯 ${competitionData.isim || 'Yarışma'} - Alet Sıralaması`;
+                document.getElementById('pageSubtitle').textContent = `${competitionData.tarih || 'Tarih belirtilmemiş'} • Excel yükleyin veya manuel düzenleyin`;
+                
+                const globalSporcularMap = {};
+                const globalSporcularArray = sporcularSnapshot.val() || {};
+                for (const key in globalSporcularArray) {
+                    const s = globalSporcularArray[key];
+                    if (s && s.id) globalSporcularMap[String(s.id)] = s;
+                }
+
+                allTeams = {};
+                const participatingAthleteIds = competitionData.katilimcilar || {};
+                
+                for (const athleteId in participatingAthleteIds) {
+                    const athlete = globalSporcularMap[String(athleteId)];
+                    if (athlete) {
+                        const club = athlete.kulup || 'Bireysel';
+                        const fullName = athlete.soyadAd || `${athlete.ad || ''} ${athlete.soyad || ''}`.trim();
+                        
+                        if (!allTeams[club]) allTeams[club] = { name: club, athletes: [] };
+                        allTeams[club].athletes.push({ id: String(athlete.id), name: fullName || 'İsimsiz' });
+                    }
+                }
+                
+                currentOrders = ordersSnapshot.val() || {};
+                renderUI();
+                showToast('Veriler yüklendi! ✅', 'success');
+                
+            } catch (error) {
+                console.error('Veri yükleme hatası:', error);
+                showToast('Veri yüklenirken hata oluştu: ' + error.message, 'error');
+            }
+        }
+
+        function handleFileUpload(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                try {
+                    const data = new Uint8Array(e.target.result);
+                    const workbook = XLSX.read(data, { type: 'array' });
+                    processExcelFile(workbook);
+                } catch (error) {
+                    console.error('Excel okuma hatası:', error);
+                    showToast('Excel dosyası okunamadı: ' + error.message, 'error');
+                }
+            };
+            reader.readAsArrayBuffer(file);
+        }
+
+        function processExcelFile(workbook) {
+            excelOrders = {};
+            let foundSheets = 0;
+            
+            Object.keys(APPARATUSES).forEach(apparatusKey => {
+                const sheetName = APPARATUSES[apparatusKey].label;
+                
+                const realSheetName = workbook.SheetNames.find(s => 
+                    normalizeName(s) === normalizeName(sheetName)
+                );
+                
+                if (realSheetName) {
+                    const worksheet = workbook.Sheets[realSheetName];
+                    const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
+                    
+                    const teamOrder = jsonData
+                        .map(row => row[0])
+                        .filter(val => val && typeof val === 'string' && val.trim().length > 1)
+                        .map(val => val.trim());
+                    
+                    if (teamOrder.length > 0) {
+                        excelOrders[apparatusKey] = teamOrder;
+                        foundSheets++;
+                    }
+                }
+            });
+
+            if (foundSheets === 0) {
+                showToast('Excel dosyasında uygun alet sayfası (Atlama, Barfiks vb.) bulunamadı.', 'warning');
+                return;
+            }
+
+            applyExcelOrders();
+        }
+
+        function applyExcelOrders() {
+            if (Object.keys(excelOrders).length === 0) {
+                showToast('Excel dosyasında geçerli sıralama bulunamadı!', 'warning');
+                return;
+            }
+
+            let updatedCount = 0;
+
+            const dbTeamMap = {};
+            const currentTeamKeys = Object.keys(allTeams);
+            
+            currentTeamKeys.forEach(realKey => {
+                dbTeamMap[normalizeName(realKey)] = realKey;
+            });
+
+            Object.keys(excelOrders).forEach(apparatusKey => {
+                const excelTeamOrder = excelOrders[apparatusKey];
+                const finalOrder = [];
+                const processedTeams = new Set();
+
+                excelTeamOrder.forEach(excelName => {
+                    const cleanName = normalizeName(excelName);
+                    const realDbKey = dbTeamMap[cleanName];
+
+                    if (realDbKey && !processedTeams.has(realDbKey)) {
+                        finalOrder.push(realDbKey);
+                        processedTeams.add(realDbKey);
+                    }
+                });
+                
+                currentTeamKeys.forEach(teamKey => {
+                    if (!processedTeams.has(teamKey)) {
+                        finalOrder.push(teamKey);
+                    }
+                });
+
+                const athleteOrder = {};
+                finalOrder.forEach(teamName => {
+                    const encodedTeamName = encodeFirebaseKey(teamName);
+                    
+                    let existingOrder = null;
+                    if (currentOrders[apparatusKey]?.athleteOrder) {
+                        existingOrder = currentOrders[apparatusKey].athleteOrder[encodedTeamName] || 
+                                       currentOrders[apparatusKey].athleteOrder[teamName];
+                    }
+                    
+                    if (existingOrder) {
+                        athleteOrder[teamName] = existingOrder;
+                    } else {
+                        athleteOrder[teamName] = allTeams[teamName].athletes.map(a => a.id);
+                    }
+                });
+                
+                currentOrders[apparatusKey] = {
+                    teamOrder: finalOrder,
+                    athleteOrder: athleteOrder
+                };
+                updatedCount++;
+            });
+
+            renderUI();
+            showToast(`${updatedCount} alet için sıralama güncellendi!`, 'success');
+        }
+
+        function renderUI() {
+            const tabsContainer = document.getElementById('apparatusTabs');
+            const contentContainer = document.getElementById('tabsContent');
+            tabsContainer.innerHTML = ''; 
+            contentContainer.innerHTML = '';
+            
+            let firstKey = null;
+
+            for (const key in APPARATUSES) {
+                if (!firstKey) firstKey = key;
+                
+                const btn = document.createElement('button');
+                btn.className = 'tab-btn';
+                btn.onclick = () => openTab(key);
+                btn.innerHTML = `<i class="material-icons-round">${APPARATUSES[key].icon}</i> ${APPARATUSES[key].label}`;
+                tabsContainer.appendChild(btn);
+
+                const content = document.createElement('div');
+                content.className = 'tab-content';
+                content.id = `content-${key}`;
+                content.innerHTML = renderApparatusOrderUI(key);
+                contentContainer.appendChild(content);
+            }
+            
+            // İlk sekmeyi aç ve başlat
+            if (firstKey) {
+                openTab(firstKey);
+            }
+        }
+
+        function renderApparatusOrderUI(apparatusKey) {
+            const savedOrder = currentOrders[apparatusKey] || {};
+            let teamList = savedOrder.teamOrder || Object.keys(allTeams).sort();
+            
+            const currentTeamKeys = Object.keys(allTeams);
+            const missingTeams = currentTeamKeys.filter(t => !teamList.includes(t));
+            teamList = [...teamList, ...missingTeams];
+
+            let html = `<div id="team-list-${apparatusKey}" class="team-list">`;
+            
+            teamList.forEach((teamName, index) => {
+                const team = allTeams[teamName];
+                if(!team) return;
+
+                const encodedTeamName = encodeFirebaseKey(teamName);
+                let athleteListIds = null;
+                
+                if (savedOrder.athleteOrder) {
+                    if (savedOrder.athleteOrder[encodedTeamName]) {
+                        athleteListIds = savedOrder.athleteOrder[encodedTeamName];
+                    } else if (savedOrder.athleteOrder[teamName]) {
+                        athleteListIds = savedOrder.athleteOrder[teamName];
+                    }
+                }
+                
+                if (!athleteListIds) athleteListIds = team.athletes.map(a => a.id);
+                
+                athleteListIds = athleteListIds.map(id => String(id));
+                const currentAthleteIds = team.athletes.map(a => String(a.id));
+                
+                athleteListIds = athleteListIds.filter(id => currentAthleteIds.includes(id));
+                const missingIds = currentAthleteIds.filter(id => !athleteListIds.includes(id));
+                athleteListIds = [...athleteListIds, ...missingIds];
+
+                html += `
+                    <div class="team-card" data-team="${teamName}">
+                        <div class="team-header">
+                            <div class="team-name">
+                                <i class="material-icons-round drag-handle">drag_indicator</i> 
+                                <span class="rank-number">${index + 1}</span>
+                                ${teamName}
+                            </div>
+                            <span class="team-count">${athleteListIds.length} Sporcu</span>
+                        </div>
+                        <ul class="athlete-list" id="ath-list-${apparatusKey}-${index}">`;
+                
+                athleteListIds.forEach(athId => {
+                    const athlete = team.athletes.find(a => String(a.id) === String(athId));
+                    if(athlete) {
+                        html += `<li class="athlete-item" data-id="${athlete.id}"><i class="material-icons-round drag-handle" style="font-size:16px;">drag_handle</i> ${athlete.name}</li>`;
+                    }
+                });
+
+                html += `</ul></div>`;
+            });
+            
+            html += `</div>`;
+            return html;
+        }
+
+        function initSortable(apparatusKey) {
+            // Önce varsa eski instance'ları temizle
+            if (sortableInstances[apparatusKey]) {
+                sortableInstances[apparatusKey].forEach(instance => instance.destroy());
+            }
+            sortableInstances[apparatusKey] = [];
+
+            // 1. Takım Sıralaması (Team Sorting)
+            const teamContainer = document.getElementById(`team-list-${apparatusKey}`);
+            if (teamContainer) {
+                const teamSort = new Sortable(teamContainer, {
+                    animation: 150,
+                    handle: '.team-header', 
+                    ghostClass: 'sortable-ghost',
+                    dragClass: 'sortable-drag',
+                    onEnd: function() { updateRankNumbers(apparatusKey); }
+                });
+                sortableInstances[apparatusKey].push(teamSort);
+            }
+
+            // 2. Sporcu Sıralaması (Athlete Sorting)
+            // group özelliği OLMADIĞI için sporcular sadece kendi takımı içinde hareket edebilir.
+            const athleteLists = document.querySelectorAll(`#content-${apparatusKey} .athlete-list`);
+            athleteLists.forEach(list => {
+                const athSort = new Sortable(list, {
+                    animation: 150,
+                    handle: '.athlete-item',
+                    ghostClass: 'sortable-ghost',
+                    dragClass: 'sortable-drag',
+                    preventOnFilter: false,
+                    forceFallback: true // Dokunmatik ve gizli element sorunları için
+                });
+                sortableInstances[apparatusKey].push(athSort);
+            });
+        }
+        
+        function updateRankNumbers(apparatusKey) {
+            const teamContainer = document.getElementById(`team-list-${apparatusKey}`);
+            if (!teamContainer) return;
+            
+            const teamCards = teamContainer.querySelectorAll('.team-card');
+            teamCards.forEach((card, index) => {
+                const rankSpan = card.querySelector('.rank-number');
+                if (rankSpan) rankSpan.textContent = index + 1;
+            });
+        }
+
+        function openTab(key) {
+            // CSS sınıflarını güncelle
+            document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+            document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+            
+            const buttons = document.querySelectorAll('.tab-btn');
+            buttons.forEach(btn => {
+                if(btn.innerHTML.includes(APPARATUSES[key].label)) btn.classList.add('active');
+            });
+            
+            const targetContent = document.getElementById(`content-${key}`);
+            if(targetContent) {
+                targetContent.classList.add('active');
+                // Sekme görünür olduğunda Sortable'ı başlat (EN ÖNEMLİ KISIM)
+                initSortable(key);
+            }
+        }
+
+        async function saveAllOrders() {
+            if (!db) { showToast('Firebase bağlantısı kurulamadı!', 'error'); return; }
+            if (!activeCompetitionId) { showToast('Yarışma seçilmemiş!', 'error'); return; }
+            
+            const saveBtn = document.querySelector('.btn-success');
+            const originalBtnText = saveBtn.innerHTML;
+            saveBtn.disabled = true;
+            saveBtn.innerHTML = '<i class="material-icons-round spinner-loading">sync</i> Kaydediliyor...';
+            
+            try {
+                const updates = {};
+                let processedCount = 0;
+                
+                for (const key in APPARATUSES) {
+                    const teamContainer = document.getElementById(`team-list-${key}`);
+                    if (!teamContainer) continue;
+
+                    const teamOrder = [];
+                    const athleteOrder = {};
+                    const teamCards = Array.from(teamContainer.children);
+                    
+                    teamCards.forEach((teamCard) => {
+                        const teamName = teamCard.dataset.team;
+                        if (!teamName) return;
+                        
+                        teamOrder.push(teamName);
+                        
+                        const athList = teamCard.querySelector('.athlete-list');
+                        const encodedTeamName = encodeFirebaseKey(teamName);
+                        
+                        if (athList) {
+                            const athIds = Array.from(athList.children)
+                                .map(li => li.dataset.id)
+                                .filter(id => id && id !== "undefined");
+                                
+                            athleteOrder[encodedTeamName] = athIds;
+                        } else {
+                            athleteOrder[encodedTeamName] = [];
+                        }
+                    });
+
+                    if (teamOrder.length > 0) {
+                        updates[`competitions/${activeCompetitionId}/siralama/${key}`] = {
+                            teamOrder: teamOrder,
+                            athleteOrder: athleteOrder
+                        };
+                        processedCount++;
+                    }
+                }
+
+                if (processedCount === 0) { 
+                    showToast('Kaydedilecek veri bulunamadı!', 'warning'); 
+                } else {
+                    await db.ref().update(updates);
+                    showToast(`${processedCount} alet için sıralama başarıyla kaydedildi! ✅`, 'success');
+                }
+                
+            } catch (e) { 
+                console.error('Kayıt hatası detayı:', e);
+                showToast(`Kayıt hatası: ${e.message}`, 'error'); 
+            } finally {
+                saveBtn.disabled = false;
+                saveBtn.innerHTML = originalBtnText;
+            }
+        }
+
+        function showToast(msg, type='info') {
+            const container = document.getElementById('toast-container');
+            const toast = document.createElement('div');
+            toast.className = `toast ${type}`;
+            toast.innerHTML = msg;
+            container.appendChild(toast);
+            setTimeout(() => {
+                toast.style.opacity = '0';
+                toast.style.transform = 'translateX(100%)';
+                setTimeout(() => toast.remove(), 300);
+            }, 3000);
+        }
+    </script>
+</body>
+</html>

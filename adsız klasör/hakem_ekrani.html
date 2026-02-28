@@ -1,0 +1,337 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>Hakem Ekranı</title>
+    <script src="https://www.gstatic.com/firebasejs/9.6.7/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.6.7/firebase-database-compat.js"></script>
+    <link href="https://fonts.googleapis.com/icon?family=Material+Icons+Round" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-color: #030712;
+            --card-bg: #111827;
+            --text-main: #f9fafb;
+            --text-muted: #9ca3af;
+            --primary: #6366f1;
+            --success: #22c55e;
+            --danger: #ef4444;
+            --warning: #f59e0b;
+            --border: rgba(255,255,255,0.1);
+        }
+        * { box-sizing: border-box; margin: 0; padding: 0; outline: none; user-select: none; }
+        body { 
+            background-color: var(--bg-color); color: var(--text-main); 
+            font-family: 'Plus Jakarta Sans', sans-serif; height: 100vh; overflow: hidden;
+            display: flex; flex-direction: column;
+        }
+
+        /* Header */
+        .header {
+            padding: 15px 20px; background: var(--card-bg); border-bottom: 1px solid var(--border);
+            display: flex; justify-content: space-between; align-items: center;
+        }
+        .header-left { display: flex; flex-direction: column; }
+        .header-sub { font-size: 0.75rem; color: var(--text-muted); font-weight: 600; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 2px; }
+        .header-title { font-size: 1.3rem; color: var(--primary); font-weight: 800; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 250px; }
+        .panel-badge {
+            background: rgba(99, 102, 241, 0.2); color: var(--primary);
+            padding: 6px 12px; border-radius: 8px; font-weight: 800; font-size: 1.1rem;
+        }
+
+        /* Main Area */
+        .main-area {
+            flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center;
+            padding: 20px; position: relative;
+        }
+
+        /* Views */
+        .view-section { display: none; width: 100%; max-width: 400px; text-align: center; animation: fadeIn 0.5s ease; }
+        .view-section.active { display: block; }
+
+        .waiting-icon { font-size: 4rem; color: var(--text-muted); margin-bottom: 20px; animation: pulse 2s infinite; }
+        .waiting-text { font-size: 1.5rem; font-weight: 700; color: var(--text-muted); }
+
+        .athlete-card {
+            background: linear-gradient(135deg, #1f2937, #111827);
+            border: 1px solid var(--border); border-radius: 20px; padding: 25px;
+            text-align: center; margin-bottom: 25px; box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+        }
+        .athlete-name { font-size: 1.8rem; font-weight: 800; margin-bottom: 5px; line-height: 1.2; }
+        .athlete-club { font-size: 1rem; color: var(--text-muted); }
+
+        .input-wrapper { position: relative; margin-bottom: 20px; }
+        /* inputmode="decimal" ile mobilde nokta/virgül klavyesi açılır */
+        .score-input {
+            width: 100%; background: #000; border: 2px solid var(--border);
+            border-radius: 16px; padding: 20px; text-align: center;
+            font-size: 3.5rem; font-weight: 800; color: white; font-family: 'Plus Jakarta Sans', sans-serif;
+            transition: 0.3s;
+        }
+        .score-input:focus { border-color: var(--primary); box-shadow: 0 0 0 4px rgba(99, 102, 241, 0.2); }
+
+        .send-btn {
+            width: 100%; background: var(--success); color: #000;
+            padding: 18px; border-radius: 16px; border: none;
+            font-size: 1.2rem; font-weight: 800; cursor: pointer;
+            display: flex; align-items: center; justify-content: center; gap: 10px;
+            transition: 0.2s; box-shadow: 0 5px 15px rgba(34, 197, 94, 0.3);
+        }
+        .send-btn:active { transform: scale(0.98); }
+        
+        .sent-icon { font-size: 5rem; color: var(--success); margin-bottom: 15px; }
+        .sent-title { font-size: 1.8rem; font-weight: 800; margin-bottom: 10px; }
+        .sent-desc { color: var(--text-muted); margin-bottom: 30px; }
+        .edit-btn {
+            background: rgba(255,255,255,0.1); color: white; border: 1px solid rgba(255,255,255,0.2);
+            padding: 12px 25px; border-radius: 50px; font-weight: 600; cursor: pointer; transition: 0.3s;
+        }
+        .edit-btn:hover { background: rgba(255,255,255,0.15); }
+
+        /* PIN Modal */
+        .modal-overlay {
+            position: fixed; inset: 0; background: rgba(0,0,0,0.9); z-index: 100;
+            display: none; align-items: center; justify-content: center; backdrop-filter: blur(5px);
+        }
+        .modal { background: var(--card-bg); padding: 30px; border-radius: 20px; width: 90%; max-width: 350px; text-align: center; border: 1px solid var(--border); }
+        .pin-input { width: 100%; padding: 15px; font-size: 1.5rem; text-align: center; margin: 20px 0; background: #000; border: 1px solid var(--border); color: white; border-radius: 10px; }
+        
+        @keyframes pulse { 0%, 100% { opacity: 0.5; transform: scale(1); } 50% { opacity: 1; transform: scale(1.05); } }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+    </style>
+</head>
+<body>
+
+    <div class="header">
+        <div class="header-left">
+            <div class="header-sub" id="competition-name">Yükleniyor...</div>
+            <div class="header-title" id="referee-name">Hakem</div>
+        </div>
+        <div class="panel-badge" id="panel-id">E-?</div>
+    </div>
+
+    <div class="main-area">
+        <div id="waiting-view" class="view-section active">
+            <i class="material-icons-round waiting-icon">hourglass_empty</i>
+            <div class="waiting-text">Sıradaki Sporcu Bekleniyor...</div>
+            <p style="color:var(--text-muted); margin-top:10px; font-size:0.9rem;">Yönetim masasından sporcu çağrıldığında ekran otomatik açılacaktır.</p>
+        </div>
+
+        <div id="scoring-view" class="view-section">
+            <div class="athlete-card">
+                <div class="athlete-name" id="athlete-name">-</div>
+                <div class="athlete-club" id="athlete-club">-</div>
+            </div>
+            
+            <div class="input-wrapper">
+                <input type="text" inputmode="decimal" id="score-input" class="score-input" placeholder="0.00">
+            </div>
+
+            <button id="send-btn" class="send-btn">
+                <i class="material-icons-round">send</i> PUANI GÖNDER
+            </button>
+        </div>
+
+        <div id="sent-view" class="view-section">
+            <i class="material-icons-round sent-icon" id="sent-icon">check_circle</i>
+            <h2 class="sent-title" id="sent-title">Puan İletildi</h2>
+            <p id="sent-desc" class="sent-desc">Puan başarıyla kaydedildi. Sıradaki sporcu bekleniyor.</p>
+            <button id="edit-btn" class="edit-btn" onclick="requestEdit()">Düzeltme Yap (PIN)</button>
+        </div>
+    </div>
+
+    <div id="pin-modal" class="modal-overlay">
+        <div class="modal">
+            <h3>PIN Giriniz</h3>
+            <input type="password" id="pin-input" class="pin-input" maxlength="4" placeholder="****">
+            <div style="display:flex; gap:10px;">
+                <button class="edit-btn" style="flex:1; background:var(--danger);" onclick="closePinModal()">İptal</button>
+                <button class="edit-btn" style="flex:1; background:var(--success);" onclick="verifyPin()">Onayla</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const firebaseConfig = { apiKey: "AIzaSyA5VNkBsZkZqaDr8YgOnhiGCDql9-lJ6Gk", authDomain: "analig2025.firebaseapp.com", databaseURL: "https://analig2025-default-rtdb.firebaseio.com", projectId: "analig2025", storageBucket: "analig2025.appspot.com", messagingSenderId: "835759576581", appId: "1:835759576581:web:561d073115b02584ebee6c" };
+        firebase.initializeApp(firebaseConfig);
+        const db = firebase.database();
+
+        const urlParams = new URLSearchParams(window.location.search);
+        const compId = urlParams.get('competitionId');
+        const panelId = urlParams.get('panel');
+        const apparatus = urlParams.get('apparatus');
+        const APPARATUS_PATH = { atlama: 'atlamaPuanlari', barfiks: 'barfiksPuanlari', denge: 'dengePuanlari', yer: 'yerPuanlari', asimetrik_paralel: 'asimetrikParalelPuanlari' };
+
+        let activeAthleteId = null;
+        let globalSporcular = [];
+        let scoreListener = null; 
+        const CORRECT_PIN = "6335"; // Sabit PIN
+
+        document.addEventListener('DOMContentLoaded', async () => {
+            if (!compId || !panelId || !apparatus) { document.body.innerHTML = "<h2 style='color:white;text-align:center;margin-top:50px;'>Hatalı Link!</h2>"; return; }
+            
+            document.getElementById('panel-id').textContent = panelId;
+            
+            // 1. Sporcuları Yükle
+            const sSnap = await db.ref('globalSporcular').once('value');
+            if(sSnap.exists()) globalSporcular = Object.values(sSnap.val());
+
+            // 2. Yarışma Adını Dinle
+            db.ref(`competitions/${compId}/isim`).on('value', s => {
+                document.getElementById('competition-name').textContent = s.val() || 'Yarışma';
+            });
+            
+            // 3. Hakem Adını Dinle (Kriterlerden)
+            // panelId = "E1", "E2" vb.
+            db.ref(`competitions/${compId}/cimnastikVerileri/kriterler/${apparatus}/hakemler/${panelId}`).on('value', s => {
+                document.getElementById('referee-name').textContent = s.val() || panelId;
+            });
+
+            // 4. Aktif Sporcuyu Dinle
+            db.ref(`competitions/${compId}/aktifSporcu/${apparatus}`).on('value', handleActiveAthleteChange);
+
+            // Buton Event
+            document.getElementById('send-btn').addEventListener('click', sendScore);
+        });
+
+        // Aktif sporcu ve puan durumunu yöneten ana fonksiyon
+        async function handleActiveAthleteChange(snapshot) {
+            const newAthleteId = snapshot.val();
+            
+            // Önceki sporcunun dinleyicisini temizle
+            if (activeAthleteId && scoreListener) {
+                db.ref(`competitions/${compId}/cimnastikVerileri/${APPARATUS_PATH[apparatus]}/${activeAthleteId}`).off('value', scoreListener);
+                scoreListener = null;
+            }
+
+            activeAthleteId = newAthleteId;
+
+            // Eğer aktif sporcu yoksa bekleme ekranına dön
+            if (!activeAthleteId) {
+                hideAllViews();
+                showView('waiting-view');
+                return;
+            }
+
+            // Sporcu Bilgilerini Güncelle (Ekranda görünmesi için)
+            const athlete = globalSporcular.find(s => s.id == activeAthleteId);
+            if(athlete) {
+                document.getElementById('athlete-name').textContent = athlete.soyadAd;
+                document.getElementById('athlete-club').textContent = athlete.kulup || 'Bireysel';
+            }
+
+            // Sporcunun Puanını Dinlemeye Başla
+            const scoreRef = db.ref(`competitions/${compId}/cimnastikVerileri/${APPARATUS_PATH[apparatus]}/${activeAthleteId}`);
+            
+            scoreListener = scoreRef.on('value', (scoreSnap) => {
+                const data = scoreSnap.val() || {};
+                const panelScore = data[panelId];
+                const isLocked = data.timerState === 'finished';
+
+                hideAllViews();
+
+                if (panelScore !== undefined) {
+                    // Puan verilmiş -> Gönderildi/Kilitli ekranı
+                    showView('sent-view');
+                    updateSentView(isLocked);
+                } else {
+                    // Puan verilmemiş
+                    if (isLocked) {
+                         // Puan yok ama kilitlenmiş (Tuhaf durum, yine de kilitli gösterelim)
+                         showView('sent-view');
+                         updateSentView(true);
+                    } else {
+                         // Normal puanlama ekranı
+                         document.getElementById('score-input').value = '';
+                         showView('scoring-view');
+                    }
+                }
+            });
+        }
+
+        function updateSentView(isLocked) {
+            const editBtn = document.getElementById('edit-btn');
+            const sentDesc = document.getElementById('sent-desc');
+            const sentIcon = document.getElementById('sent-icon');
+            const sentTitle = document.getElementById('sent-title');
+
+            if (isLocked) {
+                // KİLİTLİ MOD
+                editBtn.style.display = 'none'; // Düzenleme butonunu gizle
+                sentTitle.textContent = "Puan Kilitlendi";
+                sentDesc.textContent = "Bu sporcu için puanlama tamamlandı ve onaylandı.";
+                sentDesc.style.color = "var(--danger)";
+                sentIcon.style.color = "var(--text-muted)";
+                sentIcon.textContent = "lock";
+            } else {
+                // AÇIK MOD (Beklemede)
+                editBtn.style.display = 'inline-block'; // Düzenleme butonunu göster
+                sentTitle.textContent = "Puan İletildi";
+                sentDesc.textContent = "Puan sisteme kaydedildi. Onay bekleniyor.";
+                sentDesc.style.color = "var(--text-muted)";
+                sentIcon.style.color = "var(--success)";
+                sentIcon.textContent = "check_circle";
+            }
+        }
+
+        async function sendScore() {
+            if (!activeAthleteId) { alert("Aktif sporcu bulunamadı!"); return; }
+
+            // Virgülü noktaya çevir
+            let valStr = document.getElementById('score-input').value.toString().replace(',', '.');
+            const val = parseFloat(valStr);
+
+            if (valStr.trim() === '' || isNaN(val) || val < 0 || val > 10) { 
+                alert('Geçerli bir puan giriniz (0-10 arası).'); 
+                return; 
+            }
+            
+            try {
+                const path = `competitions/${compId}/cimnastikVerileri/${APPARATUS_PATH[apparatus]}/${activeAthleteId}/${panelId}`;
+                await db.ref(path).set(val);
+                // Ekran değişimi listener tarafından otomatik yapılacak
+            } catch(e) {
+                alert('Hata: ' + e.message);
+            }
+        }
+
+        function showView(id) { document.getElementById(id).classList.add('active'); }
+        function hideAllViews() { document.querySelectorAll('.view-section').forEach(el => el.classList.remove('active')); }
+        
+        // PIN & Edit Logic
+        function requestEdit() { 
+            if (!activeAthleteId) { alert("Aktif sporcu yok."); return; }
+            document.getElementById('pin-modal').style.display = 'flex'; 
+            document.getElementById('pin-input').value = ''; 
+            document.getElementById('pin-input').focus(); 
+        }
+        
+        function closePinModal() { document.getElementById('pin-modal').style.display = 'none'; }
+        
+        async function verifyPin() {
+            // PIN Kontrolü (CORRECT_PIN değişkeni kullanılıyor)
+            if (document.getElementById('pin-input').value === CORRECT_PIN) {
+                closePinModal();
+                
+                // Son bir güvenlik kontrolü: Sporcu hala aktif mi ve kilitli mi?
+                const scoreRef = db.ref(`competitions/${compId}/cimnastikVerileri/${APPARATUS_PATH[apparatus]}/${activeAthleteId}`);
+                const snap = await scoreRef.once('value');
+                const data = snap.val() || {};
+
+                if (data.timerState === 'finished') {
+                    alert("HATA: Bu puan az önce kilitlendi, değişiklik yapamazsınız.");
+                    return;
+                }
+                
+                // Puanı inputa geri yükle ve ekranı aç
+                document.getElementById('score-input').value = data[panelId];
+                hideAllViews();
+                // Sporcu bilgileri zaten handleActiveAthleteChange içinde güncel
+                showView('scoring-view');
+
+            } else { alert('Hatalı PIN!'); }
+        }
+    </script>
+</body>
+</html>

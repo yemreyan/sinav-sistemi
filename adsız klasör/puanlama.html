@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dinamik Puanlama Ekranı</title>
+    <script src="https://www.gstatic.com/firebasejs/9.6.7/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.6.7/firebase-database-compat.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js"></script>
+    <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --background-color: #121212; --card-color: #1e1e1e; --text-color: #e0e0e0; --text-muted: #8e8e8e;
+            --border-color: #333; --primary-color: #bb86fc; --success-color: #03dac6;
+            --warning-color: #fdd835; --danger-color: #cf6679; --info-color: #3498db;
+            --border-radius: 12px; --box-shadow: 0 8px 30px rgba(0,0,0,0.2);
+            --apparatus-color: var(--primary-color); /* Varsayılan renk */
+        }
+        body { font-family: 'Inter', sans-serif; background-color: var(--background-color); color: var(--text-color); }
+        .container { max-width: 1800px; margin: 0 auto; padding: 20px; }
+        .header { background: linear-gradient(135deg, var(--apparatus-color), #333); color: white; padding: 25px 0; text-align: center; margin-bottom: 30px; border-radius: 0 0 var(--border-radius) var(--border-radius); box-shadow: var(--box-shadow); transition: background 0.5s ease; }
+        .content-card { background-color: var(--card-color); border-radius: var(--border-radius); box-shadow: var(--box-shadow); padding: 30px; margin-bottom: 30px; }
+        .content-card h2 { color: var(--apparatus-color); margin-bottom: 25px; padding-bottom: 15px; border-bottom: 1px solid var(--border-color); font-size: 1.6em; transition: color 0.5s ease;}
+        button { padding: 10px 15px; border: none; border-radius: 8px; cursor: pointer; font-weight: 600; transition: all 0.3s ease; }
+        .success { background-color: var(--success-color); color: #000; }
+        .warning { background-color: var(--warning-color); color: #000; }
+        .danger { background-color: var(--danger-color); color: #fff; }
+        table { width: 100%; border-collapse: collapse; }
+        thead th { padding: 12px; text-align: center; color: var(--text-muted); border-bottom: 2px solid var(--border-color); font-size: 0.8em; text-transform: uppercase; white-space: nowrap; }
+        tbody tr:hover { background-color: rgba(255,255,255,0.05); }
+        td { padding: 6px 8px; vertical-align: middle; text-align: center; }
+        input, select { width: 100%; min-width: 70px; padding: 8px; border-radius: 6px; border: 1px solid #444; background-color: #2b2b2b; color: var(--text-color); }
+        tr.active-athlete { background-color: rgba(187, 134, 252, 0.1); border-left: 3px solid var(--apparatus-color); }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1 id="apparatus-title">Puanlama Ekranı</h1>
+        <p id="competitionNameHeader"></p>
+    </div>
+    <div class="container">
+        <div class="content-card">
+            <h2>DEĞERLENDİRME TABLOSU</h2>
+            <div id="active-athlete-info" style="margin-bottom: 20px; padding: 15px; background-color: rgba(255,255,255,0.05); border-radius: 8px;">
+                <b>Aktif Sporcu:</b> <span id="currentActiveAthleteText">Henüz kimse çağrılmadı.</span>
+            </div>
+            <div style="overflow-x: auto;">
+                <table id="mainTable">
+                    <thead id="mainTableHead"></thead>
+                    <tbody id="mainTableBody"></tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const firebaseConfig = { apiKey: "AIzaSyA5VNkBsZkZqaDr8YgOnhiGCDql9-lJ6Gk", authDomain: "analig2025.firebaseapp.com", databaseURL: "https://analig2025-default-rtdb.firebaseio.com", projectId: "analig2025", storageBucket: "analig2025.appspot.com", messagingSenderId: "835759576581", appId: "1:835759576581:web:561d073115b02584ebee6c" };
+        firebase.initializeApp(firebaseConfig);
+        const db = firebase.database();
+
+        let activeCompetitionId = null;
+        let apparatusKey = null; // örn: 'denge', 'atlama'
+        let apparatusName = '';
+        let apparatusPath = ''; // örn: 'dengePuanlari'
+
+        let competitionData = {};
+        let currentCriteria = {};
+        let scores = {};
+        let activeAthleteKey = null;
+
+        const APPARATUS_MAP = {
+            yer: { name: "Yer", path: "yerPuanlari", color: "#2196f3" },
+            atlama: { name: "Atlama Masası", path: "atlamaPuanlari", color: "#28a745" },
+            barfiks: { name: "Barfiks", path: "barfiksPuanlari", color: "#ff9800" },
+            denge: { name: "Denge", path: "dengePuanlari", color: "#e91e63" },
+            asimetrik_paralel: { name: "Asimetrik Paralel", path: "asimetrikParalelPuanlari", color: "#00bcd4" }
+        };
+
+        document.addEventListener('DOMContentLoaded', initializePage);
+
+        function initializePage() {
+            const params = new URLSearchParams(window.location.search);
+            activeCompetitionId = params.get('competitionId') || localStorage.getItem('activeCompetitionId');
+            apparatusKey = params.get('alet');
+
+            if (!activeCompetitionId || !apparatusKey || !APPARATUS_MAP[apparatusKey]) {
+                alert("Hata: Yarışma veya Alet belirtilmemiş!");
+                return;
+            }
+            
+            localStorage.setItem('activeCompetitionId', activeCompetitionId);
+
+            const apparatusInfo = APPARATUS_MAP[apparatusKey];
+            apparatusName = apparatusInfo.name;
+            apparatusPath = apparatusInfo.path;
+
+            // Sayfa temasını alete göre ayarla
+            document.documentElement.style.setProperty('--apparatus-color', apparatusInfo.color);
+            document.getElementById('apparatus-title').textContent = `${apparatusName} Puanlama`;
+
+            loadAndListenData();
+        }
+
+        function loadAndListenData() {
+            db.ref(`competitions/${activeCompetitionId}`).on('value', snapshot => {
+                competitionData = snapshot.val() || {};
+                currentCriteria = competitionData.cimnastikVerileri?.kriterler?.[apparatusKey] || {};
+                scores = competitionData.cimnastikVerileri?.[apparatusPath] || {};
+                activeAthleteKey = competitionData.aktifSporcu?.[apparatusKey] || null;
+
+                document.getElementById('competitionNameHeader').textContent = `Aktif Yarışma: ${competitionData.isim}`;
+                const activeAthlete = activeAthleteKey ? competitionData.sporcular[activeAthleteKey] : null;
+                document.getElementById('currentActiveAthleteText').textContent = activeAthlete ? `${activeAthlete.soyadAd} (${activeAthlete.kulup})` : "Henüz kimse çağrılmadı.";
+                
+                renderTable();
+            });
+        }
+
+        function renderTable() {
+            const tableHead = document.getElementById('mainTableHead');
+            const tableBody = document.getElementById('mainTableBody');
+            const athletes = competitionData.sporcular ? Object.entries(competitionData.sporcular) : [];
+            
+            // Dinamik olarak başlıkları oluştur
+            let dHeaders = '', eHeaders = '';
+            const hareketler = currentCriteria.hareketler || [];
+            hareketler.forEach(h => { dHeaders += `<th>D - ${h.isim}</th>`; });
+            for (let i = 1; i <= (currentCriteria.hakemSayisi || 4); i++) { eHeaders += `<th>E${i}</th>`; }
+            tableHead.innerHTML = `<tr><th>Sıra</th><th>Sporcu</th>${dHeaders}${eHeaders}<th>Tarafsız Kes.</th><th>Son Not</th><th>Durum</th></tr>`;
+
+            tableBody.innerHTML = '';
+            // TODO: Sporcuları kura sırasına göre sırala
+            athletes.forEach(([key, athlete], index) => {
+                const athleteScores = scores[key] || {};
+                const isFinished = athleteScores.timerState === 'finished';
+
+                let dInputs = '', eInputs = '';
+                hareketler.forEach(h => {
+                    // Atlama için checkbox, diğerleri için selectbox oluştur
+                    if (apparatusKey === 'atlama') {
+                         dInputs += `<td><input type="checkbox" onchange="updateScore('${key}', '${h.id}', this.checked ? ${h.dPuani} : 0)" ${athleteScores[h.id] > 0 ? 'checked' : ''} ${isFinished ? 'disabled' : ''}></td>`;
+                    } else {
+                        const dValues = (h.dValues || "0").split(',').map(v => parseFloat(v.trim()));
+                        let options = '<option value="0">Yapılmadı (0.0)</option>';
+                        dValues.forEach(v => {
+                            if(!isNaN(v) && v > 0) options += `<option value="${v}" ${athleteScores.D?.[h.id] == v ? 'selected': ''}>${v.toFixed(1)}</option>`;
+                        });
+                        dInputs += `<td><select onchange="updateScore('${key}', 'D/${h.id}', this.value)" ${isFinished ? 'disabled' : ''}>${options}</select></td>`;
+                    }
+                });
+
+                for (let i = 1; i <= (currentCriteria.hakemSayisi || 4); i++) {
+                    eInputs += `<td><input type="number" step="0.001" value="${athleteScores[`E${i}`] || ''}" onchange="updateScore('${key}', 'E${i}', this.value)" ${isFinished ? 'disabled' : ''}></td>`;
+                }
+                
+                // TODO: Puan hesaplama fonksiyonunu entegre et
+                const finalScore = athleteScores.sonPuan || 0;
+
+                const row = document.createElement('tr');
+                if(key === activeAthleteKey) row.classList.add('active-athlete');
+                row.innerHTML = `
+                    <td>${index + 1}</td>
+                    <td>
+                        <button title="Bu Sporcuyu Çağır" onclick="setActiveAthlete('${key}')" style="background:none;border:none;color:var(--text-color);cursor:pointer;"><i class="material-icons">campaign</i></button>
+                        ${athlete.soyadAd}<br><small>${athlete.kulup}</small>
+                    </td>
+                    ${dInputs}
+                    ${eInputs}
+                    <td><input type="number" step="0.001" value="${athleteScores.TarafsizKesinti || ''}" onchange="updateScore('${key}', 'TarafsizKesinti', this.value)" ${isFinished ? 'disabled' : ''}></td>
+                    <td style="font-weight:bold; font-size:1.2em;">${finalScore.toFixed(3)}</td>
+                    <td>
+                        <button class="success" onclick="confirmScore('${key}')">Onayla</button>
+                        <button class="danger" onclick="markAsDidNotCompete('${key}')">Yarışmadı</button>
+                    </td>
+                `;
+                tableBody.appendChild(row);
+            });
+        }
+
+        function updateScore(athleteKey, field, value) {
+            // Puanları Firebase'e yazar. Bu, yeni ve doğru sporcu anahtarını kullanır.
+            const path = `competitions/${activeCompetitionId}/cimnastikVerileri/${apparatusPath}/${athleteKey}/${field}`;
+            db.ref(path).set(parseFloat(value) || 0);
+        }
+
+        async function setActiveAthlete(athleteKey) {
+            await db.ref(`competitions/${activeCompetitionId}/aktifSporcu/${apparatusKey}`).set(athleteKey);
+        }
+
+        // TODO: Puan Onaylama, Yarışmadı İşaretleme, Puan Hesaplama gibi diğer fonksiyonlar buraya eklenecek.
+        function confirmScore(athleteKey) {
+            alert(`Puan onaylama fonksiyonu ${athleteKey} için çalışacak.`);
+            // Bu fonksiyon, puanları hesaplayıp 'sonPuan' ve 'timerState: finished' olarak veritabanına yazmalıdır.
+        }
+    </script>
+</body>
+</html>

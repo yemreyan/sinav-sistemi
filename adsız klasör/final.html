@@ -1,0 +1,486 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Final Raporu - Detaylı Analiz</title>
+    
+    <script src="https://www.gstatic.com/firebasejs/9.6.7/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.6.7/firebase-database-compat.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    
+    <link href="https://fonts.googleapis.com/icon?family=Material+Icons+Round" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Oswald:wght@400;500;700&family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    
+    <style>
+        /* --- ÖNCEKİ CSS İLE AYNI --- */
+        :root { --bg-body: #030712; --surface-1: rgba(17, 24, 39, 0.7); --surface-glass: rgba(30, 41, 59, 0.4); --border-glass: rgba(255, 255, 255, 0.08); --primary: #6366f1; --accent: #a855f7; --text-main: #ffffff; --text-muted: #94a3b8; --gold: #fbbf24; --silver: #94a3b8; --bronze: #d97706; --success: #22c55e; --danger: #ef4444; --transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); }
+        * { box-sizing: border-box; margin: 0; padding: 0; outline: none; }
+        body { font-family: 'Plus Jakarta Sans', sans-serif; background-color: var(--bg-body); background-image: radial-gradient(circle at 0% 0%, rgba(99, 102, 241, 0.15), transparent 40%), radial-gradient(circle at 100% 100%, rgba(168, 85, 247, 0.1), transparent 40%); color: var(--text-main); height: 100vh; overflow: hidden; display: flex; }
+        .sidebar { width: 280px; background: var(--surface-1); backdrop-filter: blur(20px); border-right: 1px solid var(--border-glass); display: flex; flex-direction: column; padding: 24px; z-index: 100; }
+        .app-brand { display: flex; align-items: center; gap: 12px; font-size: 1.1rem; font-weight: 800; color: white; margin-bottom: 40px; text-decoration: none; }
+        .nav-item { padding: 14px 16px; margin-bottom: 8px; border-radius: 12px; color: var(--text-muted); text-decoration: none; font-weight: 600; display: flex; align-items: center; gap: 12px; transition: var(--transition); border: 1px solid transparent; cursor: pointer; }
+        .nav-item:hover { background: rgba(255,255,255,0.05); color: white; }
+        .nav-item.active { background: rgba(99, 102, 241, 0.15); color: var(--primary); border-color: rgba(99, 102, 241, 0.2); }
+        .main-content { flex: 1; display: flex; flex-direction: column; position: relative; overflow: hidden; }
+        .top-bar { padding: 20px 40px; border-bottom: 1px solid var(--border-glass); background: rgba(3, 7, 18, 0.6); backdrop-filter: blur(10px); display: flex; justify-content: space-between; align-items: center; }
+        .page-title h1 { font-size: 1.5rem; font-weight: 700; margin: 0; }
+        .page-title p { font-size: 0.9rem; color: var(--text-muted); margin: 5px 0 0 0; }
+        .content-area { flex: 1; padding: 30px 40px; overflow-y: auto; position: relative; }
+        .tab-content { display: none; animation: fadeIn 0.4s ease-out; }
+        .tab-content.active { display: block; }
+        .action-group { display: flex; gap: 10px; }
+        .btn { padding: 8px 16px; border-radius: 10px; border: none; cursor: pointer; font-weight: 600; font-size: 0.85rem; display: inline-flex; align-items: center; gap: 6px; transition: var(--transition); text-decoration: none; }
+        .btn-primary { background: var(--primary); color: white; }
+        .btn-ghost { background: rgba(255,255,255,0.1); color: var(--text-muted); } .btn-ghost:hover { background: rgba(255,255,255,0.2); color: white; }
+        .btn-success { background: rgba(34, 197, 94, 0.2); color: #4ade80; border: 1px solid rgba(34, 197, 94, 0.3); }
+        .btn-danger { background: rgba(239, 68, 68, 0.2); color: #f87171; border: 1px solid rgba(239, 68, 68, 0.3); }
+        .table-wrapper { background: var(--surface-glass); border: 1px solid var(--border-glass); border-radius: 20px; overflow: hidden; backdrop-filter: blur(10px); width: 100%; }
+        .table-scroll { overflow-x: auto; padding-bottom: 5px; }
+        .glass-table { width: 100%; border-collapse: collapse; white-space: nowrap; }
+        .glass-table th { text-align: left; padding: 16px 20px; color: var(--text-muted); font-size: 0.75rem; font-weight: 700; text-transform: uppercase; background: rgba(0,0,0,0.2); border-bottom: 1px solid var(--border-glass); position: sticky; top: 0; z-index: 10; }
+        .glass-table td { padding: 14px 20px; color: white; font-weight: 500; vertical-align: middle; border-bottom: 1px solid rgba(255,255,255,0.03); font-size: 0.9rem; }
+        .glass-table tr:hover td { background: rgba(255,255,255,0.03); }
+        .rank-1 td { background: linear-gradient(90deg, rgba(251, 191, 36, 0.1), transparent); border-left: 3px solid var(--gold); }
+        .rank-2 td { background: linear-gradient(90deg, rgba(148, 163, 184, 0.1), transparent); border-left: 3px solid var(--silver); }
+        .rank-3 td { background: linear-gradient(90deg, rgba(217, 119, 6, 0.1), transparent); border-left: 3px solid var(--bronze); }
+        
+        /* Puan Gösterimi */
+        .score-cell { text-align: center; vertical-align: top !important; }
+        .score-main { font-family: 'Oswald', sans-serif; font-size: 1rem; font-weight: 700; color: #ffffff; display: block; margin-bottom: 2px; }
+        .score-rank { font-size: 0.75rem; color: var(--text-muted); font-weight: 400; margin-left: 4px; vertical-align: middle; }
+        .score-breakdown { font-size: 0.7rem; line-height: 1.3; display: flex; flex-direction: column; align-items: center; gap: 1px; opacity: 0.9; }
+        .d-val { color: #38bdf8; font-weight: 600; }
+        .e-val { color: #4ade80; font-weight: 600; }
+        .pen-val { color: #f87171; font-weight: 600; }
+        .total-score { font-family: 'Oswald', sans-serif; font-size: 1.1rem; font-weight: 700; color: var(--primary); }
+        
+        /* Print & Modal */
+        #print-header { display: none; }
+        .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.8); backdrop-filter: blur(5px); display: none; align-items: center; justify-content: center; z-index: 2000; }
+        .modal-overlay.show { display: flex; }
+        .modal { background: #1e293b; border: 1px solid var(--border-glass); border-radius: 24px; padding: 30px; width: 90%; max-width: 500px; box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5); }
+        .form-group { margin-bottom: 15px; } .form-group label { display: block; margin-bottom: 8px; color: var(--text-muted); font-size: 0.9rem; } .form-control { width: 100%; padding: 12px; background: rgba(0,0,0,0.3); border: 1px solid var(--border-glass); border-radius: 10px; color: white; }
+        
+        @media print {
+            @page { size: A4 landscape; margin: 10mm; }
+            body { background-color: #fff !important; color: #000 !important; height: auto; overflow: visible; display: block; }
+            .sidebar, .top-bar, .action-group, .modal-overlay { display: none !important; }
+            .main-content { margin: 0; padding: 0; width: 100%; }
+            .content-area { padding: 0; overflow: visible; }
+            .tab-content { display: block !important; margin-bottom: 30px; page-break-inside: avoid; }
+            .tab-content:not(.active) { display: none !important; }
+            #print-header { display: flex !important; align-items: flex-start; justify-content: space-between; border-bottom: 2px solid #000; padding-bottom: 10px; margin-bottom: 20px; }
+            #print-header img { height: 50px; }
+            .print-title { text-align: center; flex: 1; }
+            .print-title h2 { font-size: 14pt; margin: 0; font-weight: bold; } .print-title p { font-size: 10pt; margin: 0; }
+            .table-wrapper { border: none; border-radius: 0; background: transparent; overflow: visible; }
+            .d-val, .e-val, .pen-val { color: #000 !important; }
+        }
+    </style>
+</head>
+<body>
+
+    <div id="print-header">
+        <div class="logo-container">
+            <img src="https://www.tcf.gov.tr/wp-content/uploads/2021/04/TCF-Logo-2021-01.png" alt="TCF">
+        </div>
+        <div class="print-title">
+            <h2 id="printCompetitionName">Yarışma Adı</h2>
+            <p id="printCategory">Kategori</p>
+        </div>
+        <div style="font-size:9pt;">Tarih: <span id="printDate"></span></div>
+    </div>
+
+    <aside class="sidebar">
+        <a href="index.html" class="app-brand">
+            <i class="material-icons-round" style="color:var(--primary);">arrow_back</i> Ana Sayfa
+        </a>
+        <div style="margin-top: 20px;">
+            <div style="font-size:0.75rem; color:var(--text-muted); margin-bottom:10px; font-weight:600; letter-spacing:1px;">RAPORLAR</div>
+            <div class="nav-item active" onclick="openTab(event, 'all-around-tab')"><i class="material-icons-round">emoji_events</i> Genel Tasnif</div>
+            <div class="nav-item" onclick="openTab(event, 'apparatus-tab')"><i class="material-icons-round">category</i> Alet Finalleri</div>
+            <div class="nav-item" onclick="openTab(event, 'team-tab')"><i class="material-icons-round">groups</i> Takım Sıralaması</div>
+        </div>
+    </aside>
+
+    <main class="main-content">
+        <div class="top-bar">
+            <div class="page-title">
+                <h1><i class="material-icons-round" style="color:var(--accent);">analytics</i> Final Sonuçlar</h1>
+                <p id="competitionNameHeader">Yarışma Verileri Yükleniyor...</p>
+            </div>
+            <div class="action-group">
+                <button onclick="openDeductionModal()" class="btn btn-danger"><i class="material-icons-round">remove_circle</i> Takım Cezası</button>
+                <button onclick="exportToExcel()" class="btn btn-success"><i class="material-icons-round">download</i> Detaylı Excel</button>
+                <button onclick="window.print()" class="btn btn-ghost"><i class="material-icons-round">print</i> Yazdır</button>
+            </div>
+        </div>
+
+        <div class="content-area">
+            <div id="all-around-tab" class="tab-content active">
+                <div class="table-wrapper">
+                    <div class="table-scroll">
+                        <table class="glass-table">
+                            <thead id="allAroundTableHead"></thead>
+                            <tbody id="allAroundTableBody"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <div id="apparatus-tab" class="tab-content">
+                <div id="apparatusResultsContainer" style="display:grid; gap:30px;"></div>
+            </div>
+
+            <div id="team-tab" class="tab-content">
+                <div class="table-wrapper">
+                    <div class="table-scroll">
+                        <table class="glass-table">
+                            <thead id="teamTableHead"></thead>
+                            <tbody id="teamTableBody"></tbody>
+                        </table>
+                    </div>
+                </div>
+                <div id="teamDeductionsList" style="margin-top:20px; color:var(--danger);"></div>
+            </div>
+        </div>
+    </main>
+
+    <div id="deductionModal" class="modal-overlay">
+        <div class="modal">
+            <div class="modal-header">
+                <h3 style="margin:0; color:white;">Takım Kesintisi Ekle</h3>
+            </div>
+            <form id="deductionForm" style="margin-top:20px;">
+                <div class="form-group">
+                    <label>Takım Seçin</label>
+                    <select id="teamSelect" class="form-control" required><option value="">Seçiniz...</option></select>
+                </div>
+                <div class="form-group">
+                    <label>Kesinti Puanı (Örn: 1.00)</label>
+                    <input type="number" id="deductionAmount" class="form-control" step="0.001" min="0.100" required>
+                </div>
+                <div class="form-group">
+                    <label>Sebep</label>
+                    <input type="text" id="deductionReason" class="form-control" required>
+                </div>
+                <div style="display:flex; justify-content:flex-end; gap:10px; margin-top:20px;">
+                    <button type="button" onclick="closeDeductionModal()" class="btn btn-ghost">İptal</button>
+                    <button type="submit" class="btn btn-danger">Kaydet</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        const firebaseConfig = { apiKey: "AIzaSyA5VNkBsZkZqaDr8YgOnhiGCDql9-lJ6Gk", authDomain: "analig2025.firebaseapp.com", databaseURL: "https://analig2025-default-rtdb.firebaseio.com" };
+        firebase.initializeApp(firebaseConfig);
+        const db = firebase.database();
+        
+        let activeCompetitionId=null, competitionData={}, globalSporcular={}, teamDeductions={}, fullResults = [];
+        const APPARATUS_CONFIG = { minikler: { yer: 'Yer', atlama: 'Atlama', barfiks: 'Barfiks', denge: 'Denge' }, kucukler: { yer: 'Yer', atlama: 'Atlama', barfiks: 'Barfiks', denge: 'Denge', asimetrik_paralel: 'Asimetrik P.' } };
+        const APPARATUS_PATHS = { yer: 'yerPuanlari', atlama: 'atlamaPuanlari', barfiks: 'barfiksPuanlari', denge: 'dengePuanlari', asimetrik_paralel: 'asimetrikParalelPuanlari'};
+
+        document.addEventListener('DOMContentLoaded', async () => {
+            activeCompetitionId = new URLSearchParams(window.location.search).get('competitionId') || localStorage.getItem('activeCompetitionId');
+            if (!activeCompetitionId) { document.getElementById('competitionNameHeader').textContent = "Yarışma Seçilmedi"; return; }
+            document.getElementById('printDate').textContent = new Date().toLocaleDateString('tr-TR');
+            await loadGlobalSporcular();
+            loadCompetitionData();
+        });
+
+        async function loadGlobalSporcular() {
+            const snapshot = await db.ref('globalSporcular').once('value');
+            if (snapshot.exists()) { 
+                globalSporcular = {}; 
+                snapshot.forEach(child => {
+                    const athlete = child.val();
+                    if(athlete.id) { globalSporcular[String(athlete.id)] = athlete; }
+                }); 
+            }
+        }
+        
+        function loadCompetitionData() {
+            const competitionRef = db.ref(`competitions/${activeCompetitionId}`);
+            competitionRef.on('value', (snapshot) => {
+                if (!snapshot.exists()) { document.getElementById('competitionNameHeader').textContent = "Yarışma Bulunamadı"; return; }
+                competitionData = snapshot.val();
+                const competitionName = competitionData.isim || "İsimsiz Yarışma";
+                const category = competitionData.kategori || 'minikler';
+                document.getElementById('competitionNameHeader').textContent = competitionName;
+                document.getElementById('printCompetitionName').textContent = competitionName;
+                document.getElementById('printCategory').textContent = category.toUpperCase() + " KATEGORİSİ";
+                processAllData();
+            });
+             db.ref(`competitions/${activeCompetitionId}/teamDeductions`).on('value', (snapshot) => {
+                teamDeductions = snapshot.val() || {};
+                if(fullResults.length > 0) processAllData(); 
+            });
+        }
+        
+        // --- ANA VERİ İŞLEME FONKSİYONU ---
+        function processAllData() {
+            const participantIds = Object.keys(competitionData.katilimcilar || {});
+            const scoresData = competitionData.cimnastikVerileri || {};
+            const category = competitionData.kategori || 'minikler';
+            const apps = APPARATUS_CONFIG[category];
+            const appKeys = Object.keys(apps);
+
+            let results = participantIds.map(id => {
+                const athlete = globalSporcular[String(id)];
+                if (!athlete) return null;
+                
+                let totalScore = 0;
+                const scores = {}, details = {};
+
+                appKeys.forEach(key => {
+                    const path = APPARATUS_PATHS[key];
+                    const sData = scoresData[path]?.[id];
+                    const score = parseFloat(sData?.sonPuan || 0);
+                    const dScore = parseFloat(sData?.dToplami || 0);
+                    const eScore = parseFloat(sData?.ePuani || 0);
+                    const penScore = (parseFloat(sData?.TarafsizKesinti || 0) + parseFloat(sData?.eksikElementKesintisi || 0));
+
+                    // **YENİ: D Hareketlerini Çek (d1, d2 ... d8)**
+                    let dList = [];
+                    for(let k=1; k<=8; k++) {
+                        // Veritabanındaki anahtarlar d1, d2 veya D1, D2 olabilir, ikisini de dene
+                        let val = sData?.[`d${k}`];
+                        if(!val) val = sData?.[`D${k}`];
+                        
+                        if(val && parseFloat(val) > 0) {
+                            dList.push(parseFloat(val).toFixed(1));
+                        }
+                    }
+
+                    scores[key] = score;
+                    totalScore += score;
+                    
+                    details[key] = {
+                        final: score,
+                        D: dScore,
+                        E: eScore,
+                        Pen: penScore,
+                        dList: dList, // Hareket listesini kaydet
+                        rank: 0
+                    };
+                });
+                
+                const soyadAd = (athlete.soyad + ' ' + athlete.ad).toUpperCase();
+                return { ...athlete, soyadAd, scores, details, totalScore, id };
+            }).filter(r => r !== null);
+
+            // Sıralamaları Hesapla
+            appKeys.forEach(key => {
+                const sortedByApp = [...results].sort((a, b) => b.scores[key] - a.scores[key]);
+                sortedByApp.forEach((r, index) => {
+                    if (r.scores[key] > 0) {
+                        const originalObj = results.find(x => x.id === r.id);
+                        if (originalObj) originalObj.details[key].rank = index + 1;
+                    }
+                });
+            });
+
+            results.sort((a, b) => b.totalScore - a.totalScore);
+            fullResults = results;
+            renderAllAround(results, apps);
+            renderApparatus(results, apps);
+            renderTeam(results, apps);
+            updateTeamSelect(results);
+        }
+
+        function renderAllAround(results, apps) {
+            const thead = document.getElementById('allAroundTableHead');
+            const tbody = document.getElementById('allAroundTableBody');
+            let h = '<tr><th style="width:50px;">Sıra</th><th>Ad Soyad</th><th>Kulüp</th>';
+            Object.values(apps).forEach(name => h += `<th style="text-align:center;">${name}</th>`);
+            h += '<th style="text-align:right; padding-right:20px;">Toplam</th></tr>';
+            thead.innerHTML = h;
+            
+            tbody.innerHTML = results.map((r, i) => {
+                const rankClass = i < 3 ? `rank-${i+1}` : '';
+                let sHtml = '';
+                Object.keys(apps).forEach(key => {
+                    const d = r.details[key];
+                    if (d.final > 0) {
+                        sHtml += `<td class="score-cell">
+                            <div class="score-main">${d.final.toFixed(3)} <span class="score-rank">(${d.rank}.)</span></div>
+                            <div class="score-breakdown">
+                                <span class="d-val">D: ${d.D.toFixed(2)}</span> 
+                                <span class="e-val">E: ${d.E.toFixed(2)}</span>
+                                ${d.Pen > 0 ? `<span class="pen-val">P: -${d.Pen.toFixed(2)}</span>` : ''}
+                            </div>
+                        </td>`;
+                    } else { sHtml += `<td style="text-align:center; color:var(--text-muted);">-</td>`; }
+                });
+                return `<tr class="${rankClass}"><td style="text-align:center; font-weight:bold;">${i+1}</td><td style="font-weight:600;">${r.soyadAd}</td><td style="font-size:0.9rem; color:#ccc;">${r.kulup||'-'}</td>${sHtml}<td class="total-score" style="text-align:right; padding-right:20px;">${r.totalScore.toFixed(3)}</td></tr>`;
+            }).join('');
+        }
+
+        function renderApparatus(results, apps) {
+            const container = document.getElementById('apparatusResultsContainer');
+            container.innerHTML = '';
+            Object.keys(apps).forEach(key => {
+                const sorted = [...results].sort((a, b) => b.scores[key] - a.scores[key]).filter(r => r.scores[key] > 0);
+                let html = `<div class="table-wrapper"><div style="padding:15px; background:rgba(255,255,255,0.05); border-bottom:1px solid var(--border-glass);"><h3 style="margin:0; color:var(--accent);">${apps[key]} Finali</h3></div><div class="table-scroll"><table class="glass-table"><thead><tr><th>Sıra</th><th>Sporcu</th><th>Kulüp</th><th>D</th><th>E</th><th>Kesinti</th><th>Puan</th></tr></thead><tbody>`;
+                html += sorted.map((r, i) => {
+                    const d = r.details[key];
+                    const rankClass = i < 3 ? `rank-${i+1}` : '';
+                    return `<tr class="${rankClass}"><td>${i+1}</td><td>${r.soyadAd}</td><td>${r.kulup}</td><td class="d-val">${d.D.toFixed(2)}</td><td class="e-val">${d.E.toFixed(2)}</td><td class="pen-val">${d.Pen > 0 ? '-'+d.Pen.toFixed(2) : ''}</td><td class="total-score">${d.final.toFixed(3)}</td></tr>`;
+                }).join('');
+                html += `</tbody></table></div></div>`;
+                container.innerHTML += html;
+            });
+        }
+
+        function renderTeam(results, apps) {
+            const teams = {};
+            results.forEach(r => {
+                if(!r.kulup) return;
+                if(!teams[r.kulup]) teams[r.kulup] = { name: r.kulup, scores: {}, total: 0, deduction: 0 };
+                Object.keys(apps).forEach(key => {
+                    if(!teams[r.kulup].scores[key]) teams[r.kulup].scores[key] = [];
+                    teams[r.kulup].scores[key].push(r.scores[key]);
+                });
+            });
+            const teamList = Object.values(teams).map(t => {
+                let rawTotal = 0;
+                t.appTotals = {};
+                Object.keys(apps).forEach(key => {
+                    const best3 = t.scores[key].sort((a,b)=>b-a).slice(0,3);
+                    const appSum = best3.reduce((s,v)=>s+v, 0);
+                    t.appTotals[key] = appSum;
+                    rawTotal += appSum;
+                });
+                const dedObj = Object.values(teamDeductions).filter(d => d.teamName === t.name);
+                const dedAmount = dedObj.reduce((s,d) => s + parseFloat(d.amount), 0);
+                t.deduction = dedAmount;
+                t.finalScore = rawTotal - dedAmount;
+                return t;
+            }).sort((a,b) => b.finalScore - a.finalScore);
+            
+            const tbody = document.getElementById('teamTableBody');
+            const thead = document.getElementById('teamTableHead');
+            let h = '<tr><th>Sıra</th><th>Takım</th>';
+            Object.values(apps).forEach(n => h += `<th>${n} (Top 3)</th>`);
+            h += '<th>Kesinti</th><th>Genel Toplam</th></tr>';
+            thead.innerHTML = h;
+            tbody.innerHTML = teamList.map((t, i) => {
+                let sHtml = '';
+                Object.keys(apps).forEach(k => sHtml += `<td>${t.appTotals[k].toFixed(3)}</td>`);
+                const rankClass = i < 3 ? `rank-${i+1}` : '';
+                return `<tr class="${rankClass}"><td>${i+1}</td><td style="font-weight:700;">${t.name}</td>${sHtml}<td style="color:var(--danger);">${t.deduction > 0 ? '-'+t.deduction.toFixed(3) : ''}</td><td class="total-score">${t.finalScore.toFixed(3)}</td></tr>`;
+            }).join('');
+        }
+
+        // --- GÜNCELLENMİŞ EXCEL EXPORT (D Hareketleri Dahil) ---
+        function exportToExcel() {
+            if (!fullResults || fullResults.length === 0) { alert("Veri yok!"); return; }
+            
+            try {
+                const wb = XLSX.utils.book_new();
+                const category = competitionData.kategori || 'minikler';
+                const apps = APPARATUS_CONFIG[category];
+                const appKeys = Object.keys(apps);
+                
+                // 1. Sayfa: Genel Tasnif
+                const generalData = fullResults.map((r, i) => {
+                    const row = { 
+                        'Sıra': i+1, 
+                        'Ad Soyad': r.soyadAd, 
+                        'Kulüp': r.kulup, 
+                        'Şehir': r.sehir || '' 
+                    };
+                    
+                    appKeys.forEach(key => {
+                        const d = r.details[key];
+                        if (d.final > 0) {
+                            // D Hareketlerini string olarak birleştir
+                            const dString = d.dList && d.dList.length > 0 ? `Hareketler: ${d.dList.join(', ')}` : '';
+                            
+                            const cellValue = [
+                                `Final: ${d.final.toFixed(3)}`,
+                                `D: ${d.D.toFixed(2)}`,
+                                `E: ${d.E.toFixed(2)}`,
+                                `Ceza: ${d.Pen > 0 ? '-' + d.Pen.toFixed(2) : '0.00'}`,
+                                dString // Hücre içine ekle
+                            ].filter(Boolean).join('\n'); // Boş stringleri temizle ve birleştir
+                            row[`${apps[key]} Detay`] = cellValue;
+                        } else {
+                            row[`${apps[key]} Detay`] = "-";
+                        }
+                    });
+                    row['GENEL TOPLAM'] = r.totalScore.toFixed(3);
+                    return row;
+                });
+                const ws_general = XLSX.utils.json_to_sheet(generalData);
+                XLSX.utils.book_append_sheet(wb, ws_general, "1-Genel Tasnif");
+                
+                // 2. Sayfa: Takım
+                const teamTable = document.querySelector('#team-tab table');
+                if (teamTable) {
+                    const ws_team = XLSX.utils.table_to_sheet(teamTable);
+                    XLSX.utils.book_append_sheet(wb, ws_team, "2-Takım Sıralaması");
+                }
+
+                // 3. Sayfalar: Alet Finalleri (D1...D8 Sütunları ile)
+                appKeys.forEach(key => {
+                    const appName = apps[key];
+                    const appResults = fullResults.map(r => ({
+                            soyadAd: r.soyadAd,
+                            kulup: r.kulup,
+                            final: r.details[key].final,
+                            D: r.details[key].D,
+                            E: r.details[key].E,
+                            Pen: r.details[key].Pen,
+                            dList: r.details[key].dList || []
+                        })).filter(r => r.final > 0).sort((a, b) => b.final - a.final);
+
+                    const appData = appResults.map((r, i) => {
+                        // Temel satır verisi
+                        const row = {
+                            'Sıra': i + 1,
+                            'Ad Soyad': r.soyadAd,
+                            'Kulüp': r.kulup,
+                        };
+
+                        // D hareketlerini (D1, D2...) ayrı sütunlara ekle
+                        for (let k = 0; k < 8; k++) {
+                            row[`D${k+1}`] = r.dList[k] ? Number(r.dList[k]) : ""; 
+                        }
+
+                        // Kalan veriler
+                        row['D Toplam'] = r.D.toFixed(2);
+                        row['E Puanı'] = r.E.toFixed(2);
+                        row['Ceza'] = r.Pen > 0 ? r.Pen.toFixed(2) : '0.00';
+                        row['FINAL PUAN'] = r.final.toFixed(3);
+
+                        return row;
+                    });
+                    
+                    if (appData.length > 0) {
+                         XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(appData), `3-${appName} Final`);
+                    }
+                });
+
+                const safeName = (competitionData.isim || 'Yarisma').replace(/[^a-z0-9]/gi, '_');
+                XLSX.writeFile(wb, `Detayli_Rapor_${safeName}.xlsx`);
+            } catch (e) { console.error(e); alert("Excel hatası: " + e.message); }
+        }
+
+        function openTab(e, id) { document.querySelectorAll('.tab-content').forEach(x=>x.classList.remove('active')); document.querySelectorAll('.nav-item').forEach(x=>x.classList.remove('active')); document.getElementById(id).classList.add('active'); e.currentTarget.classList.add('active'); }
+        function updateTeamSelect(results) { const s = document.getElementById('teamSelect'); const t = [...new Set(results.map(r=>r.kulup).filter(Boolean))].sort(); s.innerHTML = '<option value="">Seçiniz...</option>'; t.forEach(x => s.innerHTML += `<option value="${x}">${x}</option>`); }
+        function openDeductionModal() { document.getElementById('deductionModal').style.display = 'flex'; }
+        function closeDeductionModal() { document.getElementById('deductionModal').style.display = 'none'; }
+        document.getElementById('deductionForm')?.addEventListener('submit', async function(e) { 
+            e.preventDefault(); 
+            const t = document.getElementById('teamSelect').value; 
+            const a = parseFloat(document.getElementById('deductionAmount').value);
+            const r = document.getElementById('deductionReason').value;
+            if(t && a > 0) { await db.ref(`competitions/${activeCompetitionId}/teamDeductions`).push({ teamName:t, amount:a, reason:r }); closeDeductionModal(); document.getElementById('deductionForm').reset(); }
+        });
+        window.onclick = function(event) { if (event.target == document.getElementById('deductionModal')) closeDeductionModal(); }
+    </script>
+</body>
+</html>

@@ -1,0 +1,589 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Canlı Skor Merkezi - Cimnastik OS</title>
+    
+    <script src="https://www.gstatic.com/firebasejs/9.6.7/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.6.7/firebase-database-compat.js"></script>
+    
+    <link href="https://fonts.googleapis.com/icon?family=Material+Icons+Round" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Oswald:wght@400;500;700&family=Plus+Jakarta+Sans:wght@300;400;600;700;800&display=swap" rel="stylesheet">
+
+    <style>
+        :root {
+            --bg-body: #020617;
+            --surface-glass: rgba(17, 24, 39, 0.6);
+            --surface-active: rgba(30, 41, 59, 0.8);
+            --border-glass: rgba(255, 255, 255, 0.08);
+            
+            /* Alet Renkleri */
+            --denge: #e91e63;
+            --asimetrik: #06b6d4;
+            --atlama: #22c55e;
+            --barfiks: #f97316;
+            --yer: #3b82f6;
+            
+            --text-main: #ffffff;
+            --text-muted: #94a3b8;
+            
+            --font-main: 'Plus Jakarta Sans', sans-serif;
+            --font-display: 'Oswald', sans-serif;
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        
+        body {
+            font-family: var(--font-main);
+            background-color: var(--bg-body);
+            color: var(--text-main);
+            height: 100vh;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            /* Dinamik Arka Plan */
+            background-image: 
+                radial-gradient(circle at 0% 0%, rgba(99, 102, 241, 0.15), transparent 50%),
+                radial-gradient(circle at 100% 100%, rgba(236, 72, 153, 0.15), transparent 50%);
+        }
+
+        /* --- EKRAN YÖNETİMİ --- */
+        .screen {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            display: none; flex-direction: column;
+            opacity: 0; transition: opacity 0.5s ease;
+        }
+        .screen.active { display: flex; opacity: 1; }
+
+        /* --- 1. YARIŞMA SEÇİMİ --- */
+        #selection-screen {
+            align-items: center; justify-content: center;
+            backdrop-filter: blur(10px); z-index: 100;
+        }
+        .modal {
+            background: #0f172a; border: 1px solid var(--border-glass);
+            border-radius: 24px; padding: 40px; width: 90%; max-width: 500px;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5); text-align: center;
+        }
+        .modal h2 { font-family: var(--font-display); font-size: 2rem; margin-bottom: 20px; color: #fff; text-transform: uppercase; letter-spacing: 1px; }
+        .comp-list { list-style: none; max-height: 300px; overflow-y: auto; text-align: left; }
+        .comp-item {
+            padding: 15px; margin-bottom: 10px; border-radius: 12px;
+            background: rgba(255,255,255,0.03); cursor: pointer;
+            transition: 0.2s; display: flex; justify-content: space-between; align-items: center;
+        }
+        .comp-item:hover { background: rgba(255,255,255,0.08); transform: translateX(5px); }
+        .comp-name { font-weight: 600; }
+
+        /* --- 2. DASHBOARD --- */
+        .top-bar {
+            padding: 15px 30px; display: flex; justify-content: space-between; align-items: center;
+            border-bottom: 1px solid var(--border-glass); background: rgba(2, 6, 23, 0.8);
+            flex-shrink: 0; /* Header küçülmesin */
+        }
+        .header-title h1 { font-family: var(--font-display); font-size: 1.5rem; margin: 0; letter-spacing: 1px; }
+        .header-title p { color: var(--text-muted); font-size: 0.9rem; margin: 0; }
+        
+        .back-btn {
+            background: rgba(255,255,255,0.1); color: white; text-decoration: none;
+            padding: 8px 16px; border-radius: 99px; font-size: 0.85rem; font-weight: 600;
+            display: flex; align-items: center; gap: 5px; transition: 0.3s;
+        }
+        .back-btn:hover { background: rgba(255,255,255,0.2); }
+
+        /* --- DİNAMİK LAYOUT SİSTEMİ (FLEXBOX) --- */
+        .dashboard-grid {
+            flex: 1;
+            padding: 30px;
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            align-content: center; /* Dikey ortalama */
+            gap: 30px;
+            overflow: hidden;
+        }
+
+        /* Alet Kartları */
+        .apparatus-card {
+            background: var(--surface-glass); border-radius: 24px;
+            border: 1px solid var(--border-glass);
+            position: relative; overflow: hidden;
+            display: flex; flex-direction: column;
+            transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+            /* Varsayılan Genişlik/Yükseklik JS sınıfları ile ezilecek */
+        }
+
+        /* === 4 ALET DÜZENİ (2x2) === */
+        /* Genişlik: (100% - gap) / 2 */
+        /* Yükseklik: (100% - gap) / 2 */
+        .layout-4 .apparatus-card {
+            width: calc((100% - 30px) / 2);
+            height: calc((100% - 30px) / 2);
+        }
+
+        /* === 5 ALET DÜZENİ (Üst 3, Alt 2) === */
+        /* Üst Satır (3 Kart): Genişlik (100% - 2*gap) / 3 */
+        /* Alt Satır (2 Kart): Flexbox 'justify-content: center' ile ortalanır. */
+        /* Yükseklik: (100% - gap) / 2 */
+        .layout-5 .apparatus-card {
+            width: calc((100% - 60px) / 3);
+            height: calc((100% - 30px) / 2);
+        }
+        
+        /* Alt satırdaki 2 kartın biraz daha geniş durması opsiyoneldir, 
+           ancak simetri için üsttekilerle aynı genişlikte olup ortalanmaları daha şık durur.
+           Eğer alt satırı genişletmek isterseniz aşağıdaki kodu açabilirsiniz:
+        */
+        /* .layout-5 .apparatus-card:nth-last-child(-n+2) { width: calc((100% - 30px) / 2); } */
+
+
+        /* Kart Renk Çizgileri */
+        .card-atlama { border-top: 5px solid var(--atlama); }
+        .card-barfiks { border-top: 5px solid var(--barfiks); }
+        .card-denge { border-top: 5px solid var(--denge); }
+        .card-yer { border-top: 5px solid var(--yer); }
+        .card-asimetrik { border-top: 5px solid var(--asimetrik); }
+
+        /* Kart İçi Yapı */
+        .card-header {
+            padding: 15px 25px; display: flex; justify-content: space-between; align-items: center;
+            border-bottom: 1px solid rgba(255,255,255,0.05); background: rgba(0,0,0,0.2);
+        }
+        .app-name {
+            font-family: var(--font-display); font-size: 1.4rem; font-weight: 700;
+            text-transform: uppercase; letter-spacing: 1px; display: flex; align-items: center; gap: 8px;
+        }
+        .status-badge {
+            font-size: 0.75rem; font-weight: 700; padding: 5px 10px; border-radius: 6px;
+            background: rgba(255,255,255,0.1); color: var(--text-muted); text-transform: uppercase;
+        }
+        
+        .card-content { flex: 1; position: relative; }
+
+        /* Durum 1: Bekleniyor */
+        .state-waiting {
+            height: 100%; display: flex; flex-direction: column; 
+            justify-content: center; align-items: center; text-align: center;
+            padding: 20px;
+        }
+        .next-label { font-size: 0.9rem; color: var(--text-muted); letter-spacing: 2px; text-transform: uppercase; margin-bottom: 10px; }
+        .next-athlete { font-size: 1.8rem; font-weight: 700; color: white; margin-bottom: 5px; }
+        .next-club { font-size: 1.1rem; color: var(--text-muted); }
+        .pulse-icon { font-size: 3rem; margin-bottom: 15px; opacity: 0.5; animation: pulse 2s infinite; }
+
+        /* Durum 2: Puan Gösterimi */
+        .state-score {
+            height: 100%; display: none; flex-direction: column; padding: 25px;
+            animation: slideUp 0.5s cubic-bezier(0.2, 0.8, 0.2, 1);
+        }
+        
+        .athlete-header {
+            display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 10px;
+        }
+        .ath-name { font-size: 1.8rem; font-weight: 800; line-height: 1.1; }
+        .ath-club { font-size: 1.1rem; color: var(--text-muted); }
+
+        .score-grid {
+            display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-top: auto; margin-bottom: 20px;
+        }
+        .score-item {
+            background: rgba(255,255,255,0.03); border-radius: 12px; padding: 12px; text-align: center;
+        }
+        .score-lbl { font-size: 0.8rem; color: var(--text-muted); font-weight: 700; text-transform: uppercase; }
+        .score-val { font-family: var(--font-display); font-size: 1.8rem; font-weight: 600; }
+
+        .final-row {
+            display: flex; justify-content: space-between; align-items: center;
+            background: rgba(255,255,255,0.05); border-radius: 16px; padding: 15px 25px;
+        }
+        .final-lbl { font-size: 1.2rem; font-weight: 700; letter-spacing: 1px; }
+        .final-val { font-family: var(--font-display); font-size: 3.5rem; font-weight: 700; line-height: 1; }
+
+        /* Renkler */
+        .text-atlama { color: var(--atlama); }
+        .text-barfiks { color: var(--barfiks); }
+        .text-denge { color: var(--denge); }
+        .text-yer { color: var(--yer); }
+        .text-asimetrik { color: var(--asimetrik); }
+
+        /* Progress Bar */
+        .progress-line {
+            position: absolute; bottom: 0; left: 0; height: 4px; width: 0%;
+            transition: width linear; z-index: 10;
+        }
+
+        @keyframes pulse { 0% { transform: scale(1); opacity: 0.5; } 50% { transform: scale(1.1); opacity: 1; } 100% { transform: scale(1); opacity: 0.5; } }
+        @keyframes slideUp { from { transform: translateY(20px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+        
+        /* Responsive: Küçük ekranlarda tek sütuna düşer */
+        @media (max-width: 1024px) {
+            .dashboard-grid { flex-direction: column; flex-wrap: nowrap; overflow-y: auto; justify-content: flex-start; }
+            .layout-4 .apparatus-card, .layout-5 .apparatus-card { width: 100%; height: 400px; flex-shrink: 0; }
+        }
+    </style>
+</head>
+<body>
+
+    <div id="selection-screen" class="screen active">
+        <div class="modal">
+            <h2>Canlı Skor Merkezi</h2>
+            <p style="color:var(--text-muted); margin-bottom:20px;">Lütfen izlemek istediğiniz yarışmayı seçin.</p>
+            <ul id="competition-list" class="comp-list">
+                <li style="padding:15px; text-align:center; color:var(--text-muted);">Yarışmalar yükleniyor...</li>
+            </ul>
+        </div>
+    </div>
+
+    <div id="dashboard-screen" class="screen">
+        <header class="top-bar">
+            <div class="header-title">
+                <h1 id="competition-title">Yarışma Adı</h1>
+                <p>Canlı Skor Akışı</p>
+            </div>
+            <button onclick="goBack()" class="back-btn">
+                <i class="material-icons-round">arrow_back</i> Yarışma Değiştir
+            </button>
+        </header>
+
+        <div id="dashboard-grid" class="dashboard-grid">
+            
+            <div class="apparatus-card card-atlama" id="card-atlama">
+                <div class="card-header">
+                    <div class="app-name text-atlama"><i class="material-icons-round">sports_gymnastics</i> ATLAMA</div>
+                    <div class="status-badge" id="status-atlama">BEKLİYOR</div>
+                </div>
+                <div class="card-content">
+                    <div class="state-waiting" id="wait-atlama">
+                        <i class="material-icons-round pulse-icon text-atlama">hourglass_empty</i>
+                        <div class="next-label">SIRADAKİ</div>
+                        <div class="next-athlete" id="next-name-atlama">...</div>
+                        <div class="next-club" id="next-club-atlama">...</div>
+                    </div>
+                    <div class="state-score" id="score-atlama">
+                        <div class="athlete-header">
+                            <div>
+                                <div class="ath-name" id="name-atlama">Ad Soyad</div>
+                                <div class="ath-club" id="club-atlama">Kulüp</div>
+                            </div>
+                        </div>
+                        <div class="score-grid">
+                            <div class="score-item"><div class="score-lbl">D Puanı</div><div class="score-val" id="d-atlama">0.0</div></div>
+                            <div class="score-item"><div class="score-lbl">E Puanı</div><div class="score-val" id="e-atlama">0.0</div></div>
+                            <div class="score-item"><div class="score-lbl">Kesinti</div><div class="score-val" id="p-atlama" style="color:var(--danger)">0.0</div></div>
+                        </div>
+                        <div class="final-row">
+                            <div class="final-lbl text-atlama">SONUÇ</div>
+                            <div class="final-val" id="final-atlama">0.000</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="progress-line" id="prog-atlama" style="background:var(--atlama);"></div>
+            </div>
+
+            <div class="apparatus-card card-barfiks" id="card-barfiks">
+                <div class="card-header">
+                    <div class="app-name text-barfiks"><i class="material-icons-round">horizontal_rule</i> BARFİKS</div>
+                    <div class="status-badge" id="status-barfiks">BEKLİYOR</div>
+                </div>
+                <div class="card-content">
+                    <div class="state-waiting" id="wait-barfiks">
+                        <i class="material-icons-round pulse-icon text-barfiks">hourglass_empty</i>
+                        <div class="next-label">SIRADAKİ</div>
+                        <div class="next-athlete" id="next-name-barfiks">...</div>
+                        <div class="next-club" id="next-club-barfiks">...</div>
+                    </div>
+                    <div class="state-score" id="score-barfiks">
+                        <div class="athlete-header">
+                            <div>
+                                <div class="ath-name" id="name-barfiks">Ad Soyad</div>
+                                <div class="ath-club" id="club-barfiks">Kulüp</div>
+                            </div>
+                        </div>
+                        <div class="score-grid">
+                            <div class="score-item"><div class="score-lbl">D Puanı</div><div class="score-val" id="d-barfiks">0.0</div></div>
+                            <div class="score-item"><div class="score-lbl">E Puanı</div><div class="score-val" id="e-barfiks">0.0</div></div>
+                            <div class="score-item"><div class="score-lbl">Kesinti</div><div class="score-val" id="p-barfiks" style="color:var(--danger)">0.0</div></div>
+                        </div>
+                        <div class="final-row">
+                            <div class="final-lbl text-barfiks">SONUÇ</div>
+                            <div class="final-val" id="final-barfiks">0.000</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="progress-line" id="prog-barfiks" style="background:var(--barfiks);"></div>
+            </div>
+
+            <div class="apparatus-card card-denge" id="card-denge">
+                <div class="card-header">
+                    <div class="app-name text-denge"><i class="material-icons-round">balance</i> DENGE</div>
+                    <div class="status-badge" id="status-denge">BEKLİYOR</div>
+                </div>
+                <div class="card-content">
+                    <div class="state-waiting" id="wait-denge">
+                        <i class="material-icons-round pulse-icon text-denge">hourglass_empty</i>
+                        <div class="next-label">SIRADAKİ</div>
+                        <div class="next-athlete" id="next-name-denge">...</div>
+                        <div class="next-club" id="next-club-denge">...</div>
+                    </div>
+                    <div class="state-score" id="score-denge">
+                        <div class="athlete-header">
+                            <div>
+                                <div class="ath-name" id="name-denge">Ad Soyad</div>
+                                <div class="ath-club" id="club-denge">Kulüp</div>
+                            </div>
+                        </div>
+                        <div class="score-grid">
+                            <div class="score-item"><div class="score-lbl">D Puanı</div><div class="score-val" id="d-denge">0.0</div></div>
+                            <div class="score-item"><div class="score-lbl">E Puanı</div><div class="score-val" id="e-denge">0.0</div></div>
+                            <div class="score-item"><div class="score-lbl">Kesinti</div><div class="score-val" id="p-denge" style="color:var(--danger)">0.0</div></div>
+                        </div>
+                        <div class="final-row">
+                            <div class="final-lbl text-denge">SONUÇ</div>
+                            <div class="final-val" id="final-denge">0.000</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="progress-line" id="prog-denge" style="background:var(--denge);"></div>
+            </div>
+
+            <div class="apparatus-card card-asimetrik" id="card-asimetrik_paralel" style="display:none;">
+                <div class="card-header">
+                    <div class="app-name text-asimetrik"><i class="material-icons-round">show_chart</i> ASİMETRİK P.</div>
+                    <div class="status-badge" id="status-asimetrik_paralel">BEKLİYOR</div>
+                </div>
+                <div class="card-content">
+                    <div class="state-waiting" id="wait-asimetrik_paralel">
+                        <i class="material-icons-round pulse-icon text-asimetrik">hourglass_empty</i>
+                        <div class="next-label">SIRADAKİ</div>
+                        <div class="next-athlete" id="next-name-asimetrik_paralel">...</div>
+                        <div class="next-club" id="next-club-asimetrik_paralel">...</div>
+                    </div>
+                    <div class="state-score" id="score-asimetrik_paralel">
+                        <div class="athlete-header">
+                            <div>
+                                <div class="ath-name" id="name-asimetrik_paralel">Ad Soyad</div>
+                                <div class="ath-club" id="club-asimetrik_paralel">Kulüp</div>
+                            </div>
+                        </div>
+                        <div class="score-grid">
+                            <div class="score-item"><div class="score-lbl">D Puanı</div><div class="score-val" id="d-asimetrik_paralel">0.0</div></div>
+                            <div class="score-item"><div class="score-lbl">E Puanı</div><div class="score-val" id="e-asimetrik_paralel">0.0</div></div>
+                            <div class="score-item"><div class="score-lbl">Kesinti</div><div class="score-val" id="p-asimetrik_paralel" style="color:var(--danger)">0.0</div></div>
+                        </div>
+                        <div class="final-row">
+                            <div class="final-lbl text-asimetrik">SONUÇ</div>
+                            <div class="final-val" id="final-asimetrik_paralel">0.000</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="progress-line" id="prog-asimetrik_paralel" style="background:var(--asimetrik);"></div>
+            </div>
+
+            <div class="apparatus-card card-yer" id="card-yer">
+                <div class="card-header">
+                    <div class="app-name text-yer"><i class="material-icons-round">grid_on</i> YER ALETİ</div>
+                    <div class="status-badge" id="status-yer">BEKLİYOR</div>
+                </div>
+                <div class="card-content">
+                    <div class="state-waiting" id="wait-yer">
+                        <i class="material-icons-round pulse-icon text-yer">hourglass_empty</i>
+                        <div class="next-label">SIRADAKİ</div>
+                        <div class="next-athlete" id="next-name-yer">...</div>
+                        <div class="next-club" id="next-club-yer">...</div>
+                    </div>
+                    <div class="state-score" id="score-yer">
+                        <div class="athlete-header">
+                            <div>
+                                <div class="ath-name" id="name-yer">Ad Soyad</div>
+                                <div class="ath-club" id="club-yer">Kulüp</div>
+                            </div>
+                        </div>
+                        <div class="score-grid" style="grid-template-columns: repeat(5, 1fr);">
+                            <div class="score-item"><div class="score-lbl">D Puanı</div><div class="score-val" id="d-yer">0.0</div></div>
+                            <div class="score-item"><div class="score-lbl">E Puanı</div><div class="score-val" id="e-yer">0.0</div></div>
+                            <div class="score-item"><div class="score-lbl">Bonus</div><div class="score-val" id="bonus-yer" style="color:var(--warning-color)">0.0</div></div>
+                            <div class="score-item"><div class="score-lbl">Kesinti</div><div class="score-val" id="p-yer" style="color:var(--danger)">0.0</div></div>
+                            <div class="score-item"><div class="score-lbl">Eksik</div><div class="score-val" id="me-yer" style="color:var(--danger)">0.0</div></div>
+                        </div>
+                        <div class="final-row">
+                            <div class="final-lbl text-yer">SONUÇ</div>
+                            <div class="final-val" id="final-yer">0.000</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="progress-line" id="prog-yer" style="background:var(--yer);"></div>
+            </div>
+
+        </div>
+    </div>
+
+    <script>
+        const firebaseConfig = { apiKey: "AIzaSyA5VNkBsZkZqaDr8YgOnhiGCDql9-lJ6Gk", authDomain: "analig2025.firebaseapp.com", databaseURL: "https://analig2025-default-rtdb.firebaseio.com", projectId: "analig2025", storageBucket: "analig2025.appspot.com", messagingSenderId: "835759576581", appId: "1:835759576581:web:561d073115b02584ebee6c" };
+        firebase.initializeApp(firebaseConfig);
+        const db = firebase.database();
+
+        const APPARATUS_CONFIG = {
+            denge: { path: 'dengePuanlari' },
+            atlama: { path: 'atlamaPuanlari' },
+            barfiks: { path: 'barfiksPuanlari' },
+            yer: { path: 'yerPuanlari' },
+            asimetrik_paralel: { path: 'asimetrikParalelPuanlari' }
+        };
+
+        let globalSporcular = [];
+        let activeCompetitionId = null;
+        let timers = {};
+        let activeAthletes = {};
+
+        document.addEventListener('DOMContentLoaded', async () => {
+            await loadGlobalSporcular();
+            loadCompetitionList();
+        });
+
+        async function loadGlobalSporcular() {
+            const s = await db.ref('globalSporcular').once('value');
+            if (s.exists()) globalSporcular = Object.values(s.val());
+        }
+
+        function loadCompetitionList() {
+            db.ref('competitions').on('value', snapshot => {
+                const list = document.getElementById('competition-list');
+                list.innerHTML = '';
+                if(snapshot.exists()){
+                    snapshot.forEach(child => {
+                        const c = child.val();
+                        if(c.durum === 'aktif') {
+                            const li = document.createElement('li');
+                            li.className = 'comp-item';
+                            li.innerHTML = `<span class="comp-name">${c.isim}</span> <i class="material-icons-round">arrow_forward</i>`;
+                            li.onclick = () => startDashboard(child.key, c.isim, c.kategori);
+                            list.appendChild(li);
+                        }
+                    });
+                } else {
+                    list.innerHTML = '<li style="padding:20px; text-align:center; color:#888;">Aktif yarışma yok.</li>';
+                }
+            });
+        }
+
+        function startDashboard(id, name, category) {
+            activeCompetitionId = id;
+            document.getElementById('competition-title').textContent = name;
+            
+            const grid = document.getElementById('dashboard-grid');
+            const asimCard = document.getElementById('card-asimetrik_paralel');
+            
+            // Layout Ayarlama
+            grid.classList.remove('layout-4', 'layout-5');
+            if (category === 'minikler') {
+                asimCard.style.display = 'none';
+                grid.classList.add('layout-4');
+            } else {
+                asimCard.style.display = 'flex';
+                grid.classList.add('layout-5');
+            }
+
+            document.getElementById('selection-screen').classList.remove('active');
+            document.getElementById('dashboard-screen').classList.add('active');
+
+            Object.keys(APPARATUS_CONFIG).forEach(appKey => {
+                if (category === 'minikler' && appKey === 'asimetrik_paralel') return;
+                listenApparatus(appKey);
+            });
+        }
+
+        function listenApparatus(key) {
+            const path = APPARATUS_CONFIG[key].path;
+            
+            // Aktif Sporcu
+            db.ref(`competitions/${activeCompetitionId}/aktifSporcu/${key}`).on('value', s => {
+                const athId = s.val();
+                activeAthletes[key] = athId;
+                updateCardState(key, athId);
+            });
+
+            // Skor
+            db.ref(`competitions/${activeCompetitionId}/cimnastikVerileri/${path}`).on('child_changed', s => {
+                const data = s.val();
+                if (data.timerState === 'finished' && data.durumNotu !== 'Yarışmadı') {
+                    showScore(key, s.key, data);
+                }
+            });
+        }
+
+        function updateCardState(key, athId) {
+            if (timers[key]) return; // Puan gösteriliyorsa karışma
+
+            const status = document.getElementById(`status-${key}`);
+            const waitView = document.getElementById(`wait-${key}`);
+            const scoreView = document.getElementById(`score-${key}`);
+            const prog = document.getElementById(`prog-${key}`);
+
+            waitView.style.display = 'flex';
+            scoreView.style.display = 'none';
+            prog.style.width = '0%';
+
+            if (athId) {
+                const ath = globalSporcular.find(a => a.id == athId);
+                document.getElementById(`next-name-${key}`).textContent = ath ? ath.soyadAd : 'Bilinmiyor';
+                document.getElementById(`next-club-${key}`).textContent = ath ? ath.kulup : '-';
+                status.textContent = 'HAZIRLANIYOR';
+                status.style.background = 'var(--warning-color)';
+                status.style.color = 'black';
+            } else {
+                document.getElementById(`next-name-${key}`).textContent = '...';
+                document.getElementById(`next-club-${key}`).textContent = 'Bekleniyor';
+                status.textContent = 'BEKLİYOR';
+                status.style.background = 'rgba(255,255,255,0.1)';
+                status.style.color = 'var(--text-muted)';
+            }
+        }
+
+        function showScore(key, athId, data) {
+            if (timers[key]) clearTimeout(timers[key]);
+
+            const ath = globalSporcular.find(a => a.id == athId);
+            if (!ath) return;
+
+            document.getElementById(`name-${key}`).textContent = ath.soyadAd;
+            document.getElementById(`club-${key}`).textContent = ath.kulup;
+            document.getElementById(`d-${key}`).textContent = (data.dToplami || 0).toFixed(2);
+            document.getElementById(`e-${key}`).textContent = (data.ePuani || 0).toFixed(2);
+            document.getElementById(`p-${key}`).textContent = (data.TarafsizKesinti || 0).toFixed(2);
+            document.getElementById(`final-${key}`).textContent = (data.sonPuan || 0).toFixed(3);
+            
+            if (key === 'yer') {
+                document.getElementById(`bonus-yer`).textContent = (data.bonus || 0).toFixed(2);
+                document.getElementById(`me-yer`).textContent = (data.eksikElementKesintisi || 0).toFixed(2);
+            }
+
+            // Görünüm
+            document.getElementById(`wait-${key}`).style.display = 'none';
+            document.getElementById(`score-${key}`).style.display = 'flex';
+            const status = document.getElementById(`status-${key}`);
+            status.textContent = 'PUANLANDI';
+            status.style.background = 'white';
+            status.style.color = 'black';
+
+            // Animasyon
+            const prog = document.getElementById(`prog-${key}`);
+            prog.style.transition = 'none';
+            prog.style.width = '100%';
+            setTimeout(() => { prog.style.transition = 'width 20s linear'; prog.style.width = '0%'; }, 50);
+
+            // 20sn sonra reset
+            timers[key] = setTimeout(() => {
+                updateCardState(key, activeAthletes[key]);
+                timers[key] = null;
+            }, 20000);
+        }
+
+        function goBack() {
+            document.getElementById('dashboard-screen').classList.remove('active');
+            document.getElementById('selection-screen').classList.add('active');
+            activeCompetitionId = null;
+        }
+    </script>
+</body>
+</html>

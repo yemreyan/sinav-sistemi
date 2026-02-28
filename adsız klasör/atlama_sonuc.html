@@ -1,0 +1,416 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Canlı Skor Panosu - Atlama</title>
+    
+    <script src="https://www.gstatic.com/firebasejs/9.6.7/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.6.7/firebase-database-compat.js"></script>
+    
+    <link href="https://fonts.googleapis.com/icon?family=Material+Icons+Round" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Oswald:wght@400;500;700&family=Plus+Jakarta+Sans:wght@300;400;600;700;800&display=swap" rel="stylesheet">
+
+    <style>
+        :root {
+            --bg-body: #020617;
+            --surface-glass: rgba(17, 24, 39, 0.75);
+            --border-glass: rgba(255, 255, 255, 0.08);
+            
+            /* Atlama Teması (Yeşil & Neon) */
+            --primary: #22c55e;
+            --primary-glow: rgba(34, 197, 94, 0.5);
+            --accent: #38bdf8;
+            
+            --text-main: #ffffff;
+            --text-muted: #9ca3af;
+            
+            --success-color: #4ade80;
+            --danger-color: #f87171;
+            --warning-color: #fbbf24;
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        
+        body {
+            font-family: 'Plus Jakarta Sans', sans-serif;
+            background-color: var(--bg-body);
+            color: var(--text-main);
+            height: 100vh;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            /* Hareketli Arka Plan */
+            background-image: 
+                radial-gradient(circle at 10% 20%, rgba(34, 197, 94, 0.2), transparent 40%),
+                radial-gradient(circle at 90% 80%, rgba(6, 182, 212, 0.15), transparent 40%);
+        }
+
+        /* Arka Plan Deseni */
+        body::before {
+            content: ""; position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            background: url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%2322c55e' fill-opacity='0.03'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E");
+            z-index: -1;
+        }
+
+        /* Ana Container */
+        .container {
+            width: 95%; max-width: 1400px; height: 90vh;
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            position: relative;
+        }
+
+        /* --- MODLAR (Görünüm Durumları) --- */
+        .view-mode {
+            display: none; width: 100%; height: 100%;
+            flex-direction: column; align-items: center; justify-content: center;
+            animation: fadeIn 0.6s ease-out;
+        }
+        .view-mode.active { display: flex; }
+
+        /* --- 1. SEÇİM EKRANI --- */
+        .competition-list-card {
+            background: var(--surface-glass); backdrop-filter: blur(20px);
+            border: 1px solid var(--border-glass); border-radius: 24px;
+            padding: 40px; width: 100%; max-width: 600px;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+        }
+        .list-title { font-family: 'Oswald', sans-serif; font-size: 2.5rem; text-align: center; margin-bottom: 30px; color: var(--primary); text-transform: uppercase; letter-spacing: 1px; }
+        .comp-list { list-style: none; max-height: 400px; overflow-y: auto; }
+        .comp-item {
+            padding: 15px 20px; margin-bottom: 10px; border-radius: 12px;
+            background: rgba(255, 255, 255, 0.03); border: 1px solid transparent;
+            cursor: pointer; transition: 0.3s; display: flex; align-items: center; justify-content: space-between;
+        }
+        .comp-item:hover {
+            background: rgba(34, 197, 94, 0.15); border-color: var(--primary);
+            transform: translateX(5px);
+        }
+        .comp-name { font-weight: 600; font-size: 1.1rem; }
+
+        /* --- 2. BEKLEME EKRANI --- */
+        .waiting-content { text-align: center; }
+        .waiting-icon {
+            font-size: 8rem; color: var(--text-muted); opacity: 0.5;
+            animation: pulse 3s infinite ease-in-out; margin-bottom: 20px;
+        }
+        .waiting-title { font-size: 3rem; font-weight: 800; margin-bottom: 10px; background: linear-gradient(to right, #fff, #94a3b8); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+        .next-athlete-box {
+            margin-top: 40px; padding: 30px; border-radius: 20px;
+            background: rgba(255,255,255,0.03); border: 1px solid var(--border-glass);
+            width: 100%; min-width: 500px;
+        }
+        .next-label { font-size: 1rem; color: var(--primary); text-transform: uppercase; letter-spacing: 2px; font-weight: 700; margin-bottom: 10px; }
+        .next-name { font-family: 'Oswald', sans-serif; font-size: 4rem; line-height: 1.1; color: white; }
+        .next-club { font-size: 1.8rem; color: var(--text-muted); margin-top: 5px; }
+
+        /* --- 3. SKOR EKRANI --- */
+        .scoreboard-card {
+            width: 100%; height: 100%;
+            background: var(--surface-glass); backdrop-filter: blur(30px);
+            border: 1px solid var(--border-glass); border-radius: 32px;
+            display: grid; grid-template-rows: auto 1fr auto;
+            overflow: hidden; box-shadow: 0 0 50px rgba(34, 197, 94, 0.1);
+        }
+        
+        /* Skor Header */
+        .sb-header {
+            padding: 30px 50px; border-bottom: 1px solid var(--border-glass);
+            display: flex; justify-content: space-between; align-items: center;
+            background: rgba(0,0,0,0.2);
+        }
+        .athlete-info h1 { font-family: 'Oswald', sans-serif; font-size: 5rem; line-height: 1; margin-bottom: 5px; text-transform: uppercase; }
+        .athlete-info h2 { font-size: 2.5rem; color: var(--text-muted); font-weight: 500; display: flex; align-items: center; gap: 10px; }
+        .apparatus-badge {
+            font-family: 'Oswald', sans-serif; font-size: 3rem; color: rgba(255,255,255,0.1); font-weight: 700; text-transform: uppercase;
+        }
+
+        /* Skor Body */
+        .sb-body {
+            padding: 40px 60px;
+            display: flex; flex-direction: column; justify-content: center;
+        }
+        
+        .scores-grid {
+            display: grid; grid-template-columns: repeat(5, 1fr); gap: 20px; margin-bottom: 40px;
+        }
+        .score-box {
+            background: rgba(255,255,255,0.03); border-radius: 20px; padding: 25px 10px;
+            text-align: center; border: 1px solid var(--border-glass);
+            display: flex; flex-direction: column; justify-content: center;
+        }
+        .score-label { font-size: 1.6rem; color: var(--text-muted); font-weight: 600; margin-bottom: 10px; text-transform: uppercase; }
+        .score-value { font-family: 'Oswald', sans-serif; font-size: 6rem; font-weight: 700; line-height: 1; }
+
+        .val-d { color: var(--accent); }
+        .val-e { color: var(--primary); }
+        .val-bonus { color: var(--warning-color); }
+        .val-deduct { color: var(--danger-color); }
+
+        /* Final Skor */
+        .final-score-container {
+            background: linear-gradient(135deg, rgba(34, 197, 94, 0.2), rgba(3, 7, 18, 0.8));
+            border: 1px solid var(--primary); border-radius: 30px;
+            padding: 30px; text-align: center; position: relative; overflow: hidden;
+        }
+        .final-score-container::before {
+            content: ''; position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            background: radial-gradient(circle, var(--primary-glow), transparent 60%); opacity: 0.2;
+        }
+        .final-label { font-size: 2rem; color: var(--primary); font-weight: 800; letter-spacing: 4px; text-transform: uppercase; margin-bottom: 0px; }
+        .final-value { font-family: 'Oswald', sans-serif; font-size: 12rem; line-height: 1; color: white; text-shadow: 0 0 40px var(--primary); }
+
+        /* Progress Bar */
+        .progress-container {
+            position: absolute; bottom: 0; left: 0; width: 100%; height: 8px; background: rgba(0,0,0,0.5);
+        }
+        .progress-bar {
+            height: 100%; width: 0%; background: var(--primary);
+            box-shadow: 0 0 20px var(--primary);
+        }
+
+        /* Geri Dön Butonu */
+        .back-btn {
+            position: fixed; top: 20px; left: 20px; z-index: 100;
+            background: rgba(0,0,0,0.5); color: white; border: 1px solid rgba(255,255,255,0.1);
+            padding: 10px 15px; border-radius: 10px; cursor: pointer; text-decoration: none;
+            font-size: 0.9rem; backdrop-filter: blur(5px); transition: 0.3s;
+        }
+        .back-btn:hover { background: rgba(255,255,255,0.1); }
+
+        @keyframes fadeIn { from { opacity: 0; transform: scale(0.98); } to { opacity: 1; transform: scale(1); } }
+        @keyframes pulse { 0%, 100% { transform: scale(1); opacity: 0.5; } 50% { transform: scale(1.05); opacity: 0.8; } }
+
+    </style>
+</head>
+<body>
+
+    <a href="index.html" class="back-btn"><i class="material-icons-round" style="vertical-align:middle;">arrow_back</i> Ana Sayfa</a>
+
+    <div class="container">
+        
+        <div id="competition-selection" class="view-mode active">
+            <div class="competition-list-card">
+                <div class="list-title">Yarışma Seçiniz</div>
+                <ul id="competition-list" class="comp-list">
+                    <li style="text-align:center; color:#888;">Yükleniyor...</li>
+                </ul>
+            </div>
+        </div>
+
+        <div id="waiting-display" class="view-mode">
+            <div class="waiting-content">
+                <i class="material-icons-round waiting-icon">sports_gymnastics</i>
+                <div class="waiting-title">ATLAMA MASASI</div>
+                <div class="next-athlete-box">
+                    <div class="next-label">SIRADAKİ SPORCU</div>
+                    <div class="next-name" id="next-athlete-name">...</div>
+                    <div class="next-club" id="next-athlete-club">Bekleniyor</div>
+                </div>
+            </div>
+        </div>
+
+        <div id="score-display" class="view-mode">
+            <div class="scoreboard-card">
+                <div class="sb-header">
+                    <div class="athlete-info">
+                        <h1 id="athlete-name">Sporcu Adı</h1>
+                        <h2 id="athlete-club"><i class="material-icons-round">groups</i> Kulüp</h2>
+                    </div>
+                    <div class="apparatus-badge">ATLAMA</div>
+                </div>
+                
+                <div class="sb-body">
+                    <div class="scores-grid">
+                        <div class="score-box">
+                            <div class="score-label">D Puanı</div>
+                            <div class="score-value val-d" id="d-puan">0.00</div>
+                        </div>
+                        <div class="score-box">
+                            <div class="score-label">E Puanı</div>
+                            <div class="score-value val-e" id="e-puan">0.00</div>
+                        </div>
+                        <div class="score-box">
+                            <div class="score-label">Bonus</div>
+                            <div class="score-value val-bonus" id="bonus-puan">0.00</div>
+                        </div>
+                        <div class="score-box">
+                            <div class="score-label">Tarafsız Kes.</div>
+                            <div class="score-value val-deduct" id="t-kesinti">0.00</div>
+                        </div>
+                        <div class="score-box">
+                            <div class="score-label">Eksik Elem.</div>
+                            <div class="score-value val-deduct" id="e-kesinti">0.00</div>
+                        </div>
+                    </div>
+
+                    <div class="final-score-container">
+                        <div class="final-label">SONUÇ</div>
+                        <div class="final-value" id="final-score">0.000</div>
+                    </div>
+                </div>
+                
+                <div class="progress-container">
+                    <div class="progress-bar" id="progress-bar"></div>
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <script>
+        const firebaseConfig = { apiKey: "AIzaSyA5VNkBsZkZqaDr8YgOnhiGCDql9-lJ6Gk", authDomain: "analig2025.firebaseapp.com", databaseURL: "https://analig2025-default-rtdb.firebaseio.com", projectId: "analig2025", storageBucket: "analig2025.appspot.com", messagingSenderId: "835759576581", appId: "1:835759576581:web:561d073115b02584ebee6c" };
+        firebase.initializeApp(firebaseConfig);
+        const db = firebase.database();
+        
+        // --- CONFIG ---
+        const APPARATUS_NAME = 'atlama';
+        const APPARATUS_PATH = 'atlamaPuanlari';
+        // ----------------
+
+        let globalSporcular = [], activeAthleteId = null, lastShownAthleteId = null;
+        let activeCompetitionId = null;
+        let scoreDisplayTimer = null;
+
+        const DOM = {
+            screens: document.querySelectorAll('.view-mode'),
+            compList: document.getElementById('competition-list'),
+            athleteName: document.getElementById('athlete-name'),
+            athleteClub: document.getElementById('athlete-club'),
+            dScore: document.getElementById('d-puan'),
+            eScore: document.getElementById('e-puan'),
+            bonusScore: document.getElementById('bonus-puan'),
+            tDeduction: document.getElementById('t-kesinti'),
+            mDeduction: document.getElementById('e-kesinti'),
+            finalScore: document.getElementById('final-score'),
+            nextName: document.getElementById('next-athlete-name'),
+            nextClub: document.getElementById('next-athlete-club'),
+            progressBar: document.getElementById('progress-bar')
+        };
+
+        document.addEventListener('DOMContentLoaded', async () => {
+            // URL'den ID varsa otomatik seç
+            const urlId = new URLSearchParams(window.location.search).get('competitionId');
+            if(urlId) {
+                selectCompetition(urlId);
+            } else {
+                loadCompetitions();
+            }
+            await loadGlobalSporcular();
+        });
+
+        async function loadGlobalSporcular() {
+            const s = await db.ref('globalSporcular').once('value');
+            if(s.exists()) globalSporcular = Object.values(s.val());
+        }
+
+        function loadCompetitions() {
+            db.ref('competitions').on('value', snapshot => {
+                DOM.compList.innerHTML = '';
+                if(snapshot.exists()){
+                    snapshot.forEach(child => {
+                        const comp = child.val();
+                        if (comp.durum === 'aktif') {
+                            const li = document.createElement('li');
+                            li.className = 'comp-item';
+                            li.innerHTML = `<span class="comp-name">${comp.isim}</span> <i class="material-icons-round" style="color:var(--primary)">chevron_right</i>`;
+                            li.onclick = () => selectCompetition(child.key);
+                            DOM.compList.appendChild(li);
+                        }
+                    });
+                } else {
+                    DOM.compList.innerHTML = '<li style="text-align:center; padding:20px;">Aktif yarışma yok.</li>';
+                }
+            });
+        }
+
+        function selectCompetition(id) {
+            activeCompetitionId = id;
+            showScreen('waiting-display');
+            
+            // Dinleyicileri Başlat
+            listenToScores();
+            listenToActiveAthlete();
+            
+            // Geri dönüş linkini güncelle
+            document.getElementById('backBtn').href = `index.html?competitionId=${id}`;
+        }
+
+        function listenToScores() {
+            db.ref(`competitions/${activeCompetitionId}/cimnastikVerileri/${APPARATUS_PATH}`).on('child_changed', snapshot => {
+                const data = snapshot.val();
+                if (data.timerState === 'finished' && data.durumNotu !== 'Yarışmadı') {
+                    showScore(snapshot.key, data);
+                }
+            });
+            // İlk yüklemede son puanı göstermemek için child_added kullanmıyoruz, sadece yeni değişiklikleri dinliyoruz.
+        }
+        
+        function listenToActiveAthlete() {
+            db.ref(`competitions/${activeCompetitionId}/aktifSporcu/${APPARATUS_NAME}`).on('value', snapshot => {
+                activeAthleteId = snapshot.val();
+                updateWaitingScreen();
+            });
+        }
+
+        function updateWaitingScreen() {
+            // Eğer şu an skor gösteriliyorsa bekleme ekranını güncelleme (arkada kalsın)
+            // Ancak skor gösterimi bittiğinde güncel veri görünsün.
+            
+            const athlete = globalSporcular.find(s => s.id == activeAthleteId);
+            if (athlete) {
+                DOM.nextName.textContent = athlete.soyadAd;
+                DOM.nextClub.textContent = athlete.kulup || "Bireysel";
+                DOM.nextName.style.color = "var(--text-main)";
+            } else {
+                DOM.nextName.textContent = "BEKLENİYOR...";
+                DOM.nextClub.textContent = "Sıradaki sporcu için hakem onayı bekleniyor";
+                DOM.nextName.style.color = "var(--text-muted)";
+            }
+        }
+        
+        function showScore(sporcuId, data) {
+            clearTimeout(scoreDisplayTimer);
+            
+            const sporcu = globalSporcular.find(s => s.id == sporcuId);
+            if (!sporcu) return;
+
+            // Verileri Doldur
+            DOM.athleteName.textContent = sporcu.soyadAd;
+            DOM.athleteClub.textContent = sporcu.kulup || "Bireysel";
+            
+            DOM.dScore.textContent = (data.dToplami || 0).toFixed(2);
+            DOM.eScore.textContent = (data.ePuani || 0).toFixed(2);
+            DOM.bonusScore.textContent = (data.bonus || 0).toFixed(2);
+            DOM.tDeduction.textContent = (data.TarafsizKesinti || 0).toFixed(2);
+            DOM.mDeduction.textContent = (data.eksikElementKesintisi || 0).toFixed(2);
+            DOM.finalScore.textContent = (data.sonPuan || 0).toFixed(3);
+
+            // Ekranı Aç
+            showScreen('score-display');
+
+            // Progress Bar Animasyonu
+            DOM.progressBar.style.transition = 'none';
+            DOM.progressBar.style.width = '100%';
+            setTimeout(() => {
+                DOM.progressBar.style.transition = 'width 30s linear';
+                DOM.progressBar.style.width = '0%';
+            }, 50);
+
+            // 30 Saniye Sonra Kapat
+            scoreDisplayTimer = setTimeout(() => {
+                showScreen('waiting-display');
+                updateWaitingScreen(); // Güncel durumu göster
+            }, 30000);
+        }
+        
+        function showScreen(id) {
+            DOM.screens.forEach(s => s.classList.remove('active'));
+            document.getElementById(id).classList.add('active');
+        }
+
+    </script>
+</body>
+</html>

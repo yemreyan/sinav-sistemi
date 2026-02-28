@@ -1,0 +1,544 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Kriter Ayarları - Cimnastik OS</title>
+    
+    <script src="https://www.gstatic.com/firebasejs/9.6.7/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.6.7/firebase-database-compat.js"></script>
+    
+    <link href="https://fonts.googleapis.com/icon?family=Material+Icons+Round" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+
+    <style>
+        :root {
+            --bg-body: #020617;
+            --surface-1: rgba(17, 24, 39, 0.8);
+            --surface-glass: rgba(30, 41, 59, 0.4);
+            --border-glass: rgba(255, 255, 255, 0.08);
+            
+            /* Mor/Mavi Tema (Ayarlar İçin) */
+            --primary: #8b5cf6;
+            --primary-glow: rgba(139, 92, 246, 0.4);
+            --accent: #d946ef;
+            
+            --success: #22c55e;
+            --danger: #ef4444;
+            --warning: #f59e0b;
+            --info: #3b82f6;
+
+            --text-main: #ffffff;
+            --text-muted: #94a3b8;
+            
+            --transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            --shadow-card: 0 10px 30px -10px rgba(0, 0, 0, 0.5);
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; outline: none; }
+        
+        body {
+            font-family: 'Plus Jakarta Sans', sans-serif;
+            background-color: var(--bg-body);
+            color: var(--text-main);
+            height: 100vh;
+            overflow: hidden;
+            display: flex;
+            background-image: 
+                radial-gradient(circle at 0% 0%, rgba(139, 92, 246, 0.15), transparent 40%),
+                radial-gradient(circle at 100% 100%, rgba(217, 70, 239, 0.15), transparent 40%);
+        }
+
+        /* SIDEBAR */
+        .sidebar {
+            width: 280px;
+            background: var(--surface-1);
+            backdrop-filter: blur(20px);
+            border-right: 1px solid var(--border-glass);
+            display: flex;
+            flex-direction: column;
+            padding: 24px;
+            z-index: 100;
+        }
+
+        .app-brand {
+            display: flex; align-items: center; gap: 12px;
+            font-size: 1.1rem; font-weight: 800; color: white;
+            margin-bottom: 40px; text-decoration: none;
+        }
+        
+        .nav-item {
+            padding: 14px 16px; margin-bottom: 8px; border-radius: 12px;
+            color: var(--text-muted); text-decoration: none; font-weight: 600;
+            display: flex; align-items: center; gap: 12px; transition: var(--transition);
+            border: 1px solid transparent; cursor: pointer;
+        }
+        .nav-item:hover { background: rgba(255,255,255,0.05); color: white; }
+        .nav-item.active { 
+            background: rgba(139, 92, 246, 0.15); color: var(--primary); 
+            border-color: rgba(139, 92, 246, 0.2);
+        }
+
+        /* MAIN CONTENT */
+        .main-content { flex: 1; display: flex; flex-direction: column; position: relative; overflow: hidden; }
+
+        .top-bar {
+            padding: 20px 40px;
+            border-bottom: 1px solid var(--border-glass);
+            background: rgba(2, 6, 23, 0.8);
+            backdrop-filter: blur(10px);
+            display: flex; justify-content: space-between; align-items: center;
+        }
+
+        .page-title h1 { font-size: 1.5rem; font-weight: 700; margin: 0; }
+        .page-title p { font-size: 0.9rem; color: var(--text-muted); margin: 5px 0 0 0; }
+
+        /* TABS (Alet Seçimi) */
+        .apparatus-tabs {
+            display: flex; gap: 10px; overflow-x: auto; padding-bottom: 5px;
+            scrollbar-width: none; /* Firefox */
+        }
+        .apparatus-tabs::-webkit-scrollbar { display: none; } /* Chrome */
+
+        .tab-btn {
+            padding: 10px 20px; border-radius: 12px; border: 1px solid var(--border-glass);
+            background: rgba(255,255,255,0.03); color: var(--text-muted); font-weight: 600;
+            cursor: pointer; transition: var(--transition); white-space: nowrap;
+            display: flex; align-items: center; gap: 8px;
+        }
+        .tab-btn:hover { background: rgba(255,255,255,0.08); color: white; }
+        .tab-btn.active { 
+            background: var(--primary); color: white; border-color: var(--primary); 
+            box-shadow: 0 0 20px var(--primary-glow);
+        }
+
+        /* CONTENT AREA */
+        .content-area { flex: 1; padding: 30px 40px; overflow-y: auto; scroll-behavior: smooth; }
+
+        .section-header {
+            display: flex; justify-content: space-between; align-items: center; margin-bottom: 25px;
+        }
+        .section-title { font-size: 1.2rem; font-weight: 700; color: white; }
+
+        /* TEMPLATE GRID (Bento Box Style) */
+        .template-grid {
+            display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 20px;
+            margin-bottom: 40px;
+        }
+        
+        .template-card {
+            background: var(--surface-glass); border: 1px solid var(--border-glass);
+            border-radius: 20px; padding: 20px; transition: var(--transition);
+            position: relative; overflow: hidden; display: flex; flex-direction: column;
+        }
+        .template-card:hover { transform: translateY(-5px); border-color: rgba(255,255,255,0.2); }
+        
+        .template-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 15px; }
+        .template-name { font-weight: 700; font-size: 1.1rem; color: white; }
+        .template-meta { font-size: 0.85rem; color: var(--text-muted); margin-top: 5px; }
+        
+        .template-stats {
+            display: flex; gap: 10px; margin-bottom: 20px;
+        }
+        .stat-badge {
+            background: rgba(255,255,255,0.05); padding: 6px 10px; border-radius: 8px;
+            font-size: 0.75rem; color: var(--text-muted); font-weight: 600;
+            display: flex; align-items: center; gap: 5px;
+        }
+        
+        .template-actions {
+            margin-top: auto; display: flex; gap: 10px;
+        }
+
+        /* FORM AREA */
+        .form-container {
+            background: var(--surface-glass); border: 1px solid var(--border-glass);
+            border-radius: 24px; padding: 30px; margin-top: 20px; display: none;
+            animation: slideUp 0.4s ease-out;
+        }
+        
+        .form-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 20px; margin-bottom: 20px; }
+        .form-group { margin-bottom: 20px; }
+        .form-group label { display: block; margin-bottom: 8px; color: var(--text-muted); font-size: 0.9rem; font-weight: 500; }
+        .form-control { 
+            width: 100%; padding: 12px 16px; background: rgba(0,0,0,0.3); 
+            border: 1px solid var(--border-glass); border-radius: 12px; 
+            color: white; font-family: inherit; transition: 0.3s;
+        }
+        .form-control:focus { border-color: var(--primary); background: rgba(0,0,0,0.4); }
+
+        /* Buttons */
+        .btn {
+            padding: 10px 20px; border-radius: 12px; border: none; cursor: pointer;
+            font-weight: 600; font-size: 0.9rem; display: inline-flex; align-items: center; gap: 8px;
+            transition: var(--transition); text-decoration: none;
+        }
+        .btn-primary { background: var(--primary); color: white; box-shadow: 0 0 20px var(--primary-glow); }
+        .btn-primary:hover { transform: translateY(-2px); filter: brightness(1.1); }
+        .btn-ghost { background: rgba(255,255,255,0.1); color: var(--text-muted); }
+        .btn-ghost:hover { background: rgba(255,255,255,0.15); color: white; }
+        .btn-danger { background: rgba(239, 68, 68, 0.2); color: #f87171; border: 1px solid rgba(239, 68, 68, 0.3); }
+        .btn-danger:hover { background: var(--danger); color: white; }
+        .btn-icon { width: 36px; height: 36px; padding: 0; justify-content: center; }
+
+        /* Checkbox Toggle */
+        .checkbox-wrapper {
+            display: flex; align-items: center; gap: 10px; padding: 12px;
+            background: rgba(255,255,255,0.05); border-radius: 12px; cursor: pointer;
+        }
+        .checkbox-wrapper input { width: 18px; height: 18px; accent-color: var(--primary); }
+
+        /* Movement Card (Form İçinde) */
+        .movement-card {
+            background: rgba(0,0,0,0.2); padding: 15px; border-radius: 12px; margin-bottom: 10px;
+            border: 1px solid var(--border-glass); display: grid; 
+            grid-template-columns: 2fr 1fr 2fr 1fr auto 40px; gap: 10px; align-items: center;
+        }
+        .vault-grid { grid-template-columns: 2fr 1fr 1fr 1fr 40px; } /* Atlama için özel grid */
+
+        @keyframes slideUp { from { transform: translateY(20px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+
+        /* Toast */
+        #toast-container { position: fixed; bottom: 30px; right: 30px; z-index: 9999; display: flex; flex-direction: column; gap: 10px; }
+        .toast { padding: 16px 24px; border-radius: 12px; color: white; font-weight: 600; box-shadow: 0 10px 30px rgba(0,0,0,0.5); animation: slideUp 0.3s ease; }
+        .toast.success { background: var(--success); } .toast.danger { background: var(--danger); } .toast.info { background: var(--info); }
+
+        @media (max-width: 1024px) { 
+            .sidebar { display: none; } 
+            .movement-card { grid-template-columns: 1fr; gap: 15px; }
+        }
+    </style>
+</head>
+<body>
+
+    <aside class="sidebar">
+        <a href="index.html" class="app-brand">
+            <i class="material-icons-round" style="color:var(--primary);">arrow_back</i> Ana Sayfa
+        </a>
+        
+        <div style="margin-top: 20px;">
+            <div style="font-size:0.75rem; color:var(--text-muted); margin-bottom:10px; font-weight:600; letter-spacing:1px;">NAVİGASYON</div>
+            <div class="nav-item" onclick="window.location.href='panel.html'"><i class="material-icons-round">dashboard</i> Panel</div>
+            <div class="nav-item active"><i class="material-icons-round">tune</i> Kriter Ayarları</div>
+            <div class="nav-item" onclick="window.location.href='sporcu.html'"><i class="material-icons-round">groups</i> Sporcular</div>
+        </div>
+    </aside>
+
+    <main class="main-content">
+        <div class="top-bar">
+            <div class="page-title">
+                <h1>Global Kriter Şablonları</h1>
+                <p>Yarışmalar için standart puanlama kriterleri oluşturun</p>
+            </div>
+            <div class="apparatus-tabs" id="apparatusTabs">
+                <button class="tab-btn active" onclick="switchApparatus('denge', this)"><i class="material-icons-round">balance</i> Denge</button>
+                <button class="tab-btn" onclick="switchApparatus('atlama', this)"><i class="material-icons-round">sports_gymnastics</i> Atlama</button>
+                <button class="tab-btn" onclick="switchApparatus('barfiks', this)"><i class="material-icons-round">horizontal_rule</i> Barfiks</button>
+                <button class="tab-btn" onclick="switchApparatus('yer', this)"><i class="material-icons-round">grid_on</i> Yer</button>
+                <button class="tab-btn" onclick="switchApparatus('asimetrik_paralel', this)"><i class="material-icons-round">show_chart</i> Asimetrik P.</button>
+            </div>
+        </div>
+
+        <div class="content-area">
+            
+            <div id="listView">
+                <div class="section-header">
+                    <div class="section-title"><span id="currentApparatusName">Denge</span> Şablonları</div>
+                    <button class="btn btn-primary" onclick="startNewTemplate()"><i class="material-icons-round">add</i> Yeni Şablon</button>
+                </div>
+                
+                <div id="templatesList" class="template-grid">
+                    <div style="grid-column:1/-1; text-align:center; color:var(--text-muted); padding:40px;">Yükleniyor...</div>
+                </div>
+            </div>
+
+            <div id="formView" class="form-container">
+                <div class="section-header">
+                    <h2 id="formTitle" style="margin:0; color:white;">Yeni Şablon Oluştur</h2>
+                    <button class="btn btn-ghost" onclick="hideForm()"><i class="material-icons-round">close</i> Kapat</button>
+                </div>
+                
+                <input type="hidden" id="currentTemplateId">
+                
+                <form id="templateForm">
+                    <div class="form-group">
+                        <label>Şablon Adı</label>
+                        <input type="text" class="form-control" id="templateName" placeholder="Örn: Yıldızlar Ligi Kriteri" required>
+                    </div>
+
+                    <div class="form-grid">
+                        <div class="form-group">
+                            <label>Hakem Sayısı</label>
+                            <input type="number" class="form-control" id="hakemSayisiInput" min="1" max="10" value="4" oninput="renderJudgeInputs()">
+                        </div>
+                        <div class="form-group">
+                            <label>Güvenlik</label>
+                            <div class="checkbox-wrapper">
+                                <input type="checkbox" id="pinActive"> <span>PIN Koruması Aktif</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <h3 style="margin:20px 0 15px; font-size:1rem; color:var(--info);">Hakem İsimleri (<span id="judgeCountLabel">4</span>)</h3>
+                    <div id="hakemInputsContainer" class="form-grid"></div>
+
+                    <h3 style="margin:20px 0 15px; font-size:1rem; color:var(--success);">Bonus & Kesinti Limitleri</h3>
+                    <div class="form-grid">
+                        <div class="form-group"><label>Gerekli Toplam D</label><input type="number" class="form-control" id="bonusRequiredD" step="0.1" value="0.0"></div>
+                        <div class="form-group"><label>İzin Verilen Max E Kesintisi</label><input type="number" class="form-control" id="bonusMaxE" step="0.001" placeholder="Yok"></div>
+                        <div class="form-group"><label>Bonus Değeri</label><input type="number" class="form-control" id="bonusValue" step="0.1" value="0.0"></div>
+                    </div>
+
+                    <div style="display:flex; justify-content:space-between; align-items:center; margin:30px 0 15px;">
+                        <h3 style="margin:0; font-size:1rem; color:var(--warning);">Hareket Ayarları</h3>
+                        <button type="button" onclick="addMovement()" class="btn btn-ghost" style="font-size:0.8rem;"><i class="material-icons-round">add</i> Hareket Ekle</button>
+                    </div>
+                    <div id="movementDefinition"></div>
+
+                    <h3 style="margin:30px 0 15px; font-size:1rem; color:var(--danger);" id="deductionTitle">Eksik Element Kesinti Kademeleri</h3>
+                    <div id="deductionTiers" class="form-grid"></div>
+
+                    <div style="margin-top:30px; display:flex; justify-content:flex-end; gap:10px; border-top:1px solid var(--border-glass); padding-top:20px;">
+                        <button type="button" class="btn btn-ghost" onclick="hideForm()">İptal</button>
+                        <button type="submit" class="btn btn-primary"><i class="material-icons-round">save</i> Şablonu Kaydet</button>
+                    </div>
+                </form>
+            </div>
+
+        </div>
+    </main>
+
+    <div id="toast-container"></div>
+
+    <script>
+        const firebaseConfig = { apiKey: "AIzaSyA5VNkBsZkZqaDr8YgOnhiGCDql9-lJ6Gk", authDomain: "analig2025.firebaseapp.com", databaseURL: "https://analig2025-default-rtdb.firebaseio.com", projectId: "analig2025", storageBucket: "analig2025.appspot.com", messagingSenderId: "835759576581", appId: "1:835759576581:web:561d073115b02584ebee6c" };
+        firebase.initializeApp(firebaseConfig);
+        const db = firebase.database();
+
+        const APPARATUS_MAP = {
+            'denge': { name: 'Denge', totalElements: 11, formType: 'standard' },
+            'atlama': { name: 'Atlama', totalElements: 2, formType: 'vault' },
+            'barfiks': { name: 'Barfiks', totalElements: 10, formType: 'standard' },
+            'yer': { name: 'Yer', totalElements: 10, formType: 'standard' },
+            'asimetrik_paralel': { name: 'Asimetrik Paralel', totalElements: 10, formType: 'standard' }
+        };
+
+        let currentApparatus = 'denge';
+        let currentTemplateData = { hareketler: [], hakemler: {} }; 
+        let globalCriteriaPath = `globalCriteria/${currentApparatus}`;
+        
+        document.addEventListener('DOMContentLoaded', () => {
+            // Back butonu ayarlamaya gerek yok, sidebar var.
+            switchApparatus('denge', document.querySelector('.tab-btn.active'));
+            document.getElementById('templateForm').addEventListener('submit', saveTemplate);
+        });
+
+        function switchApparatus(key, btn) {
+            currentApparatus = key;
+            globalCriteriaPath = `globalCriteria/${key}`;
+            
+            document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+            if(btn) btn.classList.add('active');
+            
+            document.getElementById('currentApparatusName').textContent = APPARATUS_MAP[key].name;
+            hideForm();
+            loadTemplates();
+        }
+
+        async function loadTemplates() {
+            const listEl = document.getElementById('templatesList');
+            listEl.innerHTML = '<div style="grid-column:1/-1; text-align:center; padding:40px;"><div class="spinner"></div></div>';
+            
+            try {
+                const snapshot = await db.ref(globalCriteriaPath).once('value');
+                const templates = snapshot.val() || {};
+                
+                listEl.innerHTML = '';
+                if (Object.keys(templates).length === 0) {
+                    listEl.innerHTML = '<div style="grid-column:1/-1; text-align:center; color:var(--text-muted); padding:40px;">Bu alet için henüz şablon yok.</div>';
+                    return;
+                }
+
+                Object.entries(templates).forEach(([id, t]) => {
+                    const div = document.createElement('div');
+                    div.className = 'template-card';
+                    div.innerHTML = `
+                        <div class="template-header">
+                            <div>
+                                <div class="template-name">${t.isim}</div>
+                                <div class="template-meta">Son Düzenleme: Bugün</div>
+                            </div>
+                            <div class="icon-btn" style="background:rgba(255,255,255,0.1); border-radius:50%; width:32px; height:32px; display:flex; align-items:center; justify-content:center;"><i class="material-icons-round" style="font-size:18px;">tune</i></div>
+                        </div>
+                        <div class="template-stats">
+                            <div class="stat-badge"><i class="material-icons-round" style="font-size:14px;">gavel</i> ${t.hakemSayisi || 4} Hakem</div>
+                            <div class="stat-badge"><i class="material-icons-round" style="font-size:14px;">list</i> ${t.hareketler?.length || 0} Hareket</div>
+                        </div>
+                        <div class="template-actions">
+                            <button class="btn btn-ghost" style="flex:1;" onclick="editTemplate('${id}')">Düzenle</button>
+                            <button class="btn btn-danger" style="width:40px; padding:0; justify-content:center;" onclick="deleteTemplate('${id}', '${t.isim}')"><i class="material-icons-round">delete</i></button>
+                        </div>
+                    `;
+                    listEl.appendChild(div);
+                });
+            } catch(e) {
+                showToast("Hata: " + e.message, 'danger');
+            }
+        }
+
+        function startNewTemplate() {
+            document.getElementById('formTitle').textContent = "Yeni Şablon Oluştur";
+            document.getElementById('currentTemplateId').value = '';
+            document.getElementById('templateName').value = `Yeni ${APPARATUS_MAP[currentApparatus].name} Kriteri`;
+            
+            currentTemplateData = { hakemler: {}, hareketler: [], eksikKesintiTiers: {} };
+            // Varsayılan hakem isimleri
+            for(let i=1; i<=4; i++) currentTemplateData.hakemler[`E${i}`] = `Hakem ${i}`;
+
+            document.getElementById('hakemSayisiInput').value = 4;
+            document.getElementById('pinActive').checked = false;
+            document.getElementById('bonusRequiredD').value = 0.0;
+            document.getElementById('bonusMaxE').value = '';
+            document.getElementById('bonusValue').value = 0.0;
+
+            renderForm();
+            showForm();
+        }
+
+        async function editTemplate(id) {
+             try {
+                const s = await db.ref(globalCriteriaPath + '/' + id).once('value');
+                if (s.exists()) {
+                     const data = s.val();
+                     document.getElementById('formTitle').textContent = "Şablonu Düzenle";
+                     document.getElementById('currentTemplateId').value = id;
+                     document.getElementById('templateName').value = data.isim || '';
+                     document.getElementById('hakemSayisiInput').value = data.hakemSayisi || 4;
+                     document.getElementById('pinActive').checked = data.pinActive || false;
+                     document.getElementById('bonusRequiredD').value = data.bonus?.requiredD || 0;
+                     document.getElementById('bonusMaxE').value = data.bonus?.maxE ?? '';
+                     document.getElementById('bonusValue').value = data.bonus?.value || 0;
+                     
+                     currentTemplateData = { 
+                        hareketler: data.hareketler || [],
+                        hakemler: data.hakemler || {},
+                        eksikKesintiTiers: data.eksikKesintiTiers || {}
+                     };
+                     renderForm();
+                     showForm();
+                }
+             } catch (e) { showToast('Hata: ' + e.message, 'danger'); }
+        }
+
+        function renderForm() {
+            renderJudgeInputs();
+            renderMovementInputs();
+            renderDeductionTiers();
+            const isVault = APPARATUS_MAP[currentApparatus].formType === 'vault';
+            document.getElementById('deductionTitle').textContent = isVault ? 'Eksik Atlayış Kesintisi' : 'Eksik Element Kesinti Kademeleri';
+        }
+        
+        function renderJudgeInputs() {
+            const n = parseInt(document.getElementById('hakemSayisiInput').value) || 4;
+            const c = document.getElementById('hakemInputsContainer');
+            document.getElementById('judgeCountLabel').textContent = n;
+            c.innerHTML = '';
+            
+            const newH = {};
+            for(let i=1; i<=n; i++) {
+                const id = `E${i}`;
+                const val = currentTemplateData.hakemler?.[id] || `Hakem ${i}`;
+                newH[id] = val;
+                c.innerHTML += `<div class="form-group"><label>${id}</label><input type="text" class="form-control" value="${val}" oninput="currentTemplateData.hakemler['${id}']=this.value"></div>`;
+            }
+            currentTemplateData.hakemler = newH;
+        }
+
+        function renderMovementInputs() {
+            const c = document.getElementById('movementDefinition'); c.innerHTML = '';
+            const isVault = APPARATUS_MAP[currentApparatus].formType === 'vault';
+
+            currentTemplateData.hareketler.forEach((h, i) => {
+                let html = `<div class="movement-card ${isVault?'vault-grid':''}">
+                    <div class="form-group"><label>Ad</label><input type="text" class="form-control" value="${h.isim||''}" oninput="updMov(${i},'isim',this.value)"></div>`;
+                
+                if(isVault) {
+                    html += `<div class="form-group"><label>D Puanı</label><input type="number" class="form-control" step="0.1" value="${h.dPuani||0}" oninput="updMov(${i},'dPuani',this.value)"></div>
+                             <div class="form-group"><label>Sembol</label><input type="text" class="form-control" value="${h.symbol||''}" oninput="updMov(${i},'symbol',this.value)"></div>
+                             <div class="form-group"><label>Eksik Kes.</label><input type="number" class="form-control" step="0.1" value="${h.yapilmamaKesintisi||0}" oninput="updMov(${i},'yapilmamaKesintisi',this.value)"></div>`;
+                } else {
+                    html += `<div class="form-group"><label>Sembol</label><input type="text" class="form-control" value="${h.sembol||''}" oninput="updMov(${i},'sembol',this.value)"></div>
+                             <div class="form-group"><label>D Değerleri (virgülle)</label><input type="text" class="form-control" value="${h.dValues||''}" oninput="updMov(${i},'dValues',this.value)"></div>
+                             <div class="form-group"><div class="checkbox-wrapper" style="margin-top:25px;"><input type="checkbox" ${h.isPointless?'checked':''} onchange="updMov(${i},'isPointless',this.checked)"> <span>Puansız</span></div></div>
+                             <div class="form-group"><label>Tanım</label><input type="text" class="form-control" value="${h.sayiTanImlari||''}" oninput="updMov(${i},'sayiTanImlari',this.value)"></div>`;
+                }
+                html += `<button type="button" class="btn btn-danger btn-icon" style="margin-top:20px;" onclick="delMov(${i})"><i class="material-icons-round">delete</i></button></div>`;
+                c.innerHTML += html;
+            });
+        }
+
+        function renderDeductionTiers() {
+            const c = document.getElementById('deductionTiers'); c.innerHTML = '';
+            const isVault = APPARATUS_MAP[currentApparatus].formType === 'vault';
+            
+            if(isVault) {
+                c.style.gridTemplateColumns = '1fr';
+                c.innerHTML = `<div class="form-group"><label>Eksik 1. Atlayış</label><input type="number" class="form-control" step="0.1" value="${currentTemplateData.eksikKesintiTiers?.['1']||0}" oninput="updTier(1,this.value)"></div>`;
+            } else {
+                c.style.gridTemplateColumns = 'repeat(auto-fit, minmax(150px, 1fr))';
+                for(let i=1; i<=APPARATUS_MAP[currentApparatus].totalElements; i++) {
+                    c.innerHTML += `<div class="form-group"><label>${i} Eksik</label><input type="number" class="form-control" step="0.1" value="${currentTemplateData.eksikKesintiTiers?.[i]||0}" oninput="updTier(${i},this.value)"></div>`;
+                }
+            }
+        }
+
+        function updMov(i,f,v) { 
+            if(f==='dPuani'||f==='yapilmamaKesintisi') v=parseFloat(v)||0;
+            currentTemplateData.hareketler[i][f] = v; 
+        }
+        function delMov(i) { currentTemplateData.hareketler.splice(i,1); renderMovementInputs(); }
+        function addMovement() { 
+            const m={id:`h${Date.now()}`}; 
+            if(APPARATUS_MAP[currentApparatus].formType==='vault') Object.assign(m,{isim:'Yeni',dPuani:0,yapilmamaKesintisi:0,symbol:''});
+            else Object.assign(m,{isim:'Yeni',dValues:'',sembol:'',isPointless:false,sayiTanImlari:''});
+            currentTemplateData.hareketler.push(m); renderMovementInputs(); 
+        }
+        function updTier(i,v) { if(!currentTemplateData.eksikKesintiTiers) currentTemplateData.eksikKesintiTiers={}; currentTemplateData.eksikKesintiTiers[i]=parseFloat(v)||0; }
+
+        async function saveTemplate(e) {
+            e.preventDefault();
+            const id = document.getElementById('currentTemplateId').value;
+            const name = document.getElementById('templateName').value.trim();
+            
+            const final = {
+                isim: name,
+                hakemSayisi: parseInt(document.getElementById('hakemSayisiInput').value)||4,
+                pinActive: document.getElementById('pinActive').checked,
+                bonus: { requiredD:parseFloat(document.getElementById('bonusRequiredD').value)||0, maxE:parseFloat(document.getElementById('bonusMaxE').value)||null, value:parseFloat(document.getElementById('bonusValue').value)||0 },
+                hareketler: currentTemplateData.hareketler,
+                eksikKesintiTiers: currentTemplateData.eksikKesintiTiers,
+                hakemler: currentTemplateData.hakemler
+            };
+
+            try {
+                if (!id) await db.ref(globalCriteriaPath).push(final);
+                else await db.ref(globalCriteriaPath+'/'+id).update(final);
+                showToast('Kaydedildi!', 'success');
+                hideForm(); loadTemplates();
+            } catch(e) { showToast(e.message, 'danger'); }
+        }
+
+        function deleteTemplate(id, name) {
+            if(confirm(name + " silinecek?")) {
+                db.ref(globalCriteriaPath+'/'+id).remove().then(()=>loadTemplates());
+            }
+        }
+
+        // UI Helpers
+        function showForm() { document.getElementById('listView').style.display='none'; document.getElementById('formView').style.display='block'; }
+        function hideForm() { document.getElementById('listView').style.display='block'; document.getElementById('formView').style.display='none'; }
+        function showToast(m, t='info') { const el=document.createElement('div'); el.className=`toast ${t}`; el.textContent=m; document.getElementById('toast-container').appendChild(el); setTimeout(()=>el.remove(),3000); }
+
+    </script>
+</body>
+</html>

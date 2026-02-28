@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Yönetim Paneli - Cimnastik Puanlama</title>
+    <script src="https://www.gstatic.com/firebasejs/9.6.7/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.6.7/firebase-database-compat.js"></script>
+    <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --background-color: #121212; --card-color: #1e1e1e; --text-color: #e0e0e0; --text-muted: #8e8e8e;
+            --border-color: #333; --primary-color: #bb86fc; --success-color: #03dac6; --danger-color: #cf6679;
+            --border-radius: 12px; --box-shadow: 0 8px 30px rgba(0,0,0,0.2);
+        }
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        html, body { height: 100%; overflow: hidden; }
+        body { font-family: 'Inter', sans-serif; background-color: var(--background-color); color: var(--text-color); }
+        .page-container { display: flex; height: 100vh; }
+        
+        .left-panel {
+            width: 350px; background-color: var(--card-color); border-right: 1px solid var(--border-color);
+            padding: 20px; display: flex; flex-direction: column; flex-shrink: 0;
+        }
+        .left-panel h2 { font-size: 1.5em; margin-bottom: 20px; padding-bottom: 15px; border-bottom: 1px solid var(--border-color); }
+        .competition-list { list-style: none; padding: 0; margin: 0; overflow-y: auto; flex-grow: 1; }
+        .competition-list li { padding: 15px; border-radius: 8px; margin-bottom: 10px; cursor: pointer; transition: background-color 0.3s; }
+        .competition-list li.active { background-color: var(--primary-color); color: #000; font-weight: 600; }
+        .competition-list li.active small { color: rgba(0,0,0,0.7); }
+        .panel-actions { padding-top: 20px; border-top: 1px solid var(--border-color); display: flex; flex-direction: column; gap: 10px;}
+        button { padding: 12px 18px; border: none; border-radius: 8px; cursor: pointer; font-size: 0.95em; font-weight: 600; display: inline-flex; align-items: center; justify-content: center; gap: 8px; transition: all 0.2s ease; }
+        button.success { background-color: var(--success-color); color: #000; }
+        
+        .right-panel { flex-grow: 1; display: flex; flex-direction: column; overflow: hidden; }
+        .right-panel-header { padding: 30px 30px 0 30px; }
+        .right-panel-header h1 { font-size: 2.2em; color: var(--primary-color); }
+        .right-panel-header p { color: var(--text-muted); font-size: 1.1em; margin-top: 5px; }
+        .right-panel-content { flex-grow: 1; overflow-y: auto; padding: 30px; }
+        
+        .main-nav { background-color: var(--card-color); border-radius: var(--border-radius); box-shadow: var(--box-shadow); margin-bottom: 30px; overflow: hidden; }
+        .nav-container { display: flex; flex-wrap: wrap; justify-content: center; }
+        .nav-item { text-decoration: none; color: var(--text-muted); padding: 15px 20px; display: flex; flex-direction: column; align-items: center; transition: all 0.3s; min-width: 120px; }
+        .nav-item:hover { color: var(--primary-color); background-color: rgba(187, 134, 252, 0.1); }
+        .nav-item i { font-size: 1.5em; margin-bottom: 5px; }
+
+        .placeholder { text-align: center; padding: 150px 20px; color: var(--text-muted); }
+        .placeholder .material-icons { font-size: 5em; }
+        /* Diğer stiller aynı kalabilir */
+    </style>
+</head>
+<body>
+    <div class="page-container">
+        <aside class="left-panel">
+            <h2>Yarışmalar</h2>
+            <ul id="competition-list" class="competition-list"></ul>
+            <div class="panel-actions">
+                <button id="newCompetitionBtn" class="success"><i class="material-icons">add</i> Yeni Yarışma Oluştur</button>
+            </div>
+        </aside>
+
+        <main class="right-panel">
+            <div id="dashboard-content" style="display: none;">
+                <header class="right-panel-header">
+                    <div>
+                        <h1 id="selected-competition-name"></h1>
+                        <p id="selected-competition-details"></p>
+                    </div>
+                </header>
+                <div class="right-panel-content">
+                    <div id="mainNavContainer" class="main-nav"></div>
+                    </div>
+            </div>
+            <div id="placeholder" class="placeholder">
+                <i class="material-icons">dashboard</i>
+                <h2>Yönetim Paneline Hoş Geldiniz</h2>
+                <p>Başlamak için soldaki listeden bir yarışma seçin.</p>
+            </div>
+        </main>
+    </div>
+
+    <div id="competitionModal" style="display:none;"> </div>
+
+    <script>
+        const firebaseConfig = { apiKey: "AIzaSyA5VNkBsZkZqaDr8YgOnhiGCDql9-lJ6Gk", authDomain: "analig2025.firebaseapp.com", databaseURL: "https://analig2025-default-rtdb.firebaseio.com" };
+        firebase.initializeApp(firebaseConfig);
+        const db = firebase.database();
+        
+        let allCompetitions = {};
+        let selectedCompetitionId = null;
+
+        // --- YENİ: Dinamik Linkler için Yapılandırma ---
+        const APPARATUS_CONFIG = {
+            minikler: { yer: 'Yer', atlama: 'Atlama', barfiks: 'Barfiks', denge: 'Denge' },
+            kucukler: { yer: 'Yer', atlama: 'Atlama', barfiks: 'Barfiks', denge: 'Denge', asimetrik_paralel: 'Asimetrik Paralel' }
+        };
+        const PAGE_FILES = {
+            athletes: 'athletes.html',
+            liveResults: 'live-results.html',
+            finalResults: 'final-results.html',
+            logs: 'logs.html',
+            authLogs: 'auth-logs.html',
+            apparatus: {
+                yer: 'yer.html', atlama: 'atlama.html', barfiks: 'barfiks.html',
+                denge: 'denge.html', asimetrik_paralel: 'asimetri.html'
+            }
+        };
+        // --- BİTİŞ ---
+
+        document.addEventListener('DOMContentLoaded', () => {
+            db.ref('competitions').on('value', snapshot => {
+                allCompetitions = snapshot.val() || {};
+                renderCompetitionList();
+                if (selectedCompetitionId && allCompetitions[selectedCompetitionId]) {
+                    selectCompetition(selectedCompetitionId);
+                }
+            });
+            // Diğer event listeners
+        });
+
+        function renderCompetitionList() {
+            const listEl = document.getElementById('competition-list');
+            listEl.innerHTML = '';
+            const sorted = Object.entries(allCompetitions)
+                .filter(([, comp]) => comp.durum === 'aktif')
+                .sort(([,a],[,b]) => new Date(b.tarih) - new Date(a.tarih));
+            
+            sorted.forEach(([id, comp]) => {
+                const li = document.createElement('li');
+                li.dataset.id = id;
+                li.className = (id === selectedCompetitionId) ? 'active' : '';
+                li.innerHTML = `<div>${comp.isim}</div><small>${new Date(comp.tarih).toLocaleDateString('tr-TR')}</small>`;
+                li.onclick = () => selectCompetition(id);
+                listEl.appendChild(li);
+            });
+        }
+
+        function selectCompetition(id) {
+            selectedCompetitionId = id;
+            localStorage.setItem('activeCompetitionId', id);
+            
+            const compData = allCompetitions[id];
+            if (!compData) return;
+
+            document.querySelectorAll('#competition-list li').forEach(li => li.classList.toggle('active', li.dataset.id === id));
+            document.getElementById('placeholder').style.display = 'none';
+            document.getElementById('dashboard-content').style.display = 'block';
+
+            document.getElementById('selected-competition-name').textContent = compData.isim;
+            document.getElementById('selected-competition-details').textContent = `${new Date(compData.tarih).toLocaleDateString('tr-TR')} - ${Object.keys(compData.katilimcilar || {}).length} Katılımcı`;
+            
+            renderNavigation(compData);
+        }
+
+        // --- YENİ: Dinamik Navigasyon Oluşturma Fonksiyonu ---
+        function renderNavigation(compData) {
+            const navContainer = document.getElementById('mainNavContainer');
+            if(!navContainer) return;
+
+            const category = compData.kategori || 'minikler';
+            const apparatuses = APPARATUS_CONFIG[category];
+            const competitionIdQuery = `?competitionId=${selectedCompetitionId}`;
+
+            let navHTML = `<div class="nav-container">
+                <a href="${PAGE_FILES.athletes}${competitionIdQuery}" class="nav-item"><i class="material-icons">people</i>Sporcular</a>`;
+
+            for (const key in apparatuses) {
+                const fileName = PAGE_FILES.apparatus[key];
+                if(fileName) {
+                    navHTML += `<a href="${fileName}${competitionIdQuery}" class="nav-item"><i class="material-icons">edit</i>${apparatuses[key]}</a>`;
+                }
+            }
+
+            navHTML += `
+                <a href="${PAGE_FILES.liveResults}${competitionIdQuery}" class="nav-item"><i class="material-icons">leaderboard</i>Canlı Sonuç</a>
+                <a href="${PAGE_FILES.finalResults}${competitionIdQuery}" class="nav-item"><i class="material-icons">emoji_events</i>Final Sonuç</a>
+                <a href="${PAGE_FILES.logs}" class="nav-item"><i class="material-icons">history</i>Puan Logları</a>
+                <a href="${PAGE_FILES.authLogs}" class="nav-item"><i class="material-icons">security</i>Giriş Logları</a>
+            </div>`;
+
+            navContainer.innerHTML = navHTML;
+        }
+
+    </script>
+</body>
+</html>

@@ -1,0 +1,474 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Alet Sıralama Yönetimi - Cimnastik OS</title>
+    
+    <script src="https://www.gstatic.com/firebasejs/9.6.7/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.6.7/firebase-database-compat.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js"></script>
+    
+    <link href="https://fonts.googleapis.com/icon?family=Material+Icons+Round" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    
+    <style>
+        :root {
+            --bg-body: #030712;
+            --surface-1: rgba(17, 24, 39, 0.8);
+            --surface-glass: rgba(30, 41, 59, 0.4);
+            --border-glass: rgba(255, 255, 255, 0.08);
+            
+            --primary: #6366f1;
+            --accent: #a855f7;
+            --success: #22c55e;
+            --warning: #f59e0b;
+            --danger: #ef4444;
+
+            --text-main: #ffffff;
+            --text-muted: #94a3b8;
+            
+            --transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; outline: none; user-select: none; }
+        
+        body { 
+            font-family: 'Plus Jakarta Sans', sans-serif; 
+            background-color: var(--bg-body); 
+            background-image: 
+                radial-gradient(circle at 0% 0%, rgba(99, 102, 241, 0.15), transparent 40%),
+                radial-gradient(circle at 100% 100%, rgba(168, 85, 247, 0.1), transparent 40%);
+            color: var(--text-main); 
+            height: 100vh; 
+            overflow: hidden; 
+            display: flex;
+        }
+
+        /* SIDEBAR */
+        .sidebar {
+            width: 280px;
+            background: var(--surface-1);
+            backdrop-filter: blur(20px);
+            border-right: 1px solid var(--border-glass);
+            display: flex; flex-direction: column; padding: 24px; z-index: 100;
+        }
+
+        .app-brand {
+            display: flex; align-items: center; gap: 12px;
+            font-size: 1.1rem; font-weight: 800; color: white;
+            margin-bottom: 40px; text-decoration: none;
+        }
+
+        .nav-item {
+            padding: 14px 16px; margin-bottom: 8px; border-radius: 12px;
+            color: var(--text-muted); text-decoration: none; font-weight: 600;
+            display: flex; align-items: center; gap: 12px; transition: var(--transition);
+            border: 1px solid transparent; cursor: pointer;
+        }
+        .nav-item:hover { background: rgba(255,255,255,0.05); color: white; }
+        .nav-item.active { 
+            background: rgba(99, 102, 241, 0.15); color: var(--primary); 
+            border-color: rgba(99, 102, 241, 0.2);
+        }
+
+        /* MAIN CONTENT */
+        .main-content { flex: 1; display: flex; flex-direction: column; position: relative; overflow: hidden; }
+
+        .top-bar {
+            padding: 20px 40px;
+            border-bottom: 1px solid var(--border-glass);
+            background: rgba(3, 7, 18, 0.6);
+            backdrop-filter: blur(10px);
+            display: flex; justify-content: space-between; align-items: center;
+        }
+
+        .page-title h1 { font-size: 1.5rem; font-weight: 700; margin: 0; }
+        .page-title p { font-size: 0.9rem; color: var(--text-muted); margin: 5px 0 0 0; }
+        
+        .action-btn {
+            padding: 10px 20px; border-radius: 10px; font-weight: 600; font-size: 0.9rem;
+            border: none; cursor: pointer; display: flex; align-items: center; gap: 8px;
+            transition: var(--transition); text-decoration: none;
+        }
+        .btn-primary { background: var(--primary); color: white; }
+        .btn-primary:hover { transform: translateY(-2px); box-shadow: 0 5px 15px rgba(99, 102, 241, 0.3); }
+
+        /* CONTENT AREA */
+        .content-area { flex: 1; padding: 30px 40px; overflow-y: auto; position: relative; }
+        
+        .tab-content { display: none; animation: fadeIn 0.4s ease-out; }
+        .tab-content.active { display: block; }
+
+        /* APPARATUS TABS */
+        .apparatus-tabs {
+            display: flex; gap: 10px; margin-bottom: 30px;
+            padding: 5px; background: rgba(0,0,0,0.3); border-radius: 16px;
+            width: fit-content; border: 1px solid var(--border-glass);
+        }
+        .tab-btn {
+            padding: 10px 20px; border-radius: 12px; border: none; cursor: pointer;
+            background: transparent; color: var(--text-muted); font-weight: 600;
+            transition: 0.3s; display: flex; align-items: center; gap: 8px;
+        }
+        .tab-btn:hover { color: white; }
+        .tab-btn.active { background: var(--surface-glass); color: white; box-shadow: 0 2px 10px rgba(0,0,0,0.2); }
+
+        /* TEAM LIST */
+        .team-list {
+            display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 20px;
+        }
+        
+        .team-card {
+            background: var(--surface-glass); border: 1px solid var(--border-glass);
+            border-radius: 16px; overflow: hidden; display: flex; flex-direction: column;
+            transition: transform 0.2s;
+        }
+        .team-card:hover { border-color: rgba(255,255,255,0.2); }
+        
+        .team-header {
+            padding: 15px; background: rgba(255,255,255,0.05); border-bottom: 1px solid var(--border-glass);
+            display: flex; align-items: center; justify-content: space-between; cursor: grab;
+        }
+        .team-header:active { cursor: grabbing; }
+        .team-name { font-weight: 700; font-size: 1rem; display: flex; align-items: center; gap: 10px; }
+        
+        .rank-number {
+            background: rgba(99, 102, 241, 0.2); color: var(--primary);
+            width: 24px; height: 24px; border-radius: 6px; 
+            display: flex; align-items: center; justify-content: center;
+            font-size: 0.85rem; font-weight: 800;
+        }
+
+        .team-count { font-size: 0.8rem; color: var(--text-muted); background: rgba(0,0,0,0.3); padding: 2px 8px; border-radius: 10px; }
+        
+        .athlete-list {
+            list-style: none; padding: 10px; min-height: 50px;
+        }
+        
+        .athlete-item {
+            padding: 10px 12px; background: rgba(0,0,0,0.2); border-radius: 8px;
+            margin-bottom: 6px; display: flex; align-items: center; gap: 10px;
+            cursor: grab; border: 1px solid transparent; transition: 0.2s;
+        }
+        .athlete-item:hover { background: rgba(255,255,255,0.05); border-color: rgba(255,255,255,0.1); }
+        .athlete-item:last-child { margin-bottom: 0; }
+        .drag-handle { color: var(--text-muted); cursor: grab; font-size: 18px; }
+        
+        /* Sortable Styles */
+        .sortable-ghost { opacity: 0.4; background: var(--primary); }
+        .sortable-drag { background: var(--surface-1); transform: scale(1.02); box-shadow: 0 10px 20px rgba(0,0,0,0.5); }
+
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+        
+        /* Toast */
+        #toast-container { position: fixed; bottom: 30px; right: 30px; z-index: 9999; }
+        .toast { padding: 15px 25px; border-radius: 12px; color: white; font-weight: 600; box-shadow: 0 10px 30px rgba(0,0,0,0.5); margin-top: 10px; animation: slideIn 0.3s ease; }
+        .toast.success { background: var(--success); color: black; }
+        .toast.error { background: var(--danger); }
+        @keyframes slideIn { from { transform: translateX(100%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+        
+        @media (max-width: 768px) {
+            .sidebar { display: none; }
+            .team-list { grid-template-columns: 1fr; }
+        }
+    </style>
+</head>
+<body>
+
+    <aside class="sidebar">
+        <a href="index.html" class="app-brand">
+            <i class="material-icons-round" style="color:var(--primary);">arrow_back</i> Ana Sayfa
+        </a>
+        
+        <div style="margin-top: 20px;">
+            <div style="font-size:0.75rem; color:var(--text-muted); margin-bottom:10px; font-weight:600; letter-spacing:1px;">YÖNETİM</div>
+            <div class="nav-item active"><i class="material-icons-round">format_list_numbered</i> Sıralama</div>
+            <div class="nav-item" onclick="window.location.href='sporcu.html?competitionId='+activeCompetitionId"><i class="material-icons-round">groups</i> Sporcular</div>
+        </div>
+    </aside>
+
+    <main class="main-content">
+        <div class="top-bar">
+            <div class="page-title">
+                <h1><i class="material-icons-round" style="color:var(--accent);">sort</i> Çıkış Sırası Yönetimi</h1>
+                <p id="competitionNameHeader">Yarışma Yükleniyor...</p>
+            </div>
+            <div style="display:flex; gap:10px;">
+                <button onclick="saveAllOrders()" class="action-btn btn-primary">
+                    <i class="material-icons-round">save</i> Tümünü Kaydet
+                </button>
+            </div>
+        </div>
+
+        <div class="content-area">
+            
+            <div class="apparatus-tabs" id="apparatusTabs">
+                </div>
+
+            <div id="tabsContent">
+                </div>
+        </div>
+    </main>
+
+    <div id="toast-container"></div>
+
+    <script>
+        const firebaseConfig = { apiKey: "AIzaSyA5VNkBsZkZqaDr8YgOnhiGCDql9-lJ6Gk", authDomain: "analig2025.firebaseapp.com", databaseURL: "https://analig2025-default-rtdb.firebaseio.com", projectId: "analig2025", storageBucket: "analig2025.appspot.com", messagingSenderId: "835759576581", appId: "1:835759576581:web:561d073115b02584ebee6c" };
+        firebase.initializeApp(firebaseConfig);
+        const db = firebase.database();
+        
+        const APPARATUSES = { 
+            atlama: { label: 'Atlama', icon: 'sports_gymnastics' }, 
+            barfiks: { label: 'Barfiks', icon: 'horizontal_rule' }, 
+            denge: { label: 'Denge', icon: 'balance' }, 
+            yer: { label: 'Yer', icon: 'grid_on' }, 
+            asimetrik_paralel: { label: 'Asimetrik P.', icon: 'show_chart' } 
+        };
+        
+        let activeCompetitionId = new URLSearchParams(window.location.search).get('competitionId') || localStorage.getItem('activeCompetitionId');
+        let allTeams = {}, currentOrders = {}, globalSporcularMap = {}; 
+
+        document.addEventListener('DOMContentLoaded', () => {
+            if (!activeCompetitionId) {
+                showToast("Yarışma ID bulunamadı!", "error");
+                return;
+            }
+            loadCompetitionData();
+        });
+
+        async function loadCompetitionData() {
+            try {
+                // 1. Verileri Çek
+                const [compSnapshot, sporcularSnapshot, ordersSnapshot] = await Promise.all([
+                    db.ref(`competitions/${activeCompetitionId}`).once('value'),
+                    db.ref('globalSporcular').once('value'),
+                    db.ref(`competitions/${activeCompetitionId}/siralama`).once('value')
+                ]);
+
+                const competitionData = compSnapshot.val();
+                if (!competitionData) throw new Error("Yarışma verisi bulunamadı.");
+                document.getElementById('competitionNameHeader').textContent = competitionData.isim;
+                
+                // 2. Sporcu Haritası Oluştur (STRING ID ile)
+                const globalSporcularArray = sporcularSnapshot.val() || {};
+                for (const key in globalSporcularArray) {
+                    const s = globalSporcularArray[key];
+                    if (s && s.id) {
+                        globalSporcularMap[String(s.id)] = s; 
+                    }
+                }
+
+                // 3. Takımları ve Sporcuları Grupla
+                allTeams = {};
+                const participatingAthleteIds = competitionData.katilimcilar || {};
+                for (const athleteId in participatingAthleteIds) {
+                    // ID'yi String olarak ara
+                    const athlete = globalSporcularMap[String(athleteId)];
+                    if (athlete) { 
+                        const club = athlete.kulup || 'Bireysel';
+                        // İsim oluştur (soyadAd yoksa birleştir)
+                        const fullName = athlete.soyadAd || `${athlete.ad} ${athlete.soyad}`;
+                        
+                        if (!allTeams[club]) allTeams[club] = { name: club, athletes: [] };
+                        allTeams[club].athletes.push({ id: String(athlete.id), name: fullName });
+                    }
+                }
+                
+                // 4. Mevcut Sıralamayı Al
+                currentOrders = ordersSnapshot.val() || {};
+                
+                // 5. Arayüzü Çiz
+                renderUI();
+
+            } catch (error) { 
+                console.error(error);
+                showToast(`Hata: ${error.message}`, 'error'); 
+            } 
+        }
+
+        function renderUI() {
+            const tabsContainer = document.getElementById('apparatusTabs'); 
+            const contentContainer = document.getElementById('tabsContent');
+            tabsContainer.innerHTML = ''; 
+            contentContainer.innerHTML = '';
+            
+            let first = true;
+
+            for (const key in APPARATUSES) {
+                // Tab Butonu
+                const btn = document.createElement('button');
+                btn.className = `tab-btn ${first ? 'active' : ''}`;
+                btn.onclick = () => openTab(key);
+                btn.innerHTML = `<i class="material-icons-round">${APPARATUSES[key].icon}</i> ${APPARATUSES[key].label}`;
+                tabsContainer.appendChild(btn);
+
+                // Tab İçeriği
+                const content = document.createElement('div');
+                content.className = `tab-content ${first ? 'active' : ''}`;
+                content.id = `content-${key}`;
+                content.innerHTML = renderApparatusOrderUI(key);
+                contentContainer.appendChild(content);
+
+                setTimeout(() => initSortable(key), 0);
+                
+                first = false;
+            }
+        }
+
+        function renderApparatusOrderUI(apparatusKey) {
+            const savedOrder = currentOrders[apparatusKey] || {};
+            let teamList = savedOrder.teamOrder || Object.keys(allTeams).sort();
+            
+            // Yeni eklenen takımları sona ekle
+            const currentTeamKeys = Object.keys(allTeams);
+            const missingTeams = currentTeamKeys.filter(t => !teamList.includes(t));
+            teamList = [...teamList, ...missingTeams];
+
+            let html = `<div id="team-list-${apparatusKey}" class="team-list">`;
+            
+            teamList.forEach((teamName, index) => {
+                const team = allTeams[teamName];
+                if(!team) return;
+
+                // Takım İçi Sporcu Sıralaması
+                let athleteListIds = savedOrder.athleteOrder && savedOrder.athleteOrder[teamName] 
+                    ? savedOrder.athleteOrder[teamName]
+                    : team.athletes.map(a => a.id);
+                
+                // Tüm ID'leri string yap (Garanti olsun)
+                athleteListIds = athleteListIds.map(id => String(id));
+                const currentAthleteIds = team.athletes.map(a => String(a.id));
+                
+                // Filtrele ve Eksikleri Ekle
+                athleteListIds = athleteListIds.filter(id => currentAthleteIds.includes(id));
+                const missingIds = currentAthleteIds.filter(id => !athleteListIds.includes(id));
+                athleteListIds = [...athleteListIds, ...missingIds];
+
+                html += `
+                    <div class="team-card" data-team="${teamName}">
+                        <div class="team-header">
+                            <div class="team-name">
+                                <i class="material-icons-round drag-handle">drag_indicator</i> 
+                                <span class="rank-number">${index + 1}</span>
+                                ${teamName}
+                            </div>
+                            <span class="team-count">${athleteListIds.length} Sporcu</span>
+                        </div>
+                        <ul class="athlete-list" id="ath-list-${apparatusKey}-${teamName.replace(/\s/g, '_')}">`;
+                
+                athleteListIds.forEach(athId => {
+                    const athlete = team.athletes.find(a => String(a.id) === String(athId));
+                    if(athlete) {
+                        html += `<li class="athlete-item" data-id="${athlete.id}"><i class="material-icons-round drag-handle" style="font-size:16px;">drag_handle</i> ${athlete.name}</li>`;
+                    }
+                });
+
+                html += `</ul></div>`;
+            });
+            
+            html += `</div>`;
+            return html;
+        }
+
+        function initSortable(apparatusKey) {
+            // 1. Takım Sıralaması
+            const teamContainer = document.getElementById(`team-list-${apparatusKey}`);
+            if (teamContainer) {
+                new Sortable(teamContainer, {
+                    animation: 150,
+                    handle: '.team-header', 
+                    ghostClass: 'sortable-ghost',
+                    dragClass: 'sortable-drag',
+                    onEnd: function() {
+                        updateRankNumbers(apparatusKey);
+                    }
+                });
+            }
+
+            // 2. Sporcu Sıralaması
+            const athleteLists = document.querySelectorAll(`#content-${apparatusKey} .athlete-list`);
+            athleteLists.forEach(list => {
+                new Sortable(list, {
+                    group: `athletes-${apparatusKey}`, 
+                    animation: 150,
+                    ghostClass: 'sortable-ghost',
+                    dragClass: 'sortable-drag'
+                });
+            });
+        }
+        
+        function updateRankNumbers(apparatusKey) {
+            const teamContainer = document.getElementById(`team-list-${apparatusKey}`);
+            if (!teamContainer) return;
+            
+            const teamCards = teamContainer.querySelectorAll('.team-card');
+            teamCards.forEach((card, index) => {
+                const rankSpan = card.querySelector('.rank-number');
+                if (rankSpan) {
+                    rankSpan.textContent = index + 1;
+                }
+            });
+        }
+
+        function openTab(key) {
+            document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+            document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+            
+            const buttons = document.querySelectorAll('.tab-btn');
+            buttons.forEach(btn => {
+                if(btn.innerHTML.includes(APPARATUSES[key].label)) btn.classList.add('active');
+            });
+            
+            const targetContent = document.getElementById(`content-${key}`);
+            if(targetContent) targetContent.classList.add('active');
+        }
+
+        async function saveAllOrders() {
+            const updates = {};
+            
+            for (const key in APPARATUSES) {
+                const teamContainer = document.getElementById(`team-list-${key}`);
+                if (!teamContainer) continue;
+
+                const teamOrder = [];
+                const athleteOrder = {};
+
+                Array.from(teamContainer.children).forEach(teamCard => {
+                    const teamName = teamCard.dataset.team;
+                    teamOrder.push(teamName);
+                    
+                    const athList = teamCard.querySelector('.athlete-list');
+                    const athIds = Array.from(athList.children).map(li => li.dataset.id);
+                    athleteOrder[teamName] = athIds;
+                });
+
+                updates[`competitions/${activeCompetitionId}/siralama/${key}`] = {
+                    teamOrder: teamOrder,
+                    athleteOrder: athleteOrder
+                };
+            }
+
+            try {
+                await db.ref().update(updates);
+                showToast('Tüm sıralamalar başarıyla kaydedildi!', 'success');
+            } catch (e) { 
+                showToast(`Hata: ${e.message}`, 'error'); 
+            }
+        }
+
+        function showToast(msg, type='info') {
+            const container = document.getElementById('toast-container');
+            const toast = document.createElement('div');
+            toast.className = `toast ${type}`;
+            toast.innerHTML = msg;
+            container.appendChild(toast);
+            setTimeout(() => {
+                toast.style.opacity = '0';
+                toast.style.transform = 'translateX(100%)';
+                setTimeout(() => toast.remove(), 300);
+            }, 3000);
+        }
+    </script>
+</body>
+</html>

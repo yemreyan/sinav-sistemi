@@ -1,0 +1,485 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8" />
+    <title>TCF Yarışma Sonuç Raporu (PDF için)</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+
+    <!-- SheetJS: Excel okuma -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+
+    <style>
+        :root {
+            --bg: #f3f4f6;
+            --card: #ffffff;
+            --text: #111827;
+            --muted: #6b7280;
+            --border: #d1d5db;
+            --header-bg: #111827;
+            --header-fg: #f9fafb;
+            --row-alt: #f9fafb;
+            --accent: #f97316;
+        }
+
+        * { box-sizing: border-box; }
+
+        body {
+            margin: 0;
+            padding: 12px;
+            font-family: system-ui, -apple-system, BlinkMacSystemFont, "Inter", sans-serif;
+            background: var(--bg);
+            color: var(--text);
+        }
+
+        .controls {
+            max-width: 1100px;
+            margin: 0 auto 12px auto;
+            background: var(--card);
+            border-radius: 12px;
+            padding: 10px 14px;
+            box-shadow: 0 4px 10px rgba(15, 23, 42, 0.08);
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .controls input[type="file"] {
+            font-size: 13px;
+        }
+
+        .info-text {
+            font-size: 12px;
+            color: var(--muted);
+        }
+
+        .btn-print {
+            margin-left: auto;
+            padding: 6px 12px;
+            border-radius: 999px;
+            border: 1px solid rgba(148,163,184,0.8);
+            background: linear-gradient(135deg, #fbbf24, #f97316);
+            color: #111827;
+            font-weight: 600;
+            cursor: pointer;
+            font-size: 12px;
+            box-shadow: 0 8px 15px rgba(249,115,22,0.35);
+        }
+
+        .btn-print:disabled {
+            opacity: 0.4;
+            cursor: not-allowed;
+            box-shadow: none;
+        }
+
+        #reportContainer {
+            max-width: 1100px;
+            margin: 0 auto 24px auto;
+        }
+
+        /* Her sheet için ayrı PDF sayfası */
+        .report-page {
+            background: #ffffff;
+            margin: 0 auto 16px auto;
+            padding: 14mm 12mm 12mm 12mm;
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(15,23,42,0.1);
+            position: relative;
+            page-break-after: always;
+        }
+
+        @media print {
+            body {
+                background: #ffffff;
+                padding: 0;
+            }
+            .controls {
+                display: none;
+            }
+            .report-page {
+                margin: 0;
+                border-radius: 0;
+                box-shadow: none;
+                page-break-after: always;
+            }
+        }
+
+        .page-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 10px;
+        }
+
+        .page-header-left {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .tcf-logo {
+            width: 42px;
+            height: 42px;
+            object-fit: contain;
+        }
+
+        .header-text-main {
+            font-size: 17px;
+            font-weight: 700;
+            letter-spacing: 0.03em;
+            text-transform: uppercase;
+        }
+
+        .header-text-sub {
+            font-size: 11px;
+            color: var(--muted);
+        }
+
+        .apparatus-icon {
+            width: 40px;
+            height: 40px;
+            object-fit: contain;
+            opacity: 0.85;
+        }
+
+        .badge {
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 999px;
+            background: rgba(249,115,22,0.08);
+            color: var(--accent);
+            font-size: 10px;
+            text-transform: uppercase;
+            letter-spacing: .08em;
+            margin-bottom: 4px;
+        }
+
+        .table-wrapper {
+            border-radius: 6px;
+            border: 1px solid var(--border);
+            overflow: hidden;
+        }
+
+        table.report-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 10px;
+            table-layout: fixed; /* genişlikleri daha iyi kontrol için */
+        }
+
+        table.report-table thead {
+            background: var(--header-bg);
+            color: var(--header-fg);
+        }
+
+        table.report-table th,
+        table.report-table td {
+            border-bottom: 1px solid var(--border);
+            padding: 4px 3px;
+            text-align: center;
+            vertical-align: middle;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        table.report-table th {
+            font-weight: 600;
+        }
+
+        table.report-table tbody tr:nth-child(even) {
+            background: var(--row-alt);
+        }
+
+        table.report-table tbody tr:nth-child(odd) {
+            background: #ffffff;
+        }
+
+        .col-left {
+            text-align: left !important;
+        }
+
+        .numeric {
+            font-variant-numeric: tabular-nums;
+        }
+
+        .page-footer {
+            margin-top: 6px;
+            font-size: 10px;
+            color: var(--muted);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .summary-chip {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            padding: 2px 8px;
+            border-radius: 999px;
+            background: #f3f4ff;
+            color: #4f46e5;
+            font-size: 10px;
+        }
+
+        .summary-chip-dot {
+            width: 6px;
+            height: 6px;
+            border-radius: 999px;
+            background: #4f46e5;
+        }
+    </style>
+</head>
+<body>
+<div class="controls">
+    <div>
+        <div style="font-size:13px; font-weight:600;">Excel Dosyasını Yükle (yeni_rapor.xlsx)</div>
+        <input type="file" id="excelInput" accept=".xlsx,.xls" />
+        <div class="info-text">
+            1) Excel’i seç → 2) Aşağıda sayfalar oluşacak → 3) Tarayıcıdan “Yazdır → PDF olarak kaydet”.
+        </div>
+    </div>
+    <button id="btnPrint" class="btn-print" disabled onclick="window.print()">🖨 PDF Olarak Yazdır</button>
+</div>
+
+<div id="reportContainer"></div>
+
+<script>
+    const excelInput = document.getElementById("excelInput");
+    const reportContainer = document.getElementById("reportContainer");
+    const btnPrint = document.getElementById("btnPrint");
+
+    // Hangi sheet hangi alete karşılık geliyor & ikon yolu
+    const SHEET_CONFIGS = [
+        {
+            key: "1-Bireysel Genel Tasnif",
+            title: "Bireysel Genel Tasnif",
+            subtitle: "Tüm aletler genel toplam sıralaması",
+            icon: null,
+            type: "bireysel"
+        },
+        {
+            key: "2-Takım Sıralaması",
+            title: "Takım Sıralaması",
+            subtitle: "Kulüp bazında takım toplam puanları",
+            icon: null,
+            type: "takim"
+        },
+        {
+            key: "3-Yer Final",
+            title: "Yer Final",
+            subtitle: "Yer serisi final sonuçları",
+            icon: "icon-floor.png",
+            type: "alet"
+        },
+        {
+            key: "3-Atlama Final",
+            title: "Atlama Final",
+            subtitle: "Atlama aleti final sonuçları",
+            icon: "icon-vault.png",
+            type: "alet"
+        },
+        {
+            key: "3-Barfiks Final",
+            title: "Barfiks Final",
+            subtitle: "Barfiks final sonuçları",
+            icon: "icon-bars.png",
+            type: "alet"
+        },
+        {
+            key: "3-Denge Final",
+            title: "Denge Final",
+            subtitle: "Denge final sonuçları",
+            icon: "icon-beam.png",
+            type: "alet"
+        }
+    ];
+
+    excelInput.addEventListener("change", handleFile, false);
+
+    function handleFile(e) {
+        const file = e.target.files[0];
+        if (!file) return;
+
+        const reader = new FileReader();
+        reader.onload = function(evt) {
+            const data = evt.target.result;
+            const workbook = XLSX.read(data, { type: "array" });
+
+            reportContainer.innerHTML = "";
+
+            SHEET_CONFIGS.forEach(cfg => {
+                const ws = workbook.Sheets[cfg.key];
+                if (!ws) return;
+
+                const sheetData = XLSX.utils.sheet_to_json(ws, { header: 1 }); // 2D array
+                if (!sheetData.length) return;
+
+                const colsMeta = ws["!cols"] || [];
+
+                const pageEl = renderSheetAsPage(cfg, sheetData, colsMeta);
+                reportContainer.appendChild(pageEl);
+            });
+
+            btnPrint.disabled = false;
+        };
+        reader.readAsArrayBuffer(file);
+    }
+
+    function renderSheetAsPage(config, sheetData, colsMeta) {
+        const page = document.createElement("section");
+        page.className = "report-page";
+
+        // HEADER
+        const header = document.createElement("div");
+        header.className = "page-header";
+
+        const left = document.createElement("div");
+        left.className = "page-header-left";
+
+        const logo = document.createElement("img");
+        logo.src = "tcf-logo.png";  // senin TCF logonu bu isimle yanına koy
+        logo.alt = "TCF Logo";
+        logo.className = "tcf-logo";
+        left.appendChild(logo);
+
+        const titleBlock = document.createElement("div");
+        const badge = document.createElement("div");
+        badge.className = "badge";
+        badge.textContent = "TCF Resmi Sonuç Raporu";
+        titleBlock.appendChild(badge);
+
+        const title = document.createElement("div");
+        title.className = "header-text-main";
+        title.textContent = config.title;
+        titleBlock.appendChild(title);
+
+        const subtitle = document.createElement("div");
+        subtitle.className = "header-text-sub";
+        subtitle.textContent = config.subtitle;
+        titleBlock.appendChild(subtitle);
+
+        left.appendChild(titleBlock);
+        header.appendChild(left);
+
+        const right = document.createElement("div");
+        if (config.icon) {
+            const ic = document.createElement("img");
+            ic.src = config.icon;
+            ic.alt = config.title;
+            ic.className = "apparatus-icon";
+            right.appendChild(ic);
+        }
+        header.appendChild(right);
+
+        page.appendChild(header);
+
+        // TABLE
+        const tableWrapper = document.createElement("div");
+        tableWrapper.className = "table-wrapper";
+
+        const table = document.createElement("table");
+        table.className = "report-table";
+
+        const thead = document.createElement("thead");
+        const headerRow = document.createElement("tr");
+
+        const dataRows = sheetData.filter((r, idx) => idx !== 0 || r.some(v => v !== undefined && v !== null && v !== ""));
+        const headers = dataRows[0];
+
+        headers.forEach((h, colIdx) => {
+            const th = document.createElement("th");
+            th.textContent = h === undefined ? "" : h;
+
+            const wMeta = colsMeta[colIdx];
+            if (wMeta && wMeta.wch) {
+                const colWidthPx = wMeta.wch * 7; // tahmini dönüşüm
+                th.style.width = colWidthPx + "px";
+                th.style.maxWidth = colWidthPx + "px";
+            }
+
+            if (colIdx === 1 || colIdx === 2 || colIdx === 3) {
+                th.style.textAlign = "left";
+            }
+
+            headerRow.appendChild(th);
+        });
+        thead.appendChild(headerRow);
+        table.appendChild(thead);
+
+        const tbody = document.createElement("tbody");
+        for (let i = 1; i < dataRows.length; i++) {
+            const rowArr = dataRows[i];
+            const tr = document.createElement("tr");
+
+            headers.forEach((_, colIdx) => {
+                const td = document.createElement("td");
+                let val = rowArr[colIdx];
+
+                if (val === undefined || val === null) {
+                    td.textContent = "";
+                } else {
+                    if (typeof val === "number") {
+                        td.textContent = val.toFixed(3);
+                        td.classList.add("numeric");
+                    } else {
+                        const numCandidate = parseFloat(val);
+                        if (!isNaN(numCandidate) && val !== "" && isFinite(numCandidate)) {
+                            td.textContent = numCandidate.toFixed(3);
+                            td.classList.add("numeric");
+                        } else {
+                            td.textContent = String(val);
+                        }
+                    }
+                }
+
+                if (colIdx === 1 || colIdx === 2 || colIdx === 3) {
+                    td.classList.add("col-left");
+                }
+
+                tr.appendChild(td);
+            });
+
+            tbody.appendChild(tr);
+        }
+
+        table.appendChild(tbody);
+        tableWrapper.appendChild(table);
+        page.appendChild(tableWrapper);
+
+        // FOOTER: sporcu / takım sayısı, sıra bilgisi
+        const footer = document.createElement("div");
+        footer.className = "page-footer";
+
+        const countChip = document.createElement("div");
+        countChip.className = "summary-chip";
+
+        const dot = document.createElement("div");
+        dot.className = "summary-chip-dot";
+        countChip.appendChild(dot);
+
+        const countLabel = document.createElement("span");
+        const dataCount = dataRows.length - 1; // başlığı düş
+        if (config.type === "takim") {
+            countLabel.textContent = `Toplam takım: ${dataCount}`;
+        } else if (config.type === "alet") {
+            countLabel.textContent = `Toplam sporcu: ${dataCount}`;
+        } else {
+            countLabel.textContent = `Toplam satır: ${dataCount}`;
+        }
+        countChip.appendChild(countLabel);
+
+        footer.appendChild(countChip);
+
+        const rightText = document.createElement("div");
+        rightText.textContent = "Oluşturulan tablo: Excel verisine göre sıralamalar ve sporcu sayısı kontrol edildi.";
+        footer.appendChild(rightText);
+
+        page.appendChild(footer);
+
+        return page;
+    }
+</script>
+</body>
+</html>

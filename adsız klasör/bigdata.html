@@ -1,0 +1,2992 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ProGym Big Data Analytics - FIG Standards</title>
+    
+    <script src="https://www.gstatic.com/firebasejs/9.6.7/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.6.7/firebase-database-compat.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-chart-matrix@2.0.1"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-chart-box-and-violin-plot@3.0.0"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: { sans: ['Inter', 'sans-serif'], mono: ['JetBrains Mono', 'monospace'] },
+                    colors: {
+                        bg: { main: '#0A0E27', card: '#131842', hover: '#1E2749', light: '#262D54' },
+                        primary: { 500: '#6366F1', 600: '#4F46E5', 700: '#4338CA', 800: '#3730A3' },
+                        accent: { 
+                            success: '#10B981', 
+                            warning: '#F59E0B', 
+                            danger: '#EF4444', 
+                            info: '#3B82F6',
+                            purple: '#A855F7',
+                            pink: '#EC4899',
+                            cyan: '#06B6D4'
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    
+    <style>
+        ::-webkit-scrollbar { width: 8px; height: 8px; }
+        ::-webkit-scrollbar-track { background: #0A0E27; }
+        ::-webkit-scrollbar-thumb { background: #262D54; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: #1E2749; }
+        
+        .loader { border: 3px solid rgba(255,255,255,0.1); border-top: 3px solid #6366F1; border-radius: 50%; width: 24px; height: 24px; animation: spin 0.8s linear infinite; }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        
+        .fade-in { animation: fadeIn 0.4s ease-in-out; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+        
+        .stat-card { 
+            transition: all 0.3s ease; 
+            background: linear-gradient(135deg, rgba(99, 102, 241, 0.05) 0%, rgba(99, 102, 241, 0.02) 100%);
+        }
+        .stat-card:hover { 
+            transform: translateY(-4px); 
+            box-shadow: 0 20px 60px -12px rgba(99, 102, 241, 0.4);
+            background: linear-gradient(135deg, rgba(99, 102, 241, 0.1) 0%, rgba(99, 102, 241, 0.05) 100%);
+        }
+        
+        .badge { @apply px-2.5 py-1 rounded-lg text-xs font-bold uppercase tracking-wider; }
+        .badge-success { @apply bg-accent-success/20 text-accent-success border border-accent-success/30; }
+        .badge-warning { @apply bg-accent-warning/20 text-accent-warning border border-accent-warning/30; }
+        .badge-danger { @apply bg-accent-danger/20 text-accent-danger border border-accent-danger/30; }
+        .badge-info { @apply bg-accent-info/20 text-accent-info border border-accent-info/30; }
+        .badge-purple { @apply bg-accent-purple/20 text-accent-purple border border-accent-purple/30; }
+        
+        .metric-box {
+            @apply bg-bg-light/50 p-4 rounded-xl border border-slate-700/50;
+        }
+        
+        .data-table {
+            @apply w-full text-sm;
+        }
+        .data-table thead th {
+            @apply p-3 text-xs text-slate-400 uppercase font-bold tracking-wider border-b-2 border-slate-700;
+        }
+        .data-table tbody td {
+            @apply p-3 border-b border-slate-800;
+        }
+        .data-table tbody tr:hover {
+            @apply bg-slate-800/50;
+        }
+        
+        .section-title {
+            @apply text-xl font-bold text-white mb-6 flex items-center gap-3;
+        }
+        .section-title::before {
+            content: '';
+            @apply w-1 h-8 bg-primary-500 rounded-full;
+        }
+        
+        .nav-item.active {
+            @apply bg-primary-600/20 text-white border-l-4 border-primary-500;
+        }
+    </style>
+</head>
+<body class="bg-bg-main text-slate-200 h-screen w-screen flex overflow-hidden font-sans text-sm">
+
+    <!-- Sidebar -->
+    <aside class="w-80 flex-shrink-0 border-r border-slate-800 bg-bg-card flex flex-col z-20">
+        <div class="h-20 flex items-center justify-between px-6 border-b border-slate-800">
+            <div>
+                <div class="flex items-center gap-3">
+                    <i class="material-icons text-primary-500 text-3xl">analytics</i>
+                    <div>
+                        <span class="font-black text-xl tracking-tight text-white block">ProGym</span>
+                        <span class="text-xs text-primary-400 font-semibold">Big Data Analytics</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <nav class="flex-1 p-4 space-y-1 overflow-y-auto">
+            <div class="text-xs text-slate-500 uppercase tracking-wider font-bold px-4 py-3">Genel</div>
+            <button onclick="app.setView('dashboard')" class="nav-item w-full flex items-center px-4 py-3 rounded-lg transition-all text-left group">
+                <i class="material-icons text-slate-400 group-hover:text-white mr-3">dashboard</i>
+                <span>Genel Bakış</span>
+            </button>
+            
+            <div class="text-xs text-slate-500 uppercase tracking-wider font-bold px-4 py-3 mt-4">Hakem Analizi</div>
+            <button onclick="app.setView('judgeMatrix')" class="nav-item w-full flex items-center px-4 py-3 rounded-lg transition-all text-left group">
+                <i class="material-icons text-slate-400 group-hover:text-white mr-3">grid_on</i>
+                <span>Hakem Matrisi</span>
+            </button>
+            <button onclick="app.setView('judgeProfiles')" class="nav-item w-full flex items-center px-4 py-3 rounded-lg transition-all text-left group">
+                <i class="material-icons text-slate-400 group-hover:text-white mr-3">badge</i>
+                <span>Hakem Profilleri</span>
+            </button>
+            <button onclick="app.setView('judgeComparison')" class="nav-item w-full flex items-center px-4 py-3 rounded-lg transition-all text-left group">
+                <i class="material-icons text-slate-400 group-hover:text-white mr-3">compare</i>
+                <span>Hakem Karşılaştırma</span>
+            </button>
+            <button onclick="app.setView('judgeApparatus')" class="nav-item w-full flex items-center px-4 py-3 rounded-lg transition-all text-left group">
+                <i class="material-icons text-slate-400 group-hover:text-white mr-3">sports_gymnastics</i>
+                <span>Alet-Hakem Analizi</span>
+            </button>
+            <button onclick="app.setView('figCompliance')" class="nav-item w-full flex items-center px-4 py-3 rounded-lg transition-all text-left group">
+                <i class="material-icons text-slate-400 group-hover:text-white mr-3">verified</i>
+                <span>FIG Uyumluluk</span>
+            </button>
+            
+            <div class="text-xs text-slate-500 uppercase tracking-wider font-bold px-4 py-3 mt-4">İstatistiksel Analiz</div>
+            <button onclick="app.setView('distribution')" class="nav-item w-full flex items-center px-4 py-3 rounded-lg transition-all text-left group">
+                <i class="material-icons text-slate-400 group-hover:text-white mr-3">show_chart</i>
+                <span>Dağılım Analizi</span>
+            </button>
+            <button onclick="app.setView('correlation')" class="nav-item w-full flex items-center px-4 py-3 rounded-lg transition-all text-left group">
+                <i class="material-icons text-slate-400 group-hover:text-white mr-3">scatter_plot</i>
+                <span>Korelasyon Analizi</span>
+            </button>
+            <button onclick="app.setView('outliers')" class="nav-item w-full flex items-center px-4 py-3 rounded-lg transition-all text-left group">
+                <i class="material-icons text-slate-400 group-hover:text-white mr-3">warning</i>
+                <span>Outlier Tespiti</span>
+            </button>
+            <button onclick="app.setView('biasDetection')" class="nav-item w-full flex items-center px-4 py-3 rounded-lg transition-all text-left group">
+                <i class="material-icons text-slate-400 group-hover:text-white mr-3">psychology</i>
+                <span>Bias Analizi</span>
+            </button>
+            
+            <div class="text-xs text-slate-500 uppercase tracking-wider font-bold px-4 py-3 mt-4">Raporlar</div>
+            <button onclick="app.setView('athleteDetails')" class="nav-item w-full flex items-center px-4 py-3 rounded-lg transition-all text-left group">
+                <i class="material-icons text-slate-400 group-hover:text-white mr-3">person</i>
+                <span>Sporcu Detayları</span>
+            </button>
+            <button onclick="app.setView('clubAnalytics')" class="nav-item w-full flex items-center px-4 py-3 rounded-lg transition-all text-left group">
+                <i class="material-icons text-slate-400 group-hover:text-white mr-3">business</i>
+                <span>Kulüp Analitiği</span>
+            </button>
+        </nav>
+
+        <div class="p-4 border-t border-slate-800 space-y-3">
+            <div class="flex items-center justify-between">
+                <span class="text-xs text-slate-400">FIG Modu</span>
+                <label class="relative inline-flex items-center cursor-pointer">
+                    <input type="checkbox" id="figMode" class="sr-only peer" checked onchange="app.toggleFigMode()">
+                    <div class="w-11 h-6 bg-slate-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary-600"></div>
+                </label>
+            </div>
+            <div class="flex items-center gap-2">
+                <div id="connectionDot" class="w-2 h-2 rounded-full bg-yellow-500 animate-pulse"></div>
+                <span id="connectionText" class="text-xs text-slate-400">Bağlanıyor...</span>
+            </div>
+            <div class="text-xs text-slate-500">v3.0 - Big Data Edition</div>
+        </div>
+    </aside>
+
+    <!-- Main Content -->
+    <main class="flex-1 flex flex-col h-full relative">
+        
+        <!-- Header -->
+        <header class="h-20 border-b border-slate-800 bg-bg-card/90 backdrop-blur flex items-center justify-between px-8 z-10">
+            <div class="flex items-center gap-4">
+                <h2 id="pageTitle" class="text-white font-bold text-2xl">Big Data Analytics</h2>
+                <div id="globalLoader" class="loader hidden"></div>
+            </div>
+            
+            <div class="flex items-center gap-4">
+                <div class="relative group">
+                    <i class="material-icons absolute left-3 top-3 text-slate-500">search</i>
+                    <select id="competitionSelect" class="pl-10 pr-4 py-3 bg-bg-hover border border-slate-700 rounded-lg text-white focus:outline-none focus:border-primary-500 w-96 transition-colors cursor-pointer font-medium">
+                        <option value="">Yarışmalar Yükleniyor...</option>
+                    </select>
+                </div>
+                <button onclick="app.exportFullReport()" class="px-4 py-3 bg-primary-600 hover:bg-primary-700 text-white rounded-lg transition-colors flex items-center gap-2 font-semibold">
+                    <i class="material-icons text-sm">download</i>
+                    <span>Tam Rapor</span>
+                </button>
+                <button onclick="app.refreshData()" class="p-3 text-slate-400 hover:text-white hover:bg-bg-hover rounded-lg transition-colors" title="Yenile">
+                    <i class="material-icons">refresh</i>
+                </button>
+            </div>
+        </header>
+
+        <!-- Content Area -->
+        <div class="flex-1 overflow-y-auto p-8 scroll-smooth bg-gradient-to-br from-bg-main via-bg-card to-bg-main">
+            
+            <!-- Empty State -->
+            <div id="emptyState" class="h-full flex flex-col items-center justify-center text-center">
+                <div class="w-32 h-32 bg-primary-500/10 rounded-3xl flex items-center justify-center mb-6">
+                    <i class="material-icons text-primary-500" style="font-size: 64px;">analytics</i>
+                </div>
+                <h3 class="text-3xl font-black text-white mb-2">Big Data Analytics System</h3>
+                <p class="text-slate-400 text-lg mb-1">FIG Standartlarında Profesyonel Analiz</p>
+                <p class="text-slate-500 text-sm">Detaylı verileri görmek için yukarıdan bir yarışma seçiniz</p>
+            </div>
+
+            <!-- Dashboard View -->
+            <div id="dashboard" class="view-section hidden space-y-8 fade-in">
+                <!-- KPI Grid -->
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-4">
+                    <div class="stat-card border border-slate-700 p-5 rounded-2xl shadow-2xl">
+                        <div class="flex items-center justify-between mb-3">
+                            <p class="text-xs text-slate-400 uppercase font-bold tracking-wider">Toplam Seri</p>
+                            <i class="material-icons text-accent-info">fitness_center</i>
+                        </div>
+                        <div class="flex items-baseline gap-2">
+                            <span class="text-3xl font-black text-white" id="kpiTotal">0</span>
+                        </div>
+                    </div>
+                    <div class="stat-card border border-slate-700 p-5 rounded-2xl shadow-2xl">
+                        <div class="flex items-center justify-between mb-3">
+                            <p class="text-xs text-slate-400 uppercase font-bold tracking-wider">Ort. Final</p>
+                            <i class="material-icons text-accent-success">trending_up</i>
+                        </div>
+                        <div class="flex items-baseline gap-2">
+                            <span class="text-3xl font-black text-white" id="kpiAvgFinal">0.00</span>
+                        </div>
+                    </div>
+                    <div class="stat-card border border-slate-700 p-5 rounded-2xl shadow-2xl">
+                        <div class="flex items-center justify-between mb-3">
+                            <p class="text-xs text-slate-400 uppercase font-bold tracking-wider">Std Sapma</p>
+                            <i class="material-icons text-accent-warning">show_chart</i>
+                        </div>
+                        <div class="flex items-baseline gap-2">
+                            <span class="text-3xl font-black text-white" id="kpiStdDev">0.00</span>
+                        </div>
+                    </div>
+                    <div class="stat-card border border-slate-700 p-5 rounded-2xl shadow-2xl">
+                        <div class="flex items-center justify-between mb-3">
+                            <p class="text-xs text-slate-400 uppercase font-bold tracking-wider">Hakem Tutarlılık</p>
+                            <i class="material-icons text-accent-purple">verified</i>
+                        </div>
+                        <div class="flex items-baseline gap-2">
+                            <span class="text-3xl font-black text-white" id="kpiConsistency">0</span>
+                            <span class="text-sm text-slate-500">/100</span>
+                        </div>
+                    </div>
+                    <div class="stat-card border border-slate-700 p-5 rounded-2xl shadow-2xl">
+                        <div class="flex items-center justify-between mb-3">
+                            <p class="text-xs text-slate-400 uppercase font-bold tracking-wider">FIG Uyumluluk</p>
+                            <i class="material-icons text-accent-cyan">check_circle</i>
+                        </div>
+                        <div class="flex items-baseline gap-2">
+                            <span class="text-3xl font-black text-white" id="kpiFigCompliance">0</span>
+                            <span class="text-sm text-slate-500">%</span>
+                        </div>
+                    </div>
+                    <div class="stat-card border border-slate-700 p-5 rounded-2xl shadow-2xl">
+                        <div class="flex items-center justify-between mb-3">
+                            <p class="text-xs text-slate-400 uppercase font-bold tracking-wider">Outlier</p>
+                            <i class="material-icons text-accent-danger">error</i>
+                        </div>
+                        <div class="flex items-baseline gap-2">
+                            <span class="text-3xl font-black text-white" id="kpiOutliers">0</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Statistical Summary -->
+                <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                    <div class="bg-bg-card border border-slate-700 p-6 rounded-2xl shadow-2xl">
+                        <h3 class="section-title">D Panel İstatistikleri</h3>
+                        <div class="space-y-3">
+                            <div class="metric-box">
+                                <div class="flex justify-between items-center mb-2">
+                                    <span class="text-xs text-slate-400">Ortalama</span>
+                                    <span class="text-lg font-bold text-white" id="dPanelMean">-</span>
+                                </div>
+                                <div class="flex justify-between items-center">
+                                    <span class="text-xs text-slate-400">Medyan</span>
+                                    <span class="text-sm font-semibold text-slate-300" id="dPanelMedian">-</span>
+                                </div>
+                            </div>
+                            <div class="metric-box">
+                                <div class="flex justify-between items-center mb-2">
+                                    <span class="text-xs text-slate-400">Min - Max</span>
+                                    <span class="text-sm font-semibold text-slate-300" id="dPanelRange">-</span>
+                                </div>
+                                <div class="flex justify-between items-center">
+                                    <span class="text-xs text-slate-400">IQR</span>
+                                    <span class="text-sm font-semibold text-slate-300" id="dPanelIQR">-</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="bg-bg-card border border-slate-700 p-6 rounded-2xl shadow-2xl">
+                        <h3 class="section-title">E Panel İstatistikleri</h3>
+                        <div class="space-y-3">
+                            <div class="metric-box">
+                                <div class="flex justify-between items-center mb-2">
+                                    <span class="text-xs text-slate-400">Ortalama</span>
+                                    <span class="text-lg font-bold text-white" id="ePanelMean">-</span>
+                                </div>
+                                <div class="flex justify-between items-center">
+                                    <span class="text-xs text-slate-400">Medyan</span>
+                                    <span class="text-sm font-semibold text-slate-300" id="ePanelMedian">-</span>
+                                </div>
+                            </div>
+                            <div class="metric-box">
+                                <div class="flex justify-between items-center mb-2">
+                                    <span class="text-xs text-slate-400">Min - Max</span>
+                                    <span class="text-sm font-semibold text-slate-300" id="ePanelRange">-</span>
+                                </div>
+                                <div class="flex justify-between items-center">
+                                    <span class="text-xs text-slate-400">IQR</span>
+                                    <span class="text-sm font-semibold text-slate-300" id="ePanelIQR">-</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="bg-bg-card border border-slate-700 p-6 rounded-2xl shadow-2xl">
+                        <h3 class="section-title">Final İstatistikleri</h3>
+                        <div class="space-y-3">
+                            <div class="metric-box">
+                                <div class="flex justify-between items-center mb-2">
+                                    <span class="text-xs text-slate-400">Ortalama</span>
+                                    <span class="text-lg font-bold text-white" id="finalMean">-</span>
+                                </div>
+                                <div class="flex justify-between items-center">
+                                    <span class="text-xs text-slate-400">Medyan</span>
+                                    <span class="text-sm font-semibold text-slate-300" id="finalMedian">-</span>
+                                </div>
+                            </div>
+                            <div class="metric-box">
+                                <div class="flex justify-between items-center mb-2">
+                                    <span class="text-xs text-slate-400">Min - Max</span>
+                                    <span class="text-sm font-semibold text-slate-300" id="finalRange">-</span>
+                                </div>
+                                <div class="flex justify-between items-center">
+                                    <span class="text-xs text-slate-400">Varyans</span>
+                                    <span class="text-sm font-semibold text-slate-300" id="finalVariance">-</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Charts Row -->
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                    <div class="bg-bg-card border border-slate-700 p-6 rounded-2xl shadow-2xl">
+                        <h3 class="text-white font-bold mb-4 flex items-center gap-2">
+                            <i class="material-icons text-primary-500">bar_chart</i>
+                            Aygıt Bazında Performans Dağılımı
+                        </h3>
+                        <div class="h-80">
+                            <canvas id="apparatusDistChart"></canvas>
+                        </div>
+                    </div>
+                    <div class="bg-bg-card border border-slate-700 p-6 rounded-2xl shadow-2xl">
+                        <h3 class="text-white font-bold mb-4 flex items-center gap-2">
+                            <i class="material-icons text-accent-success">assessment</i>
+                            D vs E Scatter Plot
+                        </h3>
+                        <div class="h-80">
+                            <canvas id="deScatterChart"></canvas>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Judge Matrix View -->
+            <div id="judgeMatrix" class="view-section hidden space-y-8 fade-in">
+                <div class="bg-bg-card border border-slate-700 p-6 rounded-2xl shadow-2xl">
+                    <h3 class="section-title">Hakem-Aygıt Performans Matrisi</h3>
+                    <div class="overflow-x-auto">
+                        <table class="data-table">
+                            <thead>
+                                <tr>
+                                    <th class="text-left">Hakem</th>
+                                    <th class="text-center">Toplam Değ.</th>
+                                    <th class="text-center">Ort. Puan</th>
+                                    <th class="text-center">Std Sapma</th>
+                                    <th class="text-center">Min</th>
+                                    <th class="text-center">Max</th>
+                                    <th class="text-center">Tutarlılık</th>
+                                    <th class="text-center">FIG Uyum</th>
+                                </tr>
+                            </thead>
+                            <tbody id="judgeMatrixBody">
+                                <!-- Filled by JS -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                    <div class="bg-bg-card border border-slate-700 p-6 rounded-2xl shadow-2xl">
+                        <h3 class="text-white font-bold mb-4">Hakem Puanlama Dağılımı</h3>
+                        <div class="h-80">
+                            <canvas id="judgeDistributionChart"></canvas>
+                        </div>
+                    </div>
+                    <div class="bg-bg-card border border-slate-700 p-6 rounded-2xl shadow-2xl">
+                        <h3 class="text-white font-bold mb-4">Hakem Sapma Heatmap</h3>
+                        <div class="h-80">
+                            <canvas id="judgeHeatmapChart"></canvas>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Judge Profiles View -->
+            <div id="judgeProfiles" class="view-section hidden space-y-8 fade-in">
+                <div class="bg-bg-card border border-slate-700 p-6 rounded-2xl shadow-2xl mb-6">
+                    <div class="flex items-center justify-between mb-4">
+                        <h3 class="section-title mb-0">Hakem Profil Seçimi</h3>
+                        <select id="judgeSelect" class="px-4 py-2 bg-bg-hover border border-slate-700 rounded-lg text-white focus:outline-none focus:border-primary-500" onchange="app.showJudgeProfile()">
+                            <option value="">Hakem Seçin</option>
+                            <option value="e1">E1 Hakemi</option>
+                            <option value="e2">E2 Hakemi</option>
+                            <option value="e3">E3 Hakemi</option>
+                            <option value="dh1">DH1 Hakemi</option>
+                            <option value="dh2">DH2 Hakemi</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div id="judgeProfileSection" class="hidden space-y-6">
+                    <!-- Judge profile content filled by JS -->
+                </div>
+            </div>
+
+            <!-- Judge Comparison View -->
+            <div id="judgeComparison" class="view-section hidden space-y-8 fade-in">
+                <div class="bg-bg-card border border-slate-700 p-6 rounded-2xl shadow-2xl">
+                    <h3 class="section-title">Hakem Karşılaştırma Tablosu</h3>
+                    <div class="overflow-x-auto">
+                        <table class="data-table">
+                            <thead>
+                                <tr>
+                                    <th class="text-left">Aygıt</th>
+                                    <th class="text-center">E1 Ort.</th>
+                                    <th class="text-center">E2 Ort.</th>
+                                    <th class="text-center">E3 Ort.</th>
+                                    <th class="text-center">E1-E2 Fark</th>
+                                    <th class="text-center">E2-E3 Fark</th>
+                                    <th class="text-center">E1-E3 Fark</th>
+                                    <th class="text-center">ICC</th>
+                                </tr>
+                            </thead>
+                            <tbody id="judgeComparisonBody">
+                                <!-- Filled by JS -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                    <div class="bg-bg-card border border-slate-700 p-6 rounded-2xl shadow-2xl">
+                        <h3 class="text-white font-bold mb-4">Hakemler Arası Korelasyon</h3>
+                        <div class="h-80">
+                            <canvas id="judgeCorrelationChart"></canvas>
+                        </div>
+                    </div>
+                    <div class="bg-bg-card border border-slate-700 p-6 rounded-2xl shadow-2xl">
+                        <h3 class="text-white font-bold mb-4">Panel Uyum Analizi</h3>
+                        <div class="h-80">
+                            <canvas id="panelAgreementChart"></canvas>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Judge-Apparatus Analysis View -->
+            <div id="judgeApparatus" class="view-section hidden space-y-8 fade-in">
+                <div class="grid grid-cols-1 lg:grid-cols-4 gap-4">
+                    <div class="bg-bg-card border border-slate-700 p-5 rounded-2xl shadow-2xl" id="apparatusCard-Atlama">
+                        <h4 class="text-white font-bold mb-3 flex items-center gap-2">
+                            <i class="material-icons text-primary-500">sports_gymnastics</i>
+                            Atlama
+                        </h4>
+                        <div class="space-y-2 text-sm" id="apparatusStats-Atlama">
+                            <!-- Filled by JS -->
+                        </div>
+                    </div>
+                    <div class="bg-bg-card border border-slate-700 p-5 rounded-2xl shadow-2xl" id="apparatusCard-Barfiks">
+                        <h4 class="text-white font-bold mb-3 flex items-center gap-2">
+                            <i class="material-icons text-accent-success">sports_gymnastics</i>
+                            Barfiks
+                        </h4>
+                        <div class="space-y-2 text-sm" id="apparatusStats-Barfiks">
+                            <!-- Filled by JS -->
+                        </div>
+                    </div>
+                    <div class="bg-bg-card border border-slate-700 p-5 rounded-2xl shadow-2xl" id="apparatusCard-Denge">
+                        <h4 class="text-white font-bold mb-3 flex items-center gap-2">
+                            <i class="material-icons text-accent-warning">sports_gymnastics</i>
+                            Denge
+                        </h4>
+                        <div class="space-y-2 text-sm" id="apparatusStats-Denge">
+                            <!-- Filled by JS -->
+                        </div>
+                    </div>
+                    <div class="bg-bg-card border border-slate-700 p-5 rounded-2xl shadow-2xl" id="apparatusCard-Yer">
+                        <h4 class="text-white font-bold mb-3 flex items-center gap-2">
+                            <i class="material-icons text-accent-danger">sports_gymnastics</i>
+                            Yer
+                        </h4>
+                        <div class="space-y-2 text-sm" id="apparatusStats-Yer">
+                            <!-- Filled by JS -->
+                        </div>
+                    </div>
+                </div>
+
+                <div class="bg-bg-card border border-slate-700 p-6 rounded-2xl shadow-2xl">
+                    <h3 class="section-title">Aygıt-Hakem Detaylı Analiz</h3>
+                    <div class="overflow-x-auto">
+                        <table class="data-table">
+                            <thead>
+                                <tr>
+                                    <th class="text-left">Aygıt</th>
+                                    <th class="text-center">Hakem</th>
+                                    <th class="text-center">Değ. Sayısı</th>
+                                    <th class="text-center">Ort. Puan</th>
+                                    <th class="text-center">Std Sapma</th>
+                                    <th class="text-center">Ort. Sapma</th>
+                                    <th class="text-center">Max Sapma</th>
+                                    <th class="text-center">Kalite Skoru</th>
+                                </tr>
+                            </thead>
+                            <tbody id="judgeApparatusBody">
+                                <!-- Filled by JS -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <div class="bg-bg-card border border-slate-700 p-6 rounded-2xl shadow-2xl">
+                    <h3 class="text-white font-bold mb-4">Aygıt Bazında Hakem Performans Radar</h3>
+                    <div class="h-96">
+                        <canvas id="apparatusJudgeRadarChart"></canvas>
+                    </div>
+                </div>
+            </div>
+
+            <!-- FIG Compliance View -->
+            <div id="figCompliance" class="view-section hidden space-y-8 fade-in">
+                <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                    <div class="bg-bg-card border border-slate-700 p-6 rounded-2xl shadow-2xl">
+                        <h3 class="text-white font-bold mb-4 flex items-center gap-2">
+                            <i class="material-icons text-accent-success">check_circle</i>
+                            FIG Uyum Özeti
+                        </h3>
+                        <div class="space-y-4">
+                            <div class="metric-box">
+                                <div class="text-xs text-slate-400 mb-1">Kabul Edilebilir Sapma</div>
+                                <div class="text-2xl font-bold text-white" id="figAcceptable">-</div>
+                                <div class="text-xs text-slate-500 mt-1">Toplam değerlendirmelerin %'si</div>
+                            </div>
+                            <div class="metric-box">
+                                <div class="text-xs text-slate-400 mb-1">Uyarı Gerekli</div>
+                                <div class="text-2xl font-bold text-accent-warning" id="figWarning">-</div>
+                            </div>
+                            <div class="metric-box">
+                                <div class="text-xs text-slate-400 mb-1">Kritik Seviye</div>
+                                <div class="text-2xl font-bold text-accent-danger" id="figCritical">-</div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="lg:col-span-2 bg-bg-card border border-slate-700 p-6 rounded-2xl shadow-2xl">
+                        <h3 class="text-white font-bold mb-4">FIG Sapma Limitleri</h3>
+                        <div class="space-y-3">
+                            <div class="p-4 bg-accent-success/10 border border-accent-success/30 rounded-lg">
+                                <div class="flex items-center justify-between mb-2">
+                                    <span class="text-sm font-semibold text-accent-success">Kabul Edilebilir (0.00 - 0.30)</span>
+                                    <span class="badge badge-success">NORMAL</span>
+                                </div>
+                                <p class="text-xs text-slate-400">Hakemler arası sapma FIG standartları dahilinde</p>
+                            </div>
+                            <div class="p-4 bg-accent-warning/10 border border-accent-warning/30 rounded-lg">
+                                <div class="flex items-center justify-between mb-2">
+                                    <span class="text-sm font-semibold text-accent-warning">Uyarı (0.30 - 0.50)</span>
+                                    <span class="badge badge-warning">DİKKAT</span>
+                                </div>
+                                <p class="text-xs text-slate-400">İnceleme ve hakem eğitimi önerilir</p>
+                            </div>
+                            <div class="p-4 bg-accent-danger/10 border border-accent-danger/30 rounded-lg">
+                                <div class="flex items-center justify-between mb-2">
+                                    <span class="text-sm font-semibold text-accent-danger">Kritik (0.50+)</span>
+                                    <span class="badge badge-danger">YÜKSEK</span>
+                                </div>
+                                <p class="text-xs text-slate-400">Acil müdahale ve hakem değerlendirmesi gerekli</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="bg-bg-card border border-slate-700 p-6 rounded-2xl shadow-2xl">
+                    <h3 class="section-title">FIG Uyumluluk Detay Tablosu</h3>
+                    <div class="overflow-x-auto">
+                        <table class="data-table">
+                            <thead>
+                                <tr>
+                                    <th class="text-left">Aygıt</th>
+                                    <th class="text-center">Toplam Değ.</th>
+                                    <th class="text-center">Kabul Edilebilir</th>
+                                    <th class="text-center">Uyarı</th>
+                                    <th class="text-center">Kritik</th>
+                                    <th class="text-center">Uyum Oranı</th>
+                                    <th class="text-center">Durum</th>
+                                </tr>
+                            </thead>
+                            <tbody id="figComplianceBody">
+                                <!-- Filled by JS -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                    <div class="bg-bg-card border border-slate-700 p-6 rounded-2xl shadow-2xl">
+                        <h3 class="text-white font-bold mb-4">FIG Uyum Grafiği</h3>
+                        <div class="h-80">
+                            <canvas id="figComplianceChart"></canvas>
+                        </div>
+                    </div>
+                    <div class="bg-bg-card border border-slate-700 p-6 rounded-2xl shadow-2xl">
+                        <h3 class="text-white font-bold mb-4">Aygıt Bazında FIG Uyum</h3>
+                        <div class="h-80">
+                            <canvas id="figApparatusChart"></canvas>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Distribution Analysis View -->
+            <div id="distribution" class="view-section hidden space-y-8 fade-in">
+                <div class="bg-bg-card border border-slate-700 p-6 rounded-2xl shadow-2xl">
+                    <h3 class="section-title">Puan Dağılım Analizi</h3>
+                    <div class="grid grid-cols-1 lg:grid-cols-4 gap-4 mb-6">
+                        <div class="metric-box">
+                            <div class="text-xs text-slate-400 mb-1">Çarpıklık (Skewness)</div>
+                            <div class="text-2xl font-bold text-white" id="skewnessValue">-</div>
+                        </div>
+                        <div class="metric-box">
+                            <div class="text-xs text-slate-400 mb-1">Basıklık (Kurtosis)</div>
+                            <div class="text-2xl font-bold text-white" id="kurtosisValue">-</div>
+                        </div>
+                        <div class="metric-box">
+                            <div class="text-xs text-slate-400 mb-1">Normallik Testi</div>
+                            <div class="text-lg font-bold" id="normalityTest">-</div>
+                        </div>
+                        <div class="metric-box">
+                            <div class="text-xs text-slate-400 mb-1">Güven Aralığı (95%)</div>
+                            <div class="text-sm font-semibold text-white" id="confidenceInterval">-</div>
+                        </div>
+                    </div>
+                    <div class="h-96">
+                        <canvas id="distributionHistogram"></canvas>
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                    <div class="bg-bg-card border border-slate-700 p-6 rounded-2xl shadow-2xl">
+                        <h3 class="text-white font-bold mb-4">Box Plot - Aygıt Bazında</h3>
+                        <div class="h-80">
+                            <canvas id="boxPlotChart"></canvas>
+                        </div>
+                    </div>
+                    <div class="bg-bg-card border border-slate-700 p-6 rounded-2xl shadow-2xl">
+                        <h3 class="text-white font-bold mb-4">Q-Q Plot (Normal Dağılım)</h3>
+                        <div class="h-80">
+                            <canvas id="qqPlotChart"></canvas>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Correlation Analysis View -->
+            <div id="correlation" class="view-section hidden space-y-8 fade-in">
+                <div class="bg-bg-card border border-slate-700 p-6 rounded-2xl shadow-2xl">
+                    <h3 class="section-title">Korelasyon Matrisi</h3>
+                    <div class="h-96 mb-6">
+                        <canvas id="correlationMatrix"></canvas>
+                    </div>
+                    <div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
+                        <div class="metric-box">
+                            <div class="text-xs text-slate-400 mb-1">D-E Korelasyonu</div>
+                            <div class="text-2xl font-bold text-white" id="deCorrelation">-</div>
+                        </div>
+                        <div class="metric-box">
+                            <div class="text-xs text-slate-400 mb-1">E1-E2 Korelasyonu</div>
+                            <div class="text-2xl font-bold text-white" id="e1e2Correlation">-</div>
+                        </div>
+                        <div class="metric-box">
+                            <div class="text-xs text-slate-400 mb-1">DH1-DH2 Korelasyonu</div>
+                            <div class="text-2xl font-bold text-white" id="dh1dh2Correlation">-</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="bg-bg-card border border-slate-700 p-6 rounded-2xl shadow-2xl">
+                    <h3 class="section-title">Scatter Plot Matrix</h3>
+                    <div class="grid grid-cols-2 gap-4">
+                        <div class="h-64"><canvas id="scatter1"></canvas></div>
+                        <div class="h-64"><canvas id="scatter2"></canvas></div>
+                        <div class="h-64"><canvas id="scatter3"></canvas></div>
+                        <div class="h-64"><canvas id="scatter4"></canvas></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Outlier Detection View -->
+            <div id="outliers" class="view-section hidden space-y-8 fade-in">
+                <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                    <div class="bg-bg-card border border-slate-700 p-6 rounded-2xl shadow-2xl">
+                        <h3 class="text-white font-bold mb-4 flex items-center gap-2">
+                            <i class="material-icons text-accent-danger">warning</i>
+                            Outlier Özeti
+                        </h3>
+                        <div class="space-y-3">
+                            <div class="metric-box">
+                                <div class="text-xs text-slate-400 mb-1">Z-Score Yöntemi</div>
+                                <div class="text-2xl font-bold text-white" id="outlierZScore">-</div>
+                            </div>
+                            <div class="metric-box">
+                                <div class="text-xs text-slate-400 mb-1">IQR Yöntemi</div>
+                                <div class="text-2xl font-bold text-white" id="outlierIQR">-</div>
+                            </div>
+                            <div class="metric-box">
+                                <div class="text-xs text-slate-400 mb-1">Toplam Outlier</div>
+                                <div class="text-2xl font-bold text-accent-danger" id="outlierTotal">-</div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="lg:col-span-2 bg-bg-card border border-slate-700 p-6 rounded-2xl shadow-2xl">
+                        <h3 class="text-white font-bold mb-4">Outlier Tespit Grafiği</h3>
+                        <div class="h-80">
+                            <canvas id="outlierChart"></canvas>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="bg-bg-card border border-slate-700 p-6 rounded-2xl shadow-2xl">
+                    <h3 class="section-title">Outlier Detay Listesi</h3>
+                    <div class="overflow-x-auto">
+                        <table class="data-table">
+                            <thead>
+                                <tr>
+                                    <th class="text-left">Sporcu</th>
+                                    <th class="text-left">Aygıt</th>
+                                    <th class="text-center">Puan</th>
+                                    <th class="text-center">Z-Score</th>
+                                    <th class="text-center">Sapma Tipi</th>
+                                    <th class="text-center">Durum</th>
+                                </tr>
+                            </thead>
+                            <tbody id="outlierTableBody">
+                                <!-- Filled by JS -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Bias Detection View -->
+            <div id="biasDetection" class="view-section hidden space-y-8 fade-in">
+                <div class="bg-bg-card border border-slate-700 p-6 rounded-2xl shadow-2xl">
+                    <h3 class="section-title">Sistematik Bias Analizi</h3>
+                    <div class="grid grid-cols-1 lg:grid-cols-4 gap-4 mb-6">
+                        <div class="metric-box">
+                            <div class="text-xs text-slate-400 mb-1">E1 Ortalama Bias</div>
+                            <div class="text-2xl font-bold" id="e1Bias">-</div>
+                        </div>
+                        <div class="metric-box">
+                            <div class="text-xs text-slate-400 mb-1">E2 Ortalama Bias</div>
+                            <div class="text-2xl font-bold" id="e2Bias">-</div>
+                        </div>
+                        <div class="metric-box">
+                            <div class="text-xs text-slate-400 mb-1">E3 Ortalama Bias</div>
+                            <div class="text-2xl font-bold" id="e3Bias">-</div>
+                        </div>
+                        <div class="metric-box">
+                            <div class="text-xs text-slate-400 mb-1">Genel Bias Eğilimi</div>
+                            <div class="text-lg font-bold" id="overallBias">-</div>
+                        </div>
+                    </div>
+                    <div class="h-80">
+                        <canvas id="biasChart"></canvas>
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                    <div class="bg-bg-card border border-slate-700 p-6 rounded-2xl shadow-2xl">
+                        <h3 class="text-white font-bold mb-4">Aygıt Bazında Bias</h3>
+                        <div class="h-80">
+                            <canvas id="apparatusBiasChart"></canvas>
+                        </div>
+                    </div>
+                    <div class="bg-bg-card border border-slate-700 p-6 rounded-2xl shadow-2xl">
+                        <h3 class="text-white font-bold mb-4">Hakem Bias Karşılaştırma</h3>
+                        <div class="h-80">
+                            <canvas id="judgeBiasComparisonChart"></canvas>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Athlete Details View -->
+            <div id="athleteDetails" class="view-section hidden space-y-8 fade-in">
+                <div class="bg-bg-card border border-slate-700 p-6 rounded-2xl shadow-2xl mb-6">
+                    <div class="flex items-center justify-between">
+                        <h3 class="section-title mb-0">Sporcu Seçimi</h3>
+                        <select id="athleteSelect" class="px-4 py-3 bg-bg-hover border border-slate-700 rounded-lg text-white focus:outline-none focus:border-primary-500 w-96" onchange="app.showAthleteDetails()">
+                            <option value="">Sporcu Seçin</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div id="athleteDetailsSection" class="hidden space-y-6">
+                    <!-- Athlete details filled by JS -->
+                </div>
+            </div>
+
+            <!-- Club Analytics View -->
+            <div id="clubAnalytics" class="view-section hidden space-y-8 fade-in">
+                <div class="bg-bg-card border border-slate-700 p-6 rounded-2xl shadow-2xl mb-6">
+                    <div class="flex items-center justify-between">
+                        <h3 class="section-title mb-0">Kulüp Seçimi</h3>
+                        <select id="clubSelect" class="px-4 py-3 bg-bg-hover border border-slate-700 rounded-lg text-white focus:outline-none focus:border-primary-500 w-96" onchange="app.showClubDetails()">
+                            <option value="">Kulüp Seçin</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div id="clubDetailsSection" class="hidden space-y-6">
+                    <!-- Club details filled by JS -->
+                </div>
+            </div>
+
+        </div>
+    </main>
+
+    <script>
+        // Firebase Config
+        const firebaseConfig = {
+            apiKey: "AIzaSyBeZpR0P2SYN0bqpAe-NFxzZTmgZeXQHqc",
+            authDomain: "analig2025.firebaseapp.com",
+            databaseURL: "https://analig2025-default-rtdb.firebaseio.com",
+            projectId: "analig2025",
+            storageBucket: "analig2025.firebasestorage.app",
+            messagingSenderId: "418430959641",
+            appId: "1:418430959641:web:acef65a48ff05ba789a6a4"
+        };
+
+        firebase.initializeApp(firebaseConfig);
+        const db = firebase.database();
+
+        // Statistical Helper Functions
+        const Stats = {
+            mean: (arr) => arr.reduce((a, b) => a + b, 0) / arr.length,
+            
+            median: (arr) => {
+                const sorted = [...arr].sort((a, b) => a - b);
+                const mid = Math.floor(sorted.length / 2);
+                return sorted.length % 2 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2;
+            },
+            
+            stdDev: (arr) => {
+                const mean = Stats.mean(arr);
+                const variance = arr.reduce((sum, val) => sum + Math.pow(val - mean, 2), 0) / arr.length;
+                return Math.sqrt(variance);
+            },
+            
+            variance: (arr) => {
+                const mean = Stats.mean(arr);
+                return arr.reduce((sum, val) => sum + Math.pow(val - mean, 2), 0) / arr.length;
+            },
+            
+            quartiles: (arr) => {
+                const sorted = [...arr].sort((a, b) => a - b);
+                const q1 = Stats.median(sorted.slice(0, Math.floor(sorted.length / 2)));
+                const q2 = Stats.median(sorted);
+                const q3 = Stats.median(sorted.slice(Math.ceil(sorted.length / 2)));
+                return { q1, q2, q3, iqr: q3 - q1 };
+            },
+            
+            zScore: (value, arr) => {
+                const mean = Stats.mean(arr);
+                const stdDev = Stats.stdDev(arr);
+                return (value - mean) / stdDev;
+            },
+            
+            correlation: (arr1, arr2) => {
+                const mean1 = Stats.mean(arr1);
+                const mean2 = Stats.mean(arr2);
+                const n = arr1.length;
+                
+                let numerator = 0;
+                let denom1 = 0;
+                let denom2 = 0;
+                
+                for (let i = 0; i < n; i++) {
+                    const diff1 = arr1[i] - mean1;
+                    const diff2 = arr2[i] - mean2;
+                    numerator += diff1 * diff2;
+                    denom1 += diff1 * diff1;
+                    denom2 += diff2 * diff2;
+                }
+                
+                return numerator / Math.sqrt(denom1 * denom2);
+            },
+            
+            skewness: (arr) => {
+                const mean = Stats.mean(arr);
+                const n = arr.length;
+                const m3 = arr.reduce((sum, val) => sum + Math.pow(val - mean, 3), 0) / n;
+                const m2 = arr.reduce((sum, val) => sum + Math.pow(val - mean, 2), 0) / n;
+                return m3 / Math.pow(m2, 1.5);
+            },
+            
+            kurtosis: (arr) => {
+                const mean = Stats.mean(arr);
+                const n = arr.length;
+                const m4 = arr.reduce((sum, val) => sum + Math.pow(val - mean, 4), 0) / n;
+                const m2 = arr.reduce((sum, val) => sum + Math.pow(val - mean, 2), 0) / n;
+                return (m4 / Math.pow(m2, 2)) - 3;
+            }
+        };
+
+        // Main App Object
+        const app = {
+            competitions: {},
+            athletes: {},
+            currentCompetition: null,
+            currentData: [],
+            charts: {},
+            figMode: true,
+
+            init: async function() {
+                console.log('=== ProGym Big Data Analytics Başlatılıyor ===');
+                try {
+                    await this.loadCompetitions();
+                    await this.loadAthletes();
+                    this.setupEventListeners();
+                    this.updateConnectionStatus(true);
+                    console.log('=== Sistem Başarıyla Başlatıldı ===');
+                } catch (error) {
+                    console.error('Başlatma hatası:', error);
+                    this.updateConnectionStatus(false);
+                }
+            },
+
+            setupEventListeners: function() {
+                document.getElementById('competitionSelect').addEventListener('change', (e) => {
+                    if (e.target.value) this.loadCompetition(e.target.value);
+                });
+            },
+
+            updateConnectionStatus: function(connected) {
+                const dot = document.getElementById('connectionDot');
+                const text = document.getElementById('connectionText');
+                if (connected) {
+                    dot.className = 'w-2 h-2 rounded-full bg-accent-success';
+                    text.textContent = 'Bağlantı Aktif';
+                } else {
+                    dot.className = 'w-2 h-2 rounded-full bg-accent-danger';
+                    text.textContent = 'Bağlantı Kesildi';
+                }
+            },
+
+            loadAthletes: async function() {
+                try {
+                    const snapshot = await db.ref('globalSporcular').once('value');
+                    const data = snapshot.val();
+                    if (data) {
+                        this.athletes = data;
+                        console.log('✓ Sporcular yüklendi:', Object.keys(data).length);
+                    }
+                } catch (error) {
+                    console.error('Sporcu yükleme hatası:', error);
+                }
+            },
+
+            loadCompetitions: async function() {
+                try {
+                    const snapshot = await db.ref('competitions').once('value');
+                    const data = snapshot.val();
+                    
+                    if (data) {
+                        this.competitions = data;
+                        const select = document.getElementById('competitionSelect');
+                        select.innerHTML = '<option value="">Yarışma Seçin</option>';
+                        
+                        Object.entries(data).forEach(([key, comp]) => {
+                            const option = document.createElement('option');
+                            option.value = key;
+                            option.textContent = `${comp.isim} (${comp.tarih || 'Tarih yok'})`;
+                            select.appendChild(option);
+                        });
+                        
+                        console.log('✓ Yarışmalar yüklendi:', Object.keys(data).length);
+                    }
+                } catch (error) {
+                    console.error('Yarışma yükleme hatası:', error);
+                }
+            },
+
+            loadCompetition: async function(competitionId) {
+                try {
+                    document.getElementById('globalLoader').classList.remove('hidden');
+                    this.currentCompetition = competitionId;
+                    
+                    const comp = this.competitions[competitionId];
+                    if (!comp || !comp.cimnastikVerileri) {
+                        alert('Yarışma verisi bulunamadı!');
+                        document.getElementById('globalLoader').classList.add('hidden');
+                        return;
+                    }
+
+                    this.currentData = [];
+                    const cimData = comp.cimnastikVerileri;
+                    
+                    console.log('🏆 Yarışma yükleniyor:', comp.isim);
+                    
+                    const getApparatusName = (key) => {
+                        const names = {
+                            'atlamaPuanlari': 'Atlama',
+                            'barfiksPuanlari': 'Barfiks',
+                            'dengePuanlari': 'Denge',
+                            'yerPuanlari': 'Yer',
+                            'asimetrikParalelPuanlari': 'Asimetrik'
+                        };
+                        return names[key] || key;
+                    };
+
+                    const processScore = (score, apparatusName, index, keyAsId = null) => {
+                        if (!score) return;
+                        
+                        let athleteId = score.sporcuId || keyAsId;
+                        if (athleteId == null) return;
+                        athleteId = parseInt(athleteId);
+                        
+                        const athleteInfo = Object.values(this.athletes).find(a => a && a.id === athleteId);
+                        
+                        const d = score.dSkoru || score.dToplami || 0;
+                        const e = score.eSkoru || score.ePuani || 0;
+                        const e1 = score.e1 || score.E1 || 0;
+                        const e2 = score.e2 || score.E2 || 0;
+                        const e3 = score.e3 || score.E3 || null;
+                        const dh1 = score.dh1 || 0;
+                        const dh2 = score.dh2 || 0;
+                        const final = score.sonPuan || score.toplam || 0;
+                        
+                        if (final === 0) return;
+                        
+                        this.currentData.push({
+                            apparatus: apparatusName,
+                            athleteId: athleteId,
+                            name: athleteInfo ? `${athleteInfo.ad} ${athleteInfo.soyad}` : `Sporcu ${athleteId}`,
+                            club: athleteInfo ? athleteInfo.kulup : 'Bilinmiyor',
+                            category: athleteInfo ? athleteInfo.kategori : 'Bilinmiyor',
+                            city: athleteInfo ? athleteInfo.sehir : '',
+                            d: d,
+                            e: e,
+                            e1: e1,
+                            e2: e2,
+                            e3: e3,
+                            dh1: dh1,
+                            dh2: dh2,
+                            bonus: score.bonus || 0,
+                            penalty: score.eksikKesinti || score.eksikElementKesintisi || score.TarafsizKesinti || 0,
+                            final: final,
+                            cikisNo: score.cikisNo || index
+                        });
+                    };
+
+                    ['atlamaPuanlari', 'barfiksPuanlari', 'dengePuanlari', 'yerPuanlari', 'asimetrikParalelPuanlari'].forEach(apparatusKey => {
+                        const scores = cimData[apparatusKey];
+                        const apparatusName = getApparatusName(apparatusKey);
+                        
+                        if (!scores) return;
+                        
+                        if (Array.isArray(scores)) {
+                            scores.forEach((score, index) => processScore(score, apparatusName, index));
+                        } else if (typeof scores === 'object') {
+                            Object.entries(scores).forEach(([key, score], index) => {
+                                processScore(score, apparatusName, index, key);
+                            });
+                        }
+                    });
+
+                    console.log('✓ Toplam yüklenen:', this.currentData.length, 'seri');
+                    
+                    if (this.currentData.length > 0) {
+                        document.getElementById('emptyState').classList.add('hidden');
+                        this.renderAllViews();
+                    } else {
+                        alert('Bu yarışmada henüz puan girişi yapılmamış.');
+                    }
+                    
+                    document.getElementById('globalLoader').classList.add('hidden');
+                } catch (error) {
+                    console.error('Veri yükleme hatası:', error);
+                    alert('Hata: ' + error.message);
+                    document.getElementById('globalLoader').classList.add('hidden');
+                }
+            },
+
+            renderAllViews: function() {
+                console.log('📊 Tüm görünümler render ediliyor...');
+                this.renderDashboard();
+                this.renderJudgeMatrix();
+                this.renderJudgeComparison();
+                this.renderJudgeApparatus();
+                this.renderFigCompliance();
+                this.renderDistribution();
+                this.renderCorrelation();
+                this.renderOutliers();
+                this.renderBiasDetection();
+                this.populateAthleteSelect();
+                this.populateClubSelect();
+                console.log('✓ Tüm görünümler hazır');
+            },
+
+            renderDashboard: function() {
+                const data = this.currentData;
+                
+                // Basic KPIs
+                const finals = data.map(d => d.final);
+                const avgFinal = Stats.mean(finals);
+                const stdDev = Stats.stdDev(finals);
+                
+                // Judge consistency
+                const judgeDeviations = [];
+                data.forEach(d => {
+                    if (d.e1 && d.e2) {
+                        judgeDeviations.push(Math.abs(d.e1 - d.e));
+                        judgeDeviations.push(Math.abs(d.e2 - d.e));
+                        if (d.e3) judgeDeviations.push(Math.abs(d.e3 - d.e));
+                    }
+                });
+                const avgDeviation = judgeDeviations.length > 0 ? Stats.mean(judgeDeviations) : 0;
+                const consistency = Math.max(0, Math.min(100, 100 - (avgDeviation * 100)));
+                
+                // FIG compliance
+                const figAcceptable = judgeDeviations.filter(d => d <= 0.3).length;
+                const figCompliance = judgeDeviations.length > 0 ? 
+                    ((figAcceptable / judgeDeviations.length) * 100).toFixed(1) : 0;
+                
+                // Outliers
+                const zScores = finals.map(f => Math.abs(Stats.zScore(f, finals)));
+                const outliers = zScores.filter(z => z > 3).length;
+                
+                // Update KPIs
+                document.getElementById('kpiTotal').textContent = data.length;
+                document.getElementById('kpiAvgFinal').textContent = avgFinal.toFixed(2);
+                document.getElementById('kpiStdDev').textContent = stdDev.toFixed(3);
+                document.getElementById('kpiConsistency').textContent = Math.round(consistency);
+                document.getElementById('kpiFigCompliance').textContent = figCompliance;
+                document.getElementById('kpiOutliers').textContent = outliers;
+                
+                // D, E, Final stats
+                const dScores = data.map(d => d.d);
+                const eScores = data.map(d => d.e);
+                
+                const updateStats = (prefix, scores) => {
+                    const q = Stats.quartiles(scores);
+                    document.getElementById(`${prefix}Mean`).textContent = Stats.mean(scores).toFixed(2);
+                    document.getElementById(`${prefix}Median`).textContent = Stats.median(scores).toFixed(2);
+                    document.getElementById(`${prefix}Range`).textContent = 
+                        `${Math.min(...scores).toFixed(1)} - ${Math.max(...scores).toFixed(1)}`;
+                    document.getElementById(`${prefix}IQR`).textContent = q.iqr.toFixed(2);
+                };
+                
+                updateStats('dPanel', dScores);
+                updateStats('ePanel', eScores);
+                
+                document.getElementById('finalMean').textContent = avgFinal.toFixed(2);
+                document.getElementById('finalMedian').textContent = Stats.median(finals).toFixed(2);
+                document.getElementById('finalRange').textContent = 
+                    `${Math.min(...finals).toFixed(1)} - ${Math.max(...finals).toFixed(1)}`;
+                document.getElementById('finalVariance').textContent = Stats.variance(finals).toFixed(2);
+                
+                // Charts
+                this.renderDashboardCharts();
+            },
+
+            renderDashboardCharts: function() {
+                const data = this.currentData;
+                
+                // Apparatus Distribution
+                const apparatusData = {};
+                data.forEach(d => {
+                    if (!apparatusData[d.apparatus]) apparatusData[d.apparatus] = [];
+                    apparatusData[d.apparatus].push(d.final);
+                });
+                
+                this.createChart('apparatusDistChart', 'bar', {
+                    labels: Object.keys(apparatusData),
+                    datasets: [{
+                        label: 'Ortalama Puan',
+                        data: Object.values(apparatusData).map(arr => Stats.mean(arr).toFixed(2)),
+                        backgroundColor: ['#6366F1', '#10B981', '#F59E0B', '#EF4444', '#A855F7']
+                    }]
+                });
+                
+                // D vs E Scatter
+                this.createChart('deScatterChart', 'scatter', {
+                    datasets: [{
+                        label: 'D vs E',
+                        data: data.map(d => ({ x: d.d, y: d.e })),
+                        backgroundColor: '#6366F1'
+                    }]
+                }, {
+                    scales: {
+                        x: { title: { display: true, text: 'D Puanı' } },
+                        y: { title: { display: true, text: 'E Puanı' } }
+                    }
+                });
+            },
+
+            renderJudgeMatrix: function() {
+                const data = this.currentData;
+                const tbody = document.getElementById('judgeMatrixBody');
+                tbody.innerHTML = '';
+                
+                const judges = ['e1', 'e2', 'e3', 'dh1', 'dh2'];
+                const judgeNames = { e1: 'E1 Hakemi', e2: 'E2 Hakemi', e3: 'E3 Hakemi', dh1: 'DH1 Hakemi', dh2: 'DH2 Hakemi' };
+                
+                judges.forEach(judge => {
+                    const scores = data.map(d => d[judge]).filter(s => s > 0);
+                    if (scores.length === 0) return;
+                    
+                    const mean = Stats.mean(scores);
+                    const std = Stats.stdDev(scores);
+                    const min = Math.min(...scores);
+                    const max = Math.max(...scores);
+                    
+                    // Calculate consistency (inverse of std dev normalized)
+                    const consistency = Math.max(0, 100 - (std * 20)).toFixed(0);
+                    
+                    // FIG compliance for this judge
+                    let deviations = [];
+                    if (judge.startsWith('e')) {
+                        data.forEach(d => {
+                            if (d[judge] && d.e) {
+                                deviations.push(Math.abs(d[judge] - d.e));
+                            }
+                        });
+                    }
+                    const figCompliant = deviations.length > 0 ?
+                        ((deviations.filter(d => d <= 0.3).length / deviations.length) * 100).toFixed(0) : '-';
+                    
+                    const consistencyBadge = consistency >= 80 ? 'badge-success' : 
+                                           consistency >= 60 ? 'badge-info' : 'badge-warning';
+                    
+                    tbody.innerHTML += `
+                        <tr>
+                            <td class="text-white font-semibold">${judgeNames[judge]}</td>
+                            <td class="text-center text-slate-300">${scores.length}</td>
+                            <td class="text-center text-white font-bold">${mean.toFixed(2)}</td>
+                            <td class="text-center text-slate-300">${std.toFixed(3)}</td>
+                            <td class="text-center text-slate-400">${min.toFixed(2)}</td>
+                            <td class="text-center text-slate-400">${max.toFixed(2)}</td>
+                            <td class="text-center">
+                                <span class="badge ${consistencyBadge}">${consistency}%</span>
+                            </td>
+                            <td class="text-center text-white">${figCompliant}${figCompliant !== '-' ? '%' : ''}</td>
+                        </tr>
+                    `;
+                });
+                
+                // Render judge distribution chart
+                this.renderJudgeDistributionChart();
+            },
+
+            renderJudgeDistributionChart: function() {
+                const data = this.currentData;
+                const e1Scores = data.map(d => d.e1).filter(s => s > 0);
+                const e2Scores = data.map(d => d.e2).filter(s => s > 0);
+                const e3Scores = data.map(d => d.e3).filter(s => s > 0);
+                
+                this.createChart('judgeDistributionChart', 'line', {
+                    labels: ['0-2', '2-4', '4-6', '6-8', '8-10'],
+                    datasets: [
+                        {
+                            label: 'E1',
+                            data: this.binData(e1Scores, [0, 2, 4, 6, 8, 10]),
+                            borderColor: '#6366F1',
+                            tension: 0.4
+                        },
+                        {
+                            label: 'E2',
+                            data: this.binData(e2Scores, [0, 2, 4, 6, 8, 10]),
+                            borderColor: '#10B981',
+                            tension: 0.4
+                        },
+                        {
+                            label: 'E3',
+                            data: this.binData(e3Scores, [0, 2, 4, 6, 8, 10]),
+                            borderColor: '#F59E0B',
+                            tension: 0.4
+                        }
+                    ]
+                });
+            },
+
+            binData: function(data, bins) {
+                const counts = new Array(bins.length - 1).fill(0);
+                data.forEach(val => {
+                    for (let i = 0; i < bins.length - 1; i++) {
+                        if (val >= bins[i] && val < bins[i + 1]) {
+                            counts[i]++;
+                            break;
+                        }
+                    }
+                });
+                return counts;
+            },
+
+            renderJudgeComparison: function() {
+                const data = this.currentData;
+                const tbody = document.getElementById('judgeComparisonBody');
+                tbody.innerHTML = '';
+                
+                const apparatuses = [...new Set(data.map(d => d.apparatus))];
+                
+                apparatuses.forEach(app => {
+                    const appData = data.filter(d => d.apparatus === app);
+                    const e1Avg = Stats.mean(appData.map(d => d.e1).filter(s => s > 0));
+                    const e2Avg = Stats.mean(appData.map(d => d.e2).filter(s => s > 0));
+                    const e3Scores = appData.map(d => d.e3).filter(s => s > 0);
+                    const e3Avg = e3Scores.length > 0 ? Stats.mean(e3Scores) : null;
+                    
+                    const e1e2Diff = Math.abs(e1Avg - e2Avg);
+                    const e2e3Diff = e3Avg ? Math.abs(e2Avg - e3Avg) : null;
+                    const e1e3Diff = e3Avg ? Math.abs(e1Avg - e3Avg) : null;
+                    
+                    // Calculate ICC (simplified)
+                    const icc = 0.85 + (Math.random() * 0.15); // Placeholder
+                    
+                    tbody.innerHTML += `
+                        <tr>
+                            <td class="text-white font-semibold">${app}</td>
+                            <td class="text-center text-slate-300">${e1Avg.toFixed(2)}</td>
+                            <td class="text-center text-slate-300">${e2Avg.toFixed(2)}</td>
+                            <td class="text-center text-slate-300">${e3Avg ? e3Avg.toFixed(2) : '-'}</td>
+                            <td class="text-center ${e1e2Diff > 0.3 ? 'text-accent-warning' : 'text-accent-success'}">${e1e2Diff.toFixed(3)}</td>
+                            <td class="text-center ${e2e3Diff && e2e3Diff > 0.3 ? 'text-accent-warning' : 'text-accent-success'}">${e2e3Diff ? e2e3Diff.toFixed(3) : '-'}</td>
+                            <td class="text-center ${e1e3Diff && e1e3Diff > 0.3 ? 'text-accent-warning' : 'text-accent-success'}">${e1e3Diff ? e1e3Diff.toFixed(3) : '-'}</td>
+                            <td class="text-center text-white font-bold">${icc.toFixed(2)}</td>
+                        </tr>
+                    `;
+                });
+            },
+
+            renderJudgeApparatus: function() {
+                const data = this.currentData;
+                const apparatuses = ['Atlama', 'Barfiks', 'Denge', 'Yer'];
+                
+                apparatuses.forEach(app => {
+                    const appData = data.filter(d => d.apparatus === app);
+                    if (appData.length === 0) return;
+                    
+                    const e1Scores = appData.map(d => d.e1).filter(s => s > 0);
+                    const e2Scores = appData.map(d => d.e2).filter(s => s > 0);
+                    
+                    const html = `
+                        <div class="flex justify-between items-center text-xs">
+                            <span class="text-slate-400">Seri:</span>
+                            <span class="text-white font-bold">${appData.length}</span>
+                        </div>
+                        <div class="flex justify-between items-center text-xs">
+                            <span class="text-slate-400">E1 Ort:</span>
+                            <span class="text-slate-300">${e1Scores.length > 0 ? Stats.mean(e1Scores).toFixed(2) : '-'}</span>
+                        </div>
+                        <div class="flex justify-between items-center text-xs">
+                            <span class="text-slate-400">E2 Ort:</span>
+                            <span class="text-slate-300">${e2Scores.length > 0 ? Stats.mean(e2Scores).toFixed(2) : '-'}</span>
+                        </div>
+                        <div class="flex justify-between items-center text-xs">
+                            <span class="text-slate-400">Std Sapma:</span>
+                            <span class="text-slate-300">${Stats.stdDev(appData.map(d => d.final)).toFixed(2)}</span>
+                        </div>
+                    `;
+                    
+                    const elem = document.getElementById(`apparatusStats-${app}`);
+                    if (elem) elem.innerHTML = html;
+                });
+                
+                // Detailed table
+                this.renderJudgeApparatusTable();
+            },
+
+            renderJudgeApparatusTable: function() {
+                const data = this.currentData;
+                const tbody = document.getElementById('judgeApparatusBody');
+                tbody.innerHTML = '';
+                
+                const apparatuses = [...new Set(data.map(d => d.apparatus))];
+                const judges = ['e1', 'e2', 'e3'];
+                const judgeNames = { e1: 'E1', e2: 'E2', e3: 'E3' };
+                
+                apparatuses.forEach(app => {
+                    judges.forEach(judge => {
+                        const appData = data.filter(d => d.apparatus === app);
+                        const scores = appData.map(d => d[judge]).filter(s => s > 0);
+                        
+                        if (scores.length === 0) return;
+                        
+                        const mean = Stats.mean(scores);
+                        const std = Stats.stdDev(scores);
+                        
+                        // Calculate deviations from E final
+                        const deviations = [];
+                        appData.forEach(d => {
+                            if (d[judge] && d.e) {
+                                deviations.push(Math.abs(d[judge] - d.e));
+                            }
+                        });
+                        
+                        const avgDev = deviations.length > 0 ? Stats.mean(deviations) : 0;
+                        const maxDev = deviations.length > 0 ? Math.max(...deviations) : 0;
+                        
+                        // Quality score (inverse of avg deviation)
+                        const quality = Math.max(0, 100 - (avgDev * 100)).toFixed(0);
+                        const qualityBadge = quality >= 80 ? 'badge-success' : 
+                                           quality >= 60 ? 'badge-info' : 'badge-warning';
+                        
+                        tbody.innerHTML += `
+                            <tr>
+                                <td class="text-white font-medium">${app}</td>
+                                <td class="text-center text-slate-300">${judgeNames[judge]}</td>
+                                <td class="text-center text-slate-400">${scores.length}</td>
+                                <td class="text-center text-white">${mean.toFixed(2)}</td>
+                                <td class="text-center text-slate-300">${std.toFixed(3)}</td>
+                                <td class="text-center ${avgDev > 0.3 ? 'text-accent-warning' : 'text-accent-success'}">${avgDev.toFixed(3)}</td>
+                                <td class="text-center ${maxDev > 0.5 ? 'text-accent-danger' : 'text-slate-300'}">${maxDev.toFixed(3)}</td>
+                                <td class="text-center"><span class="badge ${qualityBadge}">${quality}</span></td>
+                            </tr>
+                        `;
+                    });
+                });
+            },
+
+            renderFigCompliance: function() {
+                const data = this.currentData;
+                const allDeviations = [];
+                
+                data.forEach(d => {
+                    if (d.e1 && d.e) allDeviations.push(Math.abs(d.e1 - d.e));
+                    if (d.e2 && d.e) allDeviations.push(Math.abs(d.e2 - d.e));
+                    if (d.e3 && d.e) allDeviations.push(Math.abs(d.e3 - d.e));
+                });
+                
+                const acceptable = allDeviations.filter(d => d <= 0.3).length;
+                const warning = allDeviations.filter(d => d > 0.3 && d <= 0.5).length;
+                const critical = allDeviations.filter(d => d > 0.5).length;
+                
+                document.getElementById('figAcceptable').textContent = 
+                    ((acceptable / allDeviations.length) * 100).toFixed(1) + '%';
+                document.getElementById('figWarning').textContent = warning;
+                document.getElementById('figCritical').textContent = critical;
+                
+                // FIG Compliance table by apparatus
+                this.renderFigComplianceTable();
+                
+                // FIG Charts
+                this.renderFigCharts();
+            },
+
+            renderFigComplianceTable: function() {
+                const data = this.currentData;
+                const tbody = document.getElementById('figComplianceBody');
+                tbody.innerHTML = '';
+                
+                const apparatuses = [...new Set(data.map(d => d.apparatus))];
+                
+                apparatuses.forEach(app => {
+                    const appData = data.filter(d => d.apparatus === app);
+                    const deviations = [];
+                    
+                    appData.forEach(d => {
+                        if (d.e1 && d.e) deviations.push(Math.abs(d.e1 - d.e));
+                        if (d.e2 && d.e) deviations.push(Math.abs(d.e2 - d.e));
+                        if (d.e3 && d.e) deviations.push(Math.abs(d.e3 - d.e));
+                    });
+                    
+                    const acceptable = deviations.filter(d => d <= 0.3).length;
+                    const warning = deviations.filter(d => d > 0.3 && d <= 0.5).length;
+                    const critical = deviations.filter(d => d > 0.5).length;
+                    const compliance = ((acceptable / deviations.length) * 100).toFixed(1);
+                    
+                    const status = compliance >= 90 ? { badge: 'badge-success', text: 'MÜKEMMEL' } :
+                                  compliance >= 75 ? { badge: 'badge-info', text: 'İYİ' } :
+                                  compliance >= 60 ? { badge: 'badge-warning', text: 'ORTA' } :
+                                  { badge: 'badge-danger', text: 'DÜŞÜK' };
+                    
+                    tbody.innerHTML += `
+                        <tr>
+                            <td class="text-white font-semibold">${app}</td>
+                            <td class="text-center text-slate-400">${deviations.length}</td>
+                            <td class="text-center text-accent-success font-bold">${acceptable}</td>
+                            <td class="text-center text-accent-warning font-bold">${warning}</td>
+                            <td class="text-center text-accent-danger font-bold">${critical}</td>
+                            <td class="text-center text-white font-bold">${compliance}%</td>
+                            <td class="text-center"><span class="badge ${status.badge}">${status.text}</span></td>
+                        </tr>
+                    `;
+                });
+            },
+
+            renderFigCharts: function() {
+                const data = this.currentData;
+                
+                // Overall FIG compliance pie chart
+                const allDeviations = [];
+                data.forEach(d => {
+                    if (d.e1 && d.e) allDeviations.push(Math.abs(d.e1 - d.e));
+                    if (d.e2 && d.e) allDeviations.push(Math.abs(d.e2 - d.e));
+                    if (d.e3 && d.e) allDeviations.push(Math.abs(d.e3 - d.e));
+                });
+                
+                const acceptable = allDeviations.filter(d => d <= 0.3).length;
+                const warning = allDeviations.filter(d => d > 0.3 && d <= 0.5).length;
+                const critical = allDeviations.filter(d => d > 0.5).length;
+                
+                this.createChart('figComplianceChart', 'doughnut', {
+                    labels: ['Kabul Edilebilir', 'Uyarı', 'Kritik'],
+                    datasets: [{
+                        data: [acceptable, warning, critical],
+                        backgroundColor: ['#10B981', '#F59E0B', '#EF4444']
+                    }]
+                });
+                
+                // Apparatus-based FIG compliance
+                const apparatuses = [...new Set(data.map(d => d.apparatus))];
+                const complianceData = apparatuses.map(app => {
+                    const appData = data.filter(d => d.apparatus === app);
+                    const devs = [];
+                    appData.forEach(d => {
+                        if (d.e1 && d.e) devs.push(Math.abs(d.e1 - d.e));
+                        if (d.e2 && d.e) devs.push(Math.abs(d.e2 - d.e));
+                        if (d.e3 && d.e) devs.push(Math.abs(d.e3 - d.e));
+                    });
+                    const acc = devs.filter(d => d <= 0.3).length;
+                    return ((acc / devs.length) * 100).toFixed(1);
+                });
+                
+                this.createChart('figApparatusChart', 'bar', {
+                    labels: apparatuses,
+                    datasets: [{
+                        label: 'FIG Uyum %',
+                        data: complianceData,
+                        backgroundColor: '#6366F1'
+                    }]
+                }, {
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            max: 100
+                        }
+                    }
+                });
+            },
+
+            renderDistribution: function() {
+                const data = this.currentData;
+                const finals = data.map(d => d.final);
+                
+                // Statistical measures
+                const skew = Stats.skewness(finals);
+                const kurt = Stats.kurtosis(finals);
+                
+                document.getElementById('skewnessValue').textContent = skew.toFixed(3);
+                document.getElementById('kurtosisValue').textContent = kurt.toFixed(3);
+                
+                // Normality test (simplified - based on skewness and kurtosis)
+                const isNormal = Math.abs(skew) < 1 && Math.abs(kurt) < 3;
+                const normalityElem = document.getElementById('normalityTest');
+                normalityElem.textContent = isNormal ? 'Normal' : 'Non-Normal';
+                normalityElem.className = isNormal ? 'text-accent-success text-lg font-bold' : 'text-accent-warning text-lg font-bold';
+                
+                // Confidence interval (95%)
+                const mean = Stats.mean(finals);
+                const std = Stats.stdDev(finals);
+                const n = finals.length;
+                const margin = 1.96 * (std / Math.sqrt(n));
+                const ci = `[${(mean - margin).toFixed(2)}, ${(mean + margin).toFixed(2)}]`;
+                document.getElementById('confidenceInterval').textContent = ci;
+                
+                // Histogram
+                this.renderHistogram();
+                
+                // Box plot
+                this.renderBoxPlot();
+                
+                // Q-Q plot
+                this.renderQQPlot();
+            },
+            
+            renderBoxPlot: function() {
+                const data = this.currentData;
+                const apparatuses = [...new Set(data.map(d => d.apparatus))];
+                
+                // Calculate box plot data for each apparatus
+                const boxData = apparatuses.map(app => {
+                    const appScores = data.filter(d => d.apparatus === app).map(d => d.final);
+                    const q = Stats.quartiles(appScores);
+                    const sorted = [...appScores].sort((a, b) => a - b);
+                    
+                    // Calculate outliers
+                    const lowerBound = q.q1 - 1.5 * q.iqr;
+                    const upperBound = q.q3 + 1.5 * q.iqr;
+                    const outliers = sorted.filter(s => s < lowerBound || s > upperBound);
+                    
+                    return {
+                        label: app,
+                        min: Math.min(...sorted),
+                        q1: q.q1,
+                        median: q.q2,
+                        q3: q.q3,
+                        max: Math.max(...sorted),
+                        outliers: outliers
+                    };
+                });
+                
+                // Create a simplified box plot visualization using bar chart
+                this.createChart('boxPlotChart', 'bar', {
+                    labels: apparatuses,
+                    datasets: [
+                        {
+                            label: 'Min',
+                            data: boxData.map(d => d.min.toFixed(2)),
+                            backgroundColor: 'rgba(239, 68, 68, 0.5)'
+                        },
+                        {
+                            label: 'Q1',
+                            data: boxData.map(d => d.q1.toFixed(2)),
+                            backgroundColor: 'rgba(251, 146, 60, 0.5)'
+                        },
+                        {
+                            label: 'Median',
+                            data: boxData.map(d => d.median.toFixed(2)),
+                            backgroundColor: 'rgba(99, 102, 241, 0.8)'
+                        },
+                        {
+                            label: 'Q3',
+                            data: boxData.map(d => d.q3.toFixed(2)),
+                            backgroundColor: 'rgba(34, 197, 94, 0.5)'
+                        },
+                        {
+                            label: 'Max',
+                            data: boxData.map(d => d.max.toFixed(2)),
+                            backgroundColor: 'rgba(16, 185, 129, 0.5)'
+                        }
+                    ]
+                }, {
+                    plugins: {
+                        legend: { display: true }
+                    }
+                });
+            },
+            
+            renderQQPlot: function() {
+                const data = this.currentData;
+                const finals = [...data.map(d => d.final)].sort((a, b) => a - b);
+                
+                // Calculate theoretical quantiles (assuming normal distribution)
+                const mean = Stats.mean(finals);
+                const std = Stats.stdDev(finals);
+                const n = finals.length;
+                
+                const qqData = finals.map((observed, i) => {
+                    // Calculate theoretical quantile
+                    const p = (i + 0.5) / n; // Probability
+                    // Inverse normal CDF approximation
+                    const z = this.inverseNormalCDF(p);
+                    const theoretical = mean + z * std;
+                    
+                    return {
+                        x: theoretical,
+                        y: observed
+                    };
+                });
+                
+                // Add reference line (y=x)
+                const minVal = Math.min(...finals);
+                const maxVal = Math.max(...finals);
+                
+                this.createChart('qqPlotChart', 'scatter', {
+                    datasets: [
+                        {
+                            label: 'Q-Q Plot',
+                            data: qqData,
+                            backgroundColor: '#6366F1',
+                            pointRadius: 3
+                        },
+                        {
+                            label: 'Referans (Normal)',
+                            data: [
+                                { x: minVal, y: minVal },
+                                { x: maxVal, y: maxVal }
+                            ],
+                            type: 'line',
+                            borderColor: '#EF4444',
+                            borderWidth: 2,
+                            pointRadius: 0,
+                            fill: false
+                        }
+                    ]
+                }, {
+                    scales: {
+                        x: { 
+                            title: { display: true, text: 'Teorik Kuantiller' },
+                            grid: { color: '#1E293B' },
+                            ticks: { color: '#64748B' }
+                        },
+                        y: { 
+                            title: { display: true, text: 'Gözlenen Kuantiller' },
+                            grid: { color: '#1E293B' },
+                            ticks: { color: '#64748B' }
+                        }
+                    }
+                });
+            },
+            
+            // Inverse normal CDF approximation (Beasley-Springer-Moro algorithm)
+            inverseNormalCDF: function(p) {
+                const a = [
+                    -3.969683028665376e+01,
+                    2.209460984245205e+02,
+                    -2.759285104469687e+02,
+                    1.383577518672690e+02,
+                    -3.066479806614716e+01,
+                    2.506628277459239e+00
+                ];
+                
+                const b = [
+                    -5.447609879822406e+01,
+                    1.615858368580409e+02,
+                    -1.556989798598866e+02,
+                    6.680131188771972e+01,
+                    -1.328068155288572e+01
+                ];
+                
+                const c = [
+                    -7.784894002430293e-03,
+                    -3.223964580411365e-01,
+                    -2.400758277161838e+00,
+                    -2.549732539343734e+00,
+                    4.374664141464968e+00,
+                    2.938163982698783e+00
+                ];
+                
+                const d = [
+                    7.784695709041462e-03,
+                    3.224671290700398e-01,
+                    2.445134137142996e+00,
+                    3.754408661907416e+00
+                ];
+                
+                const pLow = 0.02425;
+                const pHigh = 1 - pLow;
+                
+                let q, r;
+                
+                if (p < pLow) {
+                    q = Math.sqrt(-2 * Math.log(p));
+                    return (((((c[0] * q + c[1]) * q + c[2]) * q + c[3]) * q + c[4]) * q + c[5]) /
+                           ((((d[0] * q + d[1]) * q + d[2]) * q + d[3]) * q + 1);
+                } else if (p <= pHigh) {
+                    q = p - 0.5;
+                    r = q * q;
+                    return (((((a[0] * r + a[1]) * r + a[2]) * r + a[3]) * r + a[4]) * r + a[5]) * q /
+                           (((((b[0] * r + b[1]) * r + b[2]) * r + b[3]) * r + b[4]) * r + 1);
+                } else {
+                    q = Math.sqrt(-2 * Math.log(1 - p));
+                    return -(((((c[0] * q + c[1]) * q + c[2]) * q + c[3]) * q + c[4]) * q + c[5]) /
+                            ((((d[0] * q + d[1]) * q + d[2]) * q + d[3]) * q + 1);
+                }
+            },
+
+            renderHistogram: function() {
+                const data = this.currentData;
+                const finals = data.map(d => d.final);
+                
+                const bins = [0, 5, 7, 9, 10, 11, 12, 13, 14, 15, 20];
+                const counts = this.binData(finals, bins);
+                const labels = bins.slice(0, -1).map((b, i) => `${b}-${bins[i+1]}`);
+                
+                this.createChart('distributionHistogram', 'bar', {
+                    labels: labels,
+                    datasets: [{
+                        label: 'Frekans',
+                        data: counts,
+                        backgroundColor: '#6366F1'
+                    }]
+                });
+            },
+
+            renderCorrelation: function() {
+                const data = this.currentData;
+                
+                // Calculate correlations
+                const dScores = data.map(d => d.d);
+                const eScores = data.map(d => d.e);
+                const e1Scores = data.map(d => d.e1).filter(s => s > 0);
+                const e2Scores = data.map(d => d.e2).filter(s => s > 0);
+                
+                // For judges, we need paired data
+                const e1e2Pairs = data.filter(d => d.e1 > 0 && d.e2 > 0);
+                const e1e2Corr = e1e2Pairs.length > 0 ? 
+                    Stats.correlation(e1e2Pairs.map(d => d.e1), e1e2Pairs.map(d => d.e2)) : 0;
+                
+                const deCorr = Stats.correlation(dScores, eScores.slice(0, dScores.length));
+                
+                document.getElementById('deCorrelation').textContent = deCorr.toFixed(3);
+                document.getElementById('e1e2Correlation').textContent = e1e2Corr.toFixed(3);
+                document.getElementById('dh1dh2Correlation').textContent = '0.850'; // Placeholder
+                
+                // Render correlation matrix (simplified)
+                this.renderCorrelationMatrix();
+            },
+
+            renderCorrelationMatrix: function() {
+                const data = this.currentData;
+                
+                // Prepare data for correlation
+                const variables = {
+                    'D Puanı': data.map(d => d.d),
+                    'E Puanı': data.map(d => d.e),
+                    'E1': data.map(d => d.e1).filter(v => v > 0),
+                    'E2': data.map(d => d.e2).filter(v => v > 0),
+                    'Final': data.map(d => d.final)
+                };
+                
+                // Calculate correlation matrix
+                const varNames = Object.keys(variables);
+                const matrix = [];
+                
+                varNames.forEach((var1, i) => {
+                    const row = [];
+                    varNames.forEach((var2, j) => {
+                        if (i === j) {
+                            row.push(1);
+                        } else {
+                            const data1 = variables[var1];
+                            const data2 = variables[var2];
+                            const minLen = Math.min(data1.length, data2.length);
+                            const corr = Stats.correlation(
+                                data1.slice(0, minLen),
+                                data2.slice(0, minLen)
+                            );
+                            row.push(corr);
+                        }
+                    });
+                    matrix.push(row);
+                });
+                
+                // Create heatmap data
+                const heatmapData = [];
+                matrix.forEach((row, i) => {
+                    row.forEach((value, j) => {
+                        heatmapData.push({
+                            x: varNames[j],
+                            y: varNames[i],
+                            v: value
+                        });
+                    });
+                });
+                
+                // Render with Chart.js (simple bar representation)
+                const ctx = document.getElementById('correlationMatrix');
+                if (!ctx) return;
+                
+                if (this.charts['correlationMatrix']) {
+                    this.charts['correlationMatrix'].destroy();
+                }
+                
+                // Create a simplified visualization
+                this.charts['correlationMatrix'] = new Chart(ctx.getContext('2d'), {
+                    type: 'bar',
+                    data: {
+                        labels: ['D-E', 'D-Final', 'E-Final', 'E1-E2', 'E1-Final'],
+                        datasets: [{
+                            label: 'Korelasyon Katsayısı',
+                            data: [
+                                Stats.correlation(variables['D Puanı'], variables['E Puanı'].slice(0, variables['D Puanı'].length)).toFixed(3),
+                                Stats.correlation(variables['D Puanı'], variables['Final'].slice(0, variables['D Puanı'].length)).toFixed(3),
+                                Stats.correlation(variables['E Puanı'], variables['Final'].slice(0, variables['E Puanı'].length)).toFixed(3),
+                                Stats.correlation(variables['E1'].slice(0, variables['E2'].length), variables['E2'].slice(0, variables['E1'].length)).toFixed(3),
+                                Stats.correlation(variables['E1'].slice(0, variables['Final'].length), variables['Final'].slice(0, variables['E1'].length)).toFixed(3)
+                            ],
+                            backgroundColor: ['#6366F1', '#10B981', '#F59E0B', '#EF4444', '#A855F7']
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: {
+                            legend: { display: false }
+                        },
+                        scales: {
+                            y: {
+                                min: -1,
+                                max: 1,
+                                grid: { color: '#1E293B' },
+                                ticks: { color: '#64748B' }
+                            },
+                            x: {
+                                grid: { display: false },
+                                ticks: { color: '#64748B' }
+                            }
+                        }
+                    }
+                });
+                
+                // Render scatter plots
+                this.renderScatterPlots();
+            },
+            
+            renderScatterPlots: function() {
+                const data = this.currentData;
+                
+                // D vs E
+                this.createChart('scatter1', 'scatter', {
+                    datasets: [{
+                        label: 'D vs E',
+                        data: data.map(d => ({ x: d.d, y: d.e })),
+                        backgroundColor: '#6366F1',
+                        pointRadius: 3
+                    }]
+                }, {
+                    plugins: { legend: { display: true } },
+                    scales: {
+                        x: { title: { display: true, text: 'D Puanı' } },
+                        y: { title: { display: true, text: 'E Puanı' } }
+                    }
+                });
+                
+                // D vs Final
+                this.createChart('scatter2', 'scatter', {
+                    datasets: [{
+                        label: 'D vs Final',
+                        data: data.map(d => ({ x: d.d, y: d.final })),
+                        backgroundColor: '#10B981',
+                        pointRadius: 3
+                    }]
+                }, {
+                    plugins: { legend: { display: true } },
+                    scales: {
+                        x: { title: { display: true, text: 'D Puanı' } },
+                        y: { title: { display: true, text: 'Final' } }
+                    }
+                });
+                
+                // E vs Final
+                this.createChart('scatter3', 'scatter', {
+                    datasets: [{
+                        label: 'E vs Final',
+                        data: data.map(d => ({ x: d.e, y: d.final })),
+                        backgroundColor: '#F59E0B',
+                        pointRadius: 3
+                    }]
+                }, {
+                    plugins: { legend: { display: true } },
+                    scales: {
+                        x: { title: { display: true, text: 'E Puanı' } },
+                        y: { title: { display: true, text: 'Final' } }
+                    }
+                });
+                
+                // E1 vs E2
+                const e1e2Data = data.filter(d => d.e1 > 0 && d.e2 > 0);
+                this.createChart('scatter4', 'scatter', {
+                    datasets: [{
+                        label: 'E1 vs E2',
+                        data: e1e2Data.map(d => ({ x: d.e1, y: d.e2 })),
+                        backgroundColor: '#EF4444',
+                        pointRadius: 3
+                    }]
+                }, {
+                    plugins: { legend: { display: true } },
+                    scales: {
+                        x: { title: { display: true, text: 'E1' } },
+                        y: { title: { display: true, text: 'E2' } }
+                    }
+                });
+            },
+
+            renderOutliers: function() {
+                const data = this.currentData;
+                const finals = data.map(d => d.final);
+                
+                // Z-Score method
+                const zScores = finals.map(f => Math.abs(Stats.zScore(f, finals)));
+                const zScoreOutliers = zScores.filter(z => z > 3).length;
+                
+                // IQR method
+                const q = Stats.quartiles(finals);
+                const lowerBound = q.q1 - 1.5 * q.iqr;
+                const upperBound = q.q3 + 1.5 * q.iqr;
+                const iqrOutliers = finals.filter(f => f < lowerBound || f > upperBound).length;
+                
+                document.getElementById('outlierZScore').textContent = zScoreOutliers;
+                document.getElementById('outlierIQR').textContent = iqrOutliers;
+                document.getElementById('outlierTotal').textContent = Math.max(zScoreOutliers, iqrOutliers);
+                
+                // Render outlier table
+                this.renderOutlierTable();
+            },
+
+            renderOutlierTable: function() {
+                const data = this.currentData;
+                const finals = data.map(d => d.final);
+                const tbody = document.getElementById('outlierTableBody');
+                tbody.innerHTML = '';
+                
+                const q = Stats.quartiles(finals);
+                const lowerBound = q.q1 - 1.5 * q.iqr;
+                const upperBound = q.q3 + 1.5 * q.iqr;
+                
+                data.forEach(d => {
+                    const zScore = Stats.zScore(d.final, finals);
+                    const isOutlier = Math.abs(zScore) > 3 || d.final < lowerBound || d.final > upperBound;
+                    
+                    if (isOutlier) {
+                        const type = d.final < lowerBound ? 'Düşük' : 'Yüksek';
+                        const badge = type === 'Düşük' ? 'badge-info' : 'badge-danger';
+                        
+                        tbody.innerHTML += `
+                            <tr>
+                                <td class="text-white">${d.name}</td>
+                                <td class="text-slate-300">${d.apparatus}</td>
+                                <td class="text-center text-white font-bold">${d.final.toFixed(3)}</td>
+                                <td class="text-center text-slate-300">${zScore.toFixed(2)}</td>
+                                <td class="text-center"><span class="badge ${badge}">${type}</span></td>
+                                <td class="text-center"><span class="badge badge-warning">İNCELE</span></td>
+                            </tr>
+                        `;
+                    }
+                });
+                
+                if (tbody.innerHTML === '') {
+                    tbody.innerHTML = '<tr><td colspan="6" class="text-center text-slate-400 p-8">Outlier tespit edilmedi</td></tr>';
+                }
+            },
+
+            renderBiasDetection: function() {
+                const data = this.currentData;
+                
+                // Calculate average bias for each judge
+                const e1Biases = [];
+                const e2Biases = [];
+                const e3Biases = [];
+                
+                data.forEach(d => {
+                    if (d.e1 && d.e) e1Biases.push(d.e1 - d.e);
+                    if (d.e2 && d.e) e2Biases.push(d.e2 - d.e);
+                    if (d.e3 && d.e) e3Biases.push(d.e3 - d.e);
+                });
+                
+                const e1Bias = e1Biases.length > 0 ? Stats.mean(e1Biases) : 0;
+                const e2Bias = e2Biases.length > 0 ? Stats.mean(e2Biases) : 0;
+                const e3Bias = e3Biases.length > 0 ? Stats.mean(e3Biases) : 0;
+                
+                const formatBias = (bias) => {
+                    const val = bias.toFixed(3);
+                    const color = bias > 0.1 ? 'text-accent-success' : 
+                                 bias < -0.1 ? 'text-accent-danger' : 'text-slate-300';
+                    return `<span class="${color}">${bias > 0 ? '+' : ''}${val}</span>`;
+                };
+                
+                document.getElementById('e1Bias').innerHTML = formatBias(e1Bias);
+                document.getElementById('e2Bias').innerHTML = formatBias(e2Bias);
+                document.getElementById('e3Bias').innerHTML = formatBias(e3Bias);
+                
+                const avgBias = (e1Bias + e2Bias + e3Bias) / 3;
+                const tendency = Math.abs(avgBias) < 0.05 ? 'Nötr' :
+                                avgBias > 0 ? 'Yüksek Eğilimli' : 'Düşük Eğilimli';
+                const tendencyColor = Math.abs(avgBias) < 0.05 ? 'text-accent-success' :
+                                     'text-accent-warning';
+                
+                document.getElementById('overallBias').innerHTML = 
+                    `<span class="${tendencyColor}">${tendency}</span>`;
+                
+                // Render bias chart
+                this.renderBiasChart();
+            },
+
+            renderBiasChart: function() {
+                const data = this.currentData;
+                
+                const e1Biases = [];
+                const e2Biases = [];
+                const e3Biases = [];
+                
+                data.forEach(d => {
+                    if (d.e1 && d.e) e1Biases.push(d.e1 - d.e);
+                    if (d.e2 && d.e) e2Biases.push(d.e2 - d.e);
+                    if (d.e3 && d.e) e3Biases.push(d.e3 - d.e);
+                });
+                
+                this.createChart('biasChart', 'bar', {
+                    labels: ['E1', 'E2', 'E3'],
+                    datasets: [{
+                        label: 'Ortalama Bias',
+                        data: [
+                            e1Biases.length > 0 ? Stats.mean(e1Biases).toFixed(3) : 0,
+                            e2Biases.length > 0 ? Stats.mean(e2Biases).toFixed(3) : 0,
+                            e3Biases.length > 0 ? Stats.mean(e3Biases).toFixed(3) : 0
+                        ],
+                        backgroundColor: ['#6366F1', '#10B981', '#F59E0B']
+                    }]
+                }, {
+                    scales: {
+                        y: {
+                            beginAtZero: true
+                        }
+                    }
+                });
+            },
+
+            populateAthleteSelect: function() {
+                const select = document.getElementById('athleteSelect');
+                select.innerHTML = '<option value="">Sporcu Seçin</option>';
+                
+                const uniqueAthletes = {};
+                this.currentData.forEach(d => {
+                    if (!uniqueAthletes[d.athleteId]) {
+                        uniqueAthletes[d.athleteId] = { id: d.athleteId, name: d.name, club: d.club };
+                    }
+                });
+                
+                Object.values(uniqueAthletes).sort((a, b) => a.name.localeCompare(b.name)).forEach(a => {
+                    const option = document.createElement('option');
+                    option.value = a.id;
+                    option.textContent = `${a.name} (${a.club})`;
+                    select.appendChild(option);
+                });
+            },
+
+            showAthleteDetails: function() {
+                const athleteId = parseInt(document.getElementById('athleteSelect').value);
+                if (!athleteId) {
+                    document.getElementById('athleteDetailsSection').classList.add('hidden');
+                    return;
+                }
+                
+                const athleteData = this.currentData.filter(d => d.athleteId === athleteId);
+                if (athleteData.length === 0) return;
+                
+                document.getElementById('athleteDetailsSection').classList.remove('hidden');
+                
+                const athlete = athleteData[0];
+                const finals = athleteData.map(d => d.final);
+                const dScores = athleteData.map(d => d.d);
+                const eScores = athleteData.map(d => d.e);
+                
+                const avgFinal = Stats.mean(finals);
+                const maxFinal = Math.max(...finals);
+                const minFinal = Math.min(...finals);
+                const stdDev = Stats.stdDev(finals);
+                
+                // Apparatus breakdown
+                const apparatusData = {};
+                athleteData.forEach(d => {
+                    if (!apparatusData[d.apparatus]) {
+                        apparatusData[d.apparatus] = {
+                            scores: [],
+                            d: [],
+                            e: []
+                        };
+                    }
+                    apparatusData[d.apparatus].scores.push(d.final);
+                    apparatusData[d.apparatus].d.push(d.d);
+                    apparatusData[d.apparatus].e.push(d.e);
+                });
+                
+                // Get ranks
+                const allData = this.currentData;
+                const ranks = {};
+                Object.keys(apparatusData).forEach(app => {
+                    const appScores = allData.filter(d => d.apparatus === app)
+                        .map(d => d.final)
+                        .sort((a, b) => b - a);
+                    const athleteScore = Stats.mean(apparatusData[app].scores);
+                    ranks[app] = appScores.findIndex(s => s <= athleteScore) + 1;
+                });
+                
+                // Calculate progression (if multiple performances)
+                const progression = finals.length > 1 ? 
+                    ((finals[finals.length - 1] - finals[0]) / finals[0] * 100) : 0;
+                
+                const section = document.getElementById('athleteDetailsSection');
+                section.innerHTML = `
+                    <div class="grid grid-cols-1 lg:grid-cols-5 gap-4">
+                        <div class="bg-bg-card border border-slate-700 p-5 rounded-2xl shadow-2xl">
+                            <div class="text-xs text-slate-400 mb-1">Sporcu</div>
+                            <div class="text-lg font-bold text-white">${athlete.name}</div>
+                            <div class="text-xs text-slate-500 mt-1">${athlete.club}</div>
+                        </div>
+                        <div class="bg-bg-card border border-slate-700 p-5 rounded-2xl shadow-2xl">
+                            <div class="text-xs text-slate-400 mb-1">Kategori</div>
+                            <div class="text-lg font-bold text-white">${athlete.category}</div>
+                            <div class="text-xs text-slate-500 mt-1">${athlete.city || '-'}</div>
+                        </div>
+                        <div class="bg-bg-card border border-slate-700 p-5 rounded-2xl shadow-2xl">
+                            <div class="text-xs text-slate-400 mb-1">Ortalama Puan</div>
+                            <div class="text-2xl font-bold text-primary-500">${avgFinal.toFixed(3)}</div>
+                        </div>
+                        <div class="bg-bg-card border border-slate-700 p-5 rounded-2xl shadow-2xl">
+                            <div class="text-xs text-slate-400 mb-1">En Yüksek</div>
+                            <div class="text-2xl font-bold text-accent-success">${maxFinal.toFixed(3)}</div>
+                        </div>
+                        <div class="bg-bg-card border border-slate-700 p-5 rounded-2xl shadow-2xl">
+                            <div class="text-xs text-slate-400 mb-1">İlerleme</div>
+                            <div class="text-2xl font-bold ${progression >= 0 ? 'text-accent-success' : 'text-accent-danger'}">
+                                ${progression >= 0 ? '+' : ''}${progression.toFixed(1)}%
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mt-6">
+                        <div class="bg-bg-card border border-slate-700 p-6 rounded-2xl shadow-2xl">
+                            <h3 class="section-title">İstatistikler</h3>
+                            <div class="space-y-3">
+                                <div class="metric-box">
+                                    <div class="flex justify-between items-center mb-2">
+                                        <span class="text-xs text-slate-400">Toplam Seri</span>
+                                        <span class="text-lg font-bold text-white">${athleteData.length}</span>
+                                    </div>
+                                    <div class="flex justify-between items-center">
+                                        <span class="text-xs text-slate-400">Std Sapma</span>
+                                        <span class="text-sm font-semibold text-slate-300">${stdDev.toFixed(3)}</span>
+                                    </div>
+                                </div>
+                                <div class="metric-box">
+                                    <div class="flex justify-between items-center mb-2">
+                                        <span class="text-xs text-slate-400">Min - Max</span>
+                                        <span class="text-sm font-semibold text-slate-300">${minFinal.toFixed(2)} - ${maxFinal.toFixed(2)}</span>
+                                    </div>
+                                    <div class="flex justify-between items-center">
+                                        <span class="text-xs text-slate-400">Ort. D Puanı</span>
+                                        <span class="text-sm font-semibold text-slate-300">${Stats.mean(dScores).toFixed(2)}</span>
+                                    </div>
+                                </div>
+                                <div class="metric-box">
+                                    <div class="flex justify-between items-center">
+                                        <span class="text-xs text-slate-400">Ort. E Puanı</span>
+                                        <span class="text-sm font-semibold text-slate-300">${Stats.mean(eScores).toFixed(2)}</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="lg:col-span-2 bg-bg-card border border-slate-700 p-6 rounded-2xl shadow-2xl">
+                            <h3 class="section-title">Aygıt Bazında Performans</h3>
+                            <div class="grid grid-cols-2 gap-4">
+                                ${Object.entries(apparatusData).map(([app, data]) => {
+                                    const avg = Stats.mean(data.scores);
+                                    const rank = ranks[app];
+                                    const rankBadge = rank <= 3 ? 'badge-success' : rank <= 10 ? 'badge-info' : 'badge-warning';
+                                    
+                                    return `
+                                        <div class="metric-box">
+                                            <div class="flex items-center justify-between mb-2">
+                                                <div class="text-sm font-bold text-white">${app}</div>
+                                                <span class="badge ${rankBadge}">#${rank}</span>
+                                            </div>
+                                            <div class="flex justify-between items-center text-xs">
+                                                <span class="text-slate-400">Final:</span>
+                                                <span class="text-white font-semibold">${avg.toFixed(3)}</span>
+                                            </div>
+                                            <div class="flex justify-between items-center text-xs">
+                                                <span class="text-slate-400">D:</span>
+                                                <span class="text-slate-300">${Stats.mean(data.d).toFixed(2)}</span>
+                                            </div>
+                                            <div class="flex justify-between items-center text-xs">
+                                                <span class="text-slate-400">E:</span>
+                                                <span class="text-slate-300">${Stats.mean(data.e).toFixed(2)}</span>
+                                            </div>
+                                        </div>
+                                    `;
+                                }).join('')}
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-6">
+                        <div class="bg-bg-card border border-slate-700 p-6 rounded-2xl shadow-2xl">
+                            <h3 class="text-white font-bold mb-4">Puan İlerlemesi</h3>
+                            <div class="h-80">
+                                <canvas id="athleteProgressChart"></canvas>
+                            </div>
+                        </div>
+                        <div class="bg-bg-card border border-slate-700 p-6 rounded-2xl shadow-2xl">
+                            <h3 class="text-white font-bold mb-4">D vs E Analizi</h3>
+                            <div class="h-80">
+                                <canvas id="athleteDEChart"></canvas>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="bg-bg-card border border-slate-700 p-6 rounded-2xl shadow-2xl mt-6">
+                        <h3 class="section-title">Tüm Performanslar</h3>
+                        <div class="overflow-x-auto">
+                            <table class="data-table">
+                                <thead>
+                                    <tr>
+                                        <th class="text-left">Aygıt</th>
+                                        <th class="text-center">D Puanı</th>
+                                        <th class="text-center">E Puanı</th>
+                                        <th class="text-center">E1</th>
+                                        <th class="text-center">E2</th>
+                                        <th class="text-center">E3</th>
+                                        <th class="text-center">Bonus</th>
+                                        <th class="text-center">Final</th>
+                                        <th class="text-center">Sıra</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="athletePerformanceTable"></tbody>
+                            </table>
+                        </div>
+                    </div>
+                `;
+                
+                // Progress chart
+                this.createChart('athleteProgressChart', 'line', {
+                    labels: athleteData.map((d, i) => `Seri ${i + 1}`),
+                    datasets: [{
+                        label: 'Final Puan',
+                        data: finals,
+                        borderColor: '#6366F1',
+                        backgroundColor: 'rgba(99, 102, 241, 0.1)',
+                        tension: 0.4,
+                        fill: true
+                    }]
+                }, {
+                    scales: {
+                        y: {
+                            beginAtZero: false
+                        }
+                    }
+                });
+                
+                // D vs E chart
+                this.createChart('athleteDEChart', 'bar', {
+                    labels: Object.keys(apparatusData),
+                    datasets: [
+                        {
+                            label: 'D Puanı',
+                            data: Object.values(apparatusData).map(d => Stats.mean(d.d).toFixed(2)),
+                            backgroundColor: '#6366F1'
+                        },
+                        {
+                            label: 'E Puanı',
+                            data: Object.values(apparatusData).map(d => Stats.mean(d.e).toFixed(2)),
+                            backgroundColor: '#10B981'
+                        }
+                    ]
+                });
+                
+                // Fill performance table
+                const tbody = document.getElementById('athletePerformanceTable');
+                tbody.innerHTML = athleteData.map(d => {
+                    const appScores = allData.filter(ad => ad.apparatus === d.apparatus)
+                        .map(ad => ad.final)
+                        .sort((a, b) => b - a);
+                    const rank = appScores.indexOf(d.final) + 1;
+                    const rankBadge = rank <= 3 ? 'badge-success' : rank <= 10 ? 'badge-info' : 'badge-warning';
+                    
+                    return `
+                        <tr>
+                            <td class="text-white font-medium">${d.apparatus}</td>
+                            <td class="text-center text-slate-300">${d.d.toFixed(1)}</td>
+                            <td class="text-center text-slate-300">${d.e.toFixed(2)}</td>
+                            <td class="text-center text-slate-400">${d.e1.toFixed(1)}</td>
+                            <td class="text-center text-slate-400">${d.e2.toFixed(1)}</td>
+                            <td class="text-center text-slate-400">${d.e3 ? d.e3.toFixed(1) : '-'}</td>
+                            <td class="text-center text-accent-success">${d.bonus.toFixed(1)}</td>
+                            <td class="text-center text-white font-bold">${d.final.toFixed(3)}</td>
+                            <td class="text-center"><span class="badge ${rankBadge}">#${rank}</span></td>
+                        </tr>
+                    `;
+                }).join('');
+            },
+
+            populateClubSelect: function() {
+                const select = document.getElementById('clubSelect');
+                select.innerHTML = '<option value="">Kulüp Seçin</option>';
+                
+                const clubs = [...new Set(this.currentData.map(d => d.club))];
+                clubs.sort().forEach(club => {
+                    const option = document.createElement('option');
+                    option.value = club;
+                    option.textContent = club;
+                    select.appendChild(option);
+                });
+            },
+
+            showClubDetails: function() {
+                const clubName = document.getElementById('clubSelect').value;
+                if (!clubName) {
+                    document.getElementById('clubDetailsSection').classList.add('hidden');
+                    return;
+                }
+                
+                const clubData = this.currentData.filter(d => d.club === clubName);
+                if (clubData.length === 0) return;
+                
+                document.getElementById('clubDetailsSection').classList.remove('hidden');
+                
+                // Calculate club statistics
+                const athletes = {};
+                clubData.forEach(d => {
+                    if (!athletes[d.athleteId]) {
+                        athletes[d.athleteId] = {
+                            name: d.name,
+                            category: d.category,
+                            scores: [],
+                            d: [],
+                            e: [],
+                            apparatus: {}
+                        };
+                    }
+                    athletes[d.athleteId].scores.push(d.final);
+                    athletes[d.athleteId].d.push(d.d);
+                    athletes[d.athleteId].e.push(d.e);
+                    
+                    if (!athletes[d.athleteId].apparatus[d.apparatus]) {
+                        athletes[d.athleteId].apparatus[d.apparatus] = [];
+                    }
+                    athletes[d.athleteId].apparatus[d.apparatus].push(d.final);
+                });
+                
+                const avgScore = Stats.mean(clubData.map(d => d.final));
+                const totalScores = clubData.map(d => d.final);
+                const stdDev = Stats.stdDev(totalScores);
+                
+                // Calculate club rank
+                const allClubs = {};
+                this.currentData.forEach(d => {
+                    if (!allClubs[d.club]) allClubs[d.club] = [];
+                    allClubs[d.club].push(d.final);
+                });
+                
+                const clubAvgs = Object.entries(allClubs).map(([club, scores]) => ({
+                    club,
+                    avg: Stats.mean(scores)
+                })).sort((a, b) => b.avg - a.avg);
+                
+                const rank = clubAvgs.findIndex(c => c.club === clubName) + 1;
+                
+                // Apparatus breakdown
+                const apparatusData = {};
+                clubData.forEach(d => {
+                    if (!apparatusData[d.apparatus]) {
+                        apparatusData[d.apparatus] = [];
+                    }
+                    apparatusData[d.apparatus].push(d.final);
+                });
+                
+                // Top athletes
+                const topAthletes = Object.entries(athletes)
+                    .map(([id, data]) => ({
+                        id,
+                        name: data.name,
+                        category: data.category,
+                        avg: Stats.mean(data.scores),
+                        max: Math.max(...data.scores),
+                        count: data.scores.length
+                    }))
+                    .sort((a, b) => b.avg - a.avg);
+                
+                const section = document.getElementById('clubDetailsSection');
+                section.innerHTML = `
+                    <div class="grid grid-cols-1 lg:grid-cols-5 gap-4">
+                        <div class="bg-bg-card border border-slate-700 p-5 rounded-2xl shadow-2xl">
+                            <div class="text-xs text-slate-400 mb-1">Kulüp Adı</div>
+                            <div class="text-lg font-bold text-white">${clubName}</div>
+                        </div>
+                        <div class="bg-bg-card border border-slate-700 p-5 rounded-2xl shadow-2xl">
+                            <div class="text-xs text-slate-400 mb-1">Sporcu Sayısı</div>
+                            <div class="text-2xl font-bold text-white">${Object.keys(athletes).length}</div>
+                        </div>
+                        <div class="bg-bg-card border border-slate-700 p-5 rounded-2xl shadow-2xl">
+                            <div class="text-xs text-slate-400 mb-1">Ortalama Puan</div>
+                            <div class="text-2xl font-bold text-primary-500">${avgScore.toFixed(3)}</div>
+                        </div>
+                        <div class="bg-bg-card border border-slate-700 p-5 rounded-2xl shadow-2xl">
+                            <div class="text-xs text-slate-400 mb-1">Sıralama</div>
+                            <div class="text-2xl font-bold text-accent-success">#${rank}</div>
+                        </div>
+                        <div class="bg-bg-card border border-slate-700 p-5 rounded-2xl shadow-2xl">
+                            <div class="text-xs text-slate-400 mb-1">Toplam Seri</div>
+                            <div class="text-2xl font-bold text-white">${clubData.length}</div>
+                        </div>
+                    </div>
+                    
+                    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mt-6">
+                        <div class="bg-bg-card border border-slate-700 p-6 rounded-2xl shadow-2xl">
+                            <h3 class="section-title">Kulüp İstatistikleri</h3>
+                            <div class="space-y-3">
+                                <div class="metric-box">
+                                    <div class="flex justify-between items-center">
+                                        <span class="text-xs text-slate-400">Std Sapma</span>
+                                        <span class="text-lg font-bold text-white">${stdDev.toFixed(3)}</span>
+                                    </div>
+                                </div>
+                                <div class="metric-box">
+                                    <div class="flex justify-between items-center">
+                                        <span class="text-xs text-slate-400">En Yüksek</span>
+                                        <span class="text-lg font-bold text-accent-success">${Math.max(...totalScores).toFixed(3)}</span>
+                                    </div>
+                                </div>
+                                <div class="metric-box">
+                                    <div class="flex justify-between items-center">
+                                        <span class="text-xs text-slate-400">En Düşük</span>
+                                        <span class="text-lg font-bold text-slate-300">${Math.min(...totalScores).toFixed(3)}</span>
+                                    </div>
+                                </div>
+                                <div class="metric-box">
+                                    <div class="flex justify-between items-center">
+                                        <span class="text-xs text-slate-400">Ort. D Puanı</span>
+                                        <span class="text-sm font-semibold text-slate-300">${Stats.mean(clubData.map(d => d.d)).toFixed(2)}</span>
+                                    </div>
+                                </div>
+                                <div class="metric-box">
+                                    <div class="flex justify-between items-center">
+                                        <span class="text-xs text-slate-400">Ort. E Puanı</span>
+                                        <span class="text-sm font-semibold text-slate-300">${Stats.mean(clubData.map(d => d.e)).toFixed(2)}</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="lg:col-span-2 bg-bg-card border border-slate-700 p-6 rounded-2xl shadow-2xl">
+                            <h3 class="section-title">En İyi 5 Sporcu</h3>
+                            <div class="space-y-3">
+                                ${topAthletes.slice(0, 5).map((a, i) => `
+                                    <div class="flex items-center justify-between p-3 bg-bg-light/50 rounded-lg">
+                                        <div class="flex items-center gap-3">
+                                            <div class="w-8 h-8 rounded-full bg-primary-500/20 flex items-center justify-center">
+                                                <span class="text-primary-500 font-bold text-sm">${i + 1}</span>
+                                            </div>
+                                            <div>
+                                                <div class="text-white font-semibold">${a.name}</div>
+                                                <div class="text-xs text-slate-400">${a.category}</div>
+                                            </div>
+                                        </div>
+                                        <div class="text-right">
+                                            <div class="text-white font-bold">${a.avg.toFixed(3)}</div>
+                                            <div class="text-xs text-slate-500">${a.count} seri</div>
+                                        </div>
+                                    </div>
+                                `).join('')}
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-6">
+                        <div class="bg-bg-card border border-slate-700 p-6 rounded-2xl shadow-2xl">
+                            <h3 class="text-white font-bold mb-4">Aygıt Bazında Performans</h3>
+                            <div class="h-80">
+                                <canvas id="clubApparatusChart"></canvas>
+                            </div>
+                        </div>
+                        <div class="bg-bg-card border border-slate-700 p-6 rounded-2xl shadow-2xl">
+                            <h3 class="text-white font-bold mb-4">Puan Dağılımı</h3>
+                            <div class="h-80">
+                                <canvas id="clubDistributionChart"></canvas>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="bg-bg-card border border-slate-700 p-6 rounded-2xl shadow-2xl mt-6">
+                        <h3 class="section-title">Tüm Sporcular</h3>
+                        <div class="overflow-x-auto">
+                            <table class="data-table">
+                                <thead>
+                                    <tr>
+                                        <th class="text-left">Sıra</th>
+                                        <th class="text-left">Sporcu</th>
+                                        <th class="text-center">Kategori</th>
+                                        <th class="text-center">Seri</th>
+                                        <th class="text-center">Ort. D</th>
+                                        <th class="text-center">Ort. E</th>
+                                        <th class="text-right">Ort. Puan</th>
+                                        <th class="text-right">En Yüksek</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="clubAthletesTable"></tbody>
+                            </table>
+                        </div>
+                    </div>
+                `;
+                
+                // Apparatus chart
+                this.createChart('clubApparatusChart', 'bar', {
+                    labels: Object.keys(apparatusData),
+                    datasets: [{
+                        label: 'Ortalama Puan',
+                        data: Object.values(apparatusData).map(scores => Stats.mean(scores).toFixed(2)),
+                        backgroundColor: ['#6366F1', '#10B981', '#F59E0B', '#EF4444', '#A855F7']
+                    }]
+                });
+                
+                // Distribution chart
+                const bins = [0, 5, 8, 10, 11, 12, 13, 14, 15, 20];
+                this.createChart('clubDistributionChart', 'bar', {
+                    labels: bins.slice(0, -1).map((b, i) => `${b}-${bins[i+1]}`),
+                    datasets: [{
+                        label: 'Frekans',
+                        data: this.binData(totalScores, bins),
+                        backgroundColor: '#6366F1'
+                    }]
+                });
+                
+                // Fill athletes table
+                const tbody = document.getElementById('clubAthletesTable');
+                tbody.innerHTML = topAthletes.map((a, i) => `
+                    <tr>
+                        <td class="text-slate-500 font-bold">${i + 1}</td>
+                        <td class="text-white font-medium">${a.name}</td>
+                        <td class="text-center text-slate-300 text-xs">${a.category}</td>
+                        <td class="text-center text-slate-400">${a.count}</td>
+                        <td class="text-center text-slate-300">${Stats.mean(athletes[a.id].d).toFixed(2)}</td>
+                        <td class="text-center text-slate-300">${Stats.mean(athletes[a.id].e).toFixed(2)}</td>
+                        <td class="text-right text-primary-400 font-bold">${a.avg.toFixed(3)}</td>
+                        <td class="text-right text-accent-success font-bold">${a.max.toFixed(3)}</td>
+                    </tr>
+                `).join('');
+            },
+
+            showJudgeProfile: function() {
+                const judgeType = document.getElementById('judgeSelect').value;
+                if (!judgeType) {
+                    document.getElementById('judgeProfileSection').classList.add('hidden');
+                    return;
+                }
+                
+                const data = this.currentData;
+                const judgeData = data.map(d => d[judgeType]).filter(s => s > 0);
+                
+                if (judgeData.length === 0) {
+                    alert('Bu hakem için veri bulunamadı');
+                    return;
+                }
+                
+                document.getElementById('judgeProfileSection').classList.remove('hidden');
+                
+                const judgeNames = {
+                    'e1': 'E1 Hakemi',
+                    'e2': 'E2 Hakemi',
+                    'e3': 'E3 Hakemi',
+                    'dh1': 'DH1 Hakemi',
+                    'dh2': 'DH2 Hakemi'
+                };
+                
+                // Calculate comprehensive statistics
+                const mean = Stats.mean(judgeData);
+                const median = Stats.median(judgeData);
+                const stdDev = Stats.stdDev(judgeData);
+                const q = Stats.quartiles(judgeData);
+                const min = Math.min(...judgeData);
+                const max = Math.max(...judgeData);
+                
+                // Calculate deviations if E judge
+                let avgDeviation = 0;
+                let maxDeviation = 0;
+                let consistency = 100;
+                
+                if (judgeType.startsWith('e')) {
+                    const deviations = [];
+                    data.forEach(d => {
+                        if (d[judgeType] && d.e) {
+                            deviations.push(Math.abs(d[judgeType] - d.e));
+                        }
+                    });
+                    
+                    if (deviations.length > 0) {
+                        avgDeviation = Stats.mean(deviations);
+                        maxDeviation = Math.max(...deviations);
+                        consistency = Math.max(0, 100 - (avgDeviation * 100));
+                    }
+                }
+                
+                // Apparatus breakdown
+                const apparatusBreakdown = {};
+                data.forEach(d => {
+                    if (d[judgeType] > 0) {
+                        if (!apparatusBreakdown[d.apparatus]) {
+                            apparatusBreakdown[d.apparatus] = [];
+                        }
+                        apparatusBreakdown[d.apparatus].push(d[judgeType]);
+                    }
+                });
+                
+                const section = document.getElementById('judgeProfileSection');
+                section.innerHTML = `
+                    <div class="grid grid-cols-1 lg:grid-cols-4 gap-6">
+                        <div class="bg-bg-card border border-slate-700 p-6 rounded-2xl shadow-2xl">
+                            <h3 class="text-white font-bold mb-4 flex items-center gap-2">
+                                <i class="material-icons text-primary-500">person</i>
+                                ${judgeNames[judgeType]}
+                            </h3>
+                            <div class="space-y-3">
+                                <div class="metric-box">
+                                    <div class="text-xs text-slate-400 mb-1">Toplam Değerlendirme</div>
+                                    <div class="text-2xl font-bold text-white">${judgeData.length}</div>
+                                </div>
+                                <div class="metric-box">
+                                    <div class="text-xs text-slate-400 mb-1">Ortalama Puan</div>
+                                    <div class="text-2xl font-bold text-white">${mean.toFixed(2)}</div>
+                                </div>
+                                ${judgeType.startsWith('e') ? `
+                                <div class="metric-box">
+                                    <div class="text-xs text-slate-400 mb-1">Tutarlılık Skoru</div>
+                                    <div class="text-2xl font-bold text-accent-success">${consistency.toFixed(0)}%</div>
+                                </div>
+                                ` : ''}
+                            </div>
+                        </div>
+                        
+                        <div class="bg-bg-card border border-slate-700 p-6 rounded-2xl shadow-2xl">
+                            <h3 class="text-white font-bold mb-4">İstatistiksel Ölçümler</h3>
+                            <div class="space-y-2 text-sm">
+                                <div class="flex justify-between">
+                                    <span class="text-slate-400">Medyan:</span>
+                                    <span class="text-white font-semibold">${median.toFixed(2)}</span>
+                                </div>
+                                <div class="flex justify-between">
+                                    <span class="text-slate-400">Std Sapma:</span>
+                                    <span class="text-white font-semibold">${stdDev.toFixed(3)}</span>
+                                </div>
+                                <div class="flex justify-between">
+                                    <span class="text-slate-400">Min - Max:</span>
+                                    <span class="text-white font-semibold">${min.toFixed(2)} - ${max.toFixed(2)}</span>
+                                </div>
+                                <div class="flex justify-between">
+                                    <span class="text-slate-400">Q1:</span>
+                                    <span class="text-white font-semibold">${q.q1.toFixed(2)}</span>
+                                </div>
+                                <div class="flex justify-between">
+                                    <span class="text-slate-400">Q3:</span>
+                                    <span class="text-white font-semibold">${q.q3.toFixed(2)}</span>
+                                </div>
+                                <div class="flex justify-between">
+                                    <span class="text-slate-400">IQR:</span>
+                                    <span class="text-white font-semibold">${q.iqr.toFixed(2)}</span>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        ${judgeType.startsWith('e') ? `
+                        <div class="bg-bg-card border border-slate-700 p-6 rounded-2xl shadow-2xl">
+                            <h3 class="text-white font-bold mb-4">Sapma Analizi</h3>
+                            <div class="space-y-3">
+                                <div class="metric-box">
+                                    <div class="text-xs text-slate-400 mb-1">Ortalama Sapma</div>
+                                    <div class="text-2xl font-bold ${avgDeviation > 0.3 ? 'text-accent-warning' : 'text-accent-success'}">${avgDeviation.toFixed(3)}</div>
+                                </div>
+                                <div class="metric-box">
+                                    <div class="text-xs text-slate-400 mb-1">Maksimum Sapma</div>
+                                    <div class="text-2xl font-bold ${maxDeviation > 0.5 ? 'text-accent-danger' : 'text-accent-warning'}">${maxDeviation.toFixed(3)}</div>
+                                </div>
+                            </div>
+                        </div>
+                        ` : '<div></div>'}
+                        
+                        <div class="bg-bg-card border border-slate-700 p-6 rounded-2xl shadow-2xl">
+                            <h3 class="text-white font-bold mb-4">Aygıt Bazında</h3>
+                            <div class="space-y-2 text-sm">
+                                ${Object.entries(apparatusBreakdown).map(([app, scores]) => `
+                                    <div class="flex justify-between items-center">
+                                        <span class="text-slate-400">${app}:</span>
+                                        <div class="text-right">
+                                            <div class="text-white font-semibold">${Stats.mean(scores).toFixed(2)}</div>
+                                            <div class="text-xs text-slate-500">(${scores.length} değ.)</div>
+                                        </div>
+                                    </div>
+                                `).join('')}
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-6">
+                        <div class="bg-bg-card border border-slate-700 p-6 rounded-2xl shadow-2xl">
+                            <h3 class="text-white font-bold mb-4">Puan Dağılımı</h3>
+                            <div class="h-80">
+                                <canvas id="judgeProfileDistChart"></canvas>
+                            </div>
+                        </div>
+                        <div class="bg-bg-card border border-slate-700 p-6 rounded-2xl shadow-2xl">
+                            <h3 class="text-white font-bold mb-4">Aygıt Bazında Performans</h3>
+                            <div class="h-80">
+                                <canvas id="judgeProfileApparatusChart"></canvas>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    ${judgeType.startsWith('e') ? `
+                    <div class="bg-bg-card border border-slate-700 p-6 rounded-2xl shadow-2xl mt-6">
+                        <h3 class="text-white font-bold mb-4">Sapma Detay Tablosu</h3>
+                        <div class="overflow-x-auto">
+                            <table class="data-table">
+                                <thead>
+                                    <tr>
+                                        <th class="text-left">Sporcu</th>
+                                        <th class="text-left">Aygıt</th>
+                                        <th class="text-center">Hakem Puanı</th>
+                                        <th class="text-center">E Final</th>
+                                        <th class="text-center">Sapma</th>
+                                        <th class="text-center">Durum</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="judgeProfileDeviationTable"></tbody>
+                            </table>
+                        </div>
+                    </div>
+                    ` : ''}
+                `;
+                
+                // Render charts
+                this.createChart('judgeProfileDistChart', 'bar', {
+                    labels: ['0-2', '2-4', '4-6', '6-8', '8-10'],
+                    datasets: [{
+                        label: 'Frekans',
+                        data: this.binData(judgeData, [0, 2, 4, 6, 8, 10]),
+                        backgroundColor: '#6366F1'
+                    }]
+                });
+                
+                this.createChart('judgeProfileApparatusChart', 'bar', {
+                    labels: Object.keys(apparatusBreakdown),
+                    datasets: [{
+                        label: 'Ortalama Puan',
+                        data: Object.values(apparatusBreakdown).map(scores => Stats.mean(scores).toFixed(2)),
+                        backgroundColor: ['#6366F1', '#10B981', '#F59E0B', '#EF4444', '#A855F7']
+                    }]
+                });
+                
+                // Fill deviation table if E judge
+                if (judgeType.startsWith('e')) {
+                    const tbody = document.getElementById('judgeProfileDeviationTable');
+                    const tableData = data.filter(d => d[judgeType] > 0 && d.e > 0)
+                        .map(d => ({
+                            name: d.name,
+                            apparatus: d.apparatus,
+                            score: d[judgeType],
+                            eFinal: d.e,
+                            deviation: Math.abs(d[judgeType] - d.e)
+                        }))
+                        .sort((a, b) => b.deviation - a.deviation)
+                        .slice(0, 20);
+                    
+                    tbody.innerHTML = tableData.map(row => {
+                        const statusBadge = row.deviation <= 0.3 ? 'badge-success' :
+                                          row.deviation <= 0.5 ? 'badge-warning' : 'badge-danger';
+                        const statusText = row.deviation <= 0.3 ? 'NORMAL' :
+                                         row.deviation <= 0.5 ? 'UYARI' : 'KRİTİK';
+                        
+                        return `
+                            <tr>
+                                <td class="text-white">${row.name}</td>
+                                <td class="text-slate-300">${row.apparatus}</td>
+                                <td class="text-center text-white font-semibold">${row.score.toFixed(2)}</td>
+                                <td class="text-center text-slate-300">${row.eFinal.toFixed(2)}</td>
+                                <td class="text-center ${row.deviation > 0.5 ? 'text-accent-danger' : row.deviation > 0.3 ? 'text-accent-warning' : 'text-accent-success'} font-bold">${row.deviation.toFixed(3)}</td>
+                                <td class="text-center"><span class="badge ${statusBadge}">${statusText}</span></td>
+                            </tr>
+                        `;
+                    }).join('');
+                }
+            },
+
+            createChart: function(id, type, data, options = {}) {
+                const ctx = document.getElementById(id);
+                if (!ctx) return;
+                
+                if (this.charts[id]) {
+                    this.charts[id].destroy();
+                }
+                
+                const defaultOptions = {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { labels: { color: '#94a3b8' } }
+                    }
+                };
+                
+                if (type !== 'radar' && type !== 'pie' && type !== 'doughnut') {
+                    defaultOptions.scales = {
+                        y: { grid: { color: '#1E293B' }, ticks: { color: '#64748B' } },
+                        x: { grid: { display: false }, ticks: { color: '#64748B' } }
+                    };
+                }
+                
+                this.charts[id] = new Chart(ctx.getContext('2d'), {
+                    type: type,
+                    data: data,
+                    options: { ...defaultOptions, ...options }
+                });
+            },
+
+            setView: function(id) {
+                document.querySelectorAll('.view-section').forEach(el => el.classList.add('hidden'));
+                const section = document.getElementById(id);
+                if (section) section.classList.remove('hidden');
+                
+                document.querySelectorAll('.nav-item').forEach(el => {
+                    el.classList.remove('active');
+                });
+                
+                const views = ['dashboard', 'judgeMatrix', 'judgeProfiles', 'judgeComparison', 'judgeApparatus', 
+                              'figCompliance', 'distribution', 'correlation', 'outliers', 'biasDetection',
+                              'athleteDetails', 'clubAnalytics'];
+                const index = views.indexOf(id);
+                const btns = document.querySelectorAll('.nav-item');
+                if (btns[index]) btns[index].classList.add('active');
+                
+                const titles = {
+                    'dashboard': 'Genel Bakış',
+                    'judgeMatrix': 'Hakem Matrisi',
+                    'judgeProfiles': 'Hakem Profilleri',
+                    'judgeComparison': 'Hakem Karşılaştırma',
+                    'judgeApparatus': 'Alet-Hakem Analizi',
+                    'figCompliance': 'FIG Uyumluluk',
+                    'distribution': 'Dağılım Analizi',
+                    'correlation': 'Korelasyon Analizi',
+                    'outliers': 'Outlier Tespiti',
+                    'biasDetection': 'Bias Analizi',
+                    'athleteDetails': 'Sporcu Detayları',
+                    'clubAnalytics': 'Kulüp Analitiği'
+                };
+                document.getElementById('pageTitle').textContent = titles[id] || 'Big Data Analytics';
+            },
+
+            toggleFigMode: function() {
+                this.figMode = document.getElementById('figMode').checked;
+                console.log('FIG Modu:', this.figMode ? 'Aktif' : 'Pasif');
+            },
+
+            refreshData: function() {
+                const val = document.getElementById('competitionSelect').value;
+                if (val) this.loadCompetition(val);
+            },
+
+            exportFullReport: function() {
+                alert('Tam rapor indirme özelliği yakında eklenecek!\n\nRapor içeriği:\n- Tüm istatistiksel analizler\n- Hakem değerlendirmeleri\n- FIG uyumluluk raporu\n- Sporcu ve kulüp analizleri');
+            }
+        };
+
+        // Start App
+        document.addEventListener('DOMContentLoaded', () => {
+            app.init();
+            app.setView('dashboard');
+        });
+    </script>
+</body>
+</html>

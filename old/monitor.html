@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="tr">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <title>FIG TR Judge - Hakem Puan Monitörü</title>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="styles.css">
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-database-compat.js"></script>
+</head>
+
+<body>
+    <div id="app" style="padding: 20px;">
+        <div class="glass-card" style="height: 95vh; display: flex; flex-direction: column; overflow: hidden;">
+            <!-- Header -->
+            <div
+                style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px; border-bottom: 1px solid var(--glass-border); padding-bottom: 15px;">
+                <div>
+                    <h1 style="margin-bottom:5px; font-size: 1.8rem;">Anlık Hakem Puanları</h1>
+                    <p style="font-size:1rem; color:var(--text-dim)" id="monitor-exam-name">Aktif Sınav Yükleniyor...
+                    </p>
+                </div>
+                <div style="display:flex; gap:10px; align-items: center;">
+                    <div class="clock" id="monitor-clock"
+                        style="font-family: monospace; font-size: 1.2rem; margin-right: 20px;">00:00:00</div>
+                    <select id="referee-scores-filter-apparatus" style="min-width:180px; padding: 10px;">
+                        <option value="">Tüm Aletler</option>
+                        <option value="AtM">Atlama Masası</option>
+                        <option value="KP">Kız Paraleli</option>
+                        <option value="D">Denge</option>
+                        <option value="Y">Yer</option>
+                    </select>
+                </div>
+            </div>
+
+            <!-- Content -->
+            <div class="table-scroll" style="flex: 1; overflow-y: auto;">
+                <table class="data-table" style="width:100%; font-size: 1.1rem;">
+                    <thead style="position: sticky; top: 0; z-index: 10; background: var(--glass-bg);">
+                        <tr>
+                            <th style="width: 100px;">Zaman</th>
+                            <th>Hakem</th>
+                            <th>Sporcu / Seri</th>
+                            <th>Alet</th>
+                            <th style="text-align: right;">D Puanı</th>
+                            <th style="text-align: right;">E Puanı</th>
+                            <th style="text-align: right;">Toplam</th>
+                        </tr>
+                    </thead>
+                    <tbody id="referee-scores-table-body">
+                        <!-- JS ile doldurulacak -->
+                    </tbody>
+                </table>
+            </div>
+
+            <div id="referee-scores-empty" style="text-align:center; padding:40px; color:var(--text-dim); display:none">
+                <p>Henüz puan girişi yapılmamış.</p>
+            </div>
+        </div>
+    </div>
+
+    <script src="app.js?v=2.36"></script>
+    <script>
+        // Clock
+        setInterval(() => {
+            document.getElementById('monitor-clock').textContent = new Date().toLocaleTimeString('tr-TR');
+        }, 1000);
+    </script>
+</body>
+
+</html>

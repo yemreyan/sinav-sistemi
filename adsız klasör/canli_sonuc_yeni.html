@@ -1,0 +1,950 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Canlı Sonuçlar - Yayın Ekranı</title>
+
+    <!-- Firebase -->
+    <script src="https://www.gstatic.com/firebasejs/9.6.7/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.6.7/firebase-database-compat.js"></script>
+
+    <!-- Icon & Font -->
+    <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600;700;800&display=swap" rel="stylesheet">
+
+    <style>
+        :root {
+            /* Arka plan & kartlar */
+            --background-color: #020617;
+            --background-gradient: radial-gradient(circle at top, #1e293b 0, #020617 40%, #000000 100%);
+            --card-gradient: linear-gradient(135deg, rgba(15, 23, 42, 0.98), rgba(15, 23, 42, 0.96));
+            --card-border: rgba(148, 163, 184, 0.55);
+
+            /* Yazılar & renkler */
+            --text-color: #f9fafb;
+            --text-muted: #9ca3af;
+            --accent-color: #38bdf8;
+            --accent-soft: rgba(56, 189, 248, 0.28);
+
+            --gold-color: #fbbf24;
+            --silver-color: #e5e7eb;
+            --bronze-color: #fb923c;
+
+            --border-radius: 18px;
+            --transition-speed: 0.7s;
+            --shadow-soft: 0 26px 60px rgba(15, 23, 42, 0.9);
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        html, body {
+            height: 100%;
+            overflow: hidden;
+        }
+
+        body {
+            font-family: "Poppins", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+            background: var(--background-gradient);
+            color: var(--text-color);
+            font-size: 1.05vw;
+            display: flex;
+            flex-direction: column;
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
+            text-rendering: optimizeLegibility;
+        }
+
+        /* ANA KAPSAYICI */
+        .container {
+            width: 100%;
+            max-width: 96%;
+            margin: 0 auto;
+            padding: 1.7vh 2vw 2vh;
+            flex-grow: 1;
+            display: flex;
+            flex-direction: column;
+            position: relative;
+        }
+
+        /* Dekoratif sol neon şerit */
+        .container::before {
+            content: "";
+            position: fixed;
+            left: -120px;
+            top: 0;
+            width: 260px;
+            height: 100vh;
+            background: linear-gradient(180deg, rgba(56, 189, 248, 0.1), transparent 60%);
+            filter: blur(4px);
+            z-index: -1;
+        }
+
+        /* BAŞLIK ALANI */
+
+        .header {
+            text-align: center;
+            padding-bottom: 1.5vh;
+            position: relative;
+        }
+
+        /* Üstte ince neon çizgi */
+        .header::before {
+            content: "";
+            position: absolute;
+            top: -6px;
+            left: 50%;
+            width: 260px;
+            height: 3px;
+            transform: translateX(-50%);
+            background: linear-gradient(90deg, transparent, var(--accent-color), transparent);
+            opacity: 0.9;
+        }
+
+        /* Altta kalın ışık şeridi */
+        .header::after {
+            content: "";
+            position: absolute;
+            left: 50%;
+            bottom: -4px;
+            width: 320px;
+            height: 5px;
+            transform: translateX(-50%);
+            background: linear-gradient(90deg, transparent, #38bdf8, #22c55e, #eab308, transparent);
+            opacity: 0.95;
+            box-shadow: 0 0 30px rgba(56, 189, 248, 0.7);
+            border-radius: 999px;
+        }
+
+        .header h1 {
+            font-size: 3.4vw;
+            font-weight: 800;
+            letter-spacing: 0.22em;
+            text-transform: uppercase;
+            margin: 0;
+            background: conic-gradient(from 120deg, #f9fafb, #bae6fd, #38bdf8, #22c55e, #facc15, #f9fafb);
+            -webkit-background-clip: text;
+            color: transparent;
+            text-shadow: 0 0 30px rgba(15, 23, 42, 0.9);
+        }
+
+        .header #currentScreenHeader {
+            color: var(--text-muted);
+            font-size: 1.5vw;
+            margin-top: 0.5vh;
+            font-weight: 500;
+            letter-spacing: 0.12em;
+            text-transform: uppercase;
+            transition: all 0.4s ease;
+        }
+
+        .content-area {
+            position: relative;
+            flex-grow: 1;
+            min-height: 0;
+            margin-top: 1.8vh;
+        }
+
+        /* ROTASYONLU BÖLÜMLER */
+
+        .rotating-section {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            top: 0;
+            left: 0;
+            opacity: 0;
+            visibility: hidden;
+            transform: translateY(16px) scale(0.985);
+            transition:
+                opacity var(--transition-speed) ease,
+                transform var(--transition-speed) ease;
+        }
+
+        .rotating-section.active {
+            opacity: 1;
+            visibility: visible;
+            transform: translateY(0) scale(1);
+        }
+
+        .content-card {
+            background: var(--card-gradient);
+            border-radius: var(--border-radius);
+            border: 1px solid var(--card-border);
+            padding: 1.8vh 2.2vw;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            box-shadow: var(--shadow-soft);
+            position: relative;
+            overflow: hidden;
+        }
+
+        /* Kartın içine hafif grid & glow efekti */
+        .content-card::before {
+            content: "";
+            position: absolute;
+            inset: -40%;
+            background:
+                radial-gradient(circle at 0% 0%, rgba(56, 189, 248, 0.25), transparent 55%),
+                radial-gradient(circle at 100% 0%, rgba(234, 179, 8, 0.2), transparent 55%),
+                repeating-linear-gradient(
+                    135deg,
+                    transparent 0,
+                    transparent 12px,
+                    rgba(15, 23, 42, 0.85) 12px,
+                    rgba(15, 23, 42, 0.85) 13px
+                );
+            opacity: 0.55;
+            pointer-events: none;
+            mix-blend-mode: screen;
+        }
+
+        .content-card > * {
+            position: relative;
+            z-index: 1;
+        }
+
+        /* TABLO KAPSAYICISI */
+
+        .table-container {
+            overflow: hidden;
+            flex-grow: 1;
+            position: relative;
+            border-radius: calc(var(--border-radius) - 6px);
+            border: 1px solid rgba(148, 163, 184, 0.4);
+            background: radial-gradient(circle at top, rgba(15, 23, 42, 1), rgba(15, 23, 42, 0.98));
+        }
+
+        .table-container::after {
+            content: "";
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            width: 100%;
+            height: 70px;
+            background: linear-gradient(to top, rgba(15, 23, 42, 1), transparent);
+            pointer-events: none;
+        }
+
+        /* TABLO GENEL */
+
+        .leaderboard-table {
+            width: 100%;
+            border-collapse: separate;
+            border-spacing: 0 0.55vh;
+        }
+
+        .leaderboard-table thead tr {
+            background: linear-gradient(to right, rgba(15, 23, 42, 0.96), rgba(15, 23, 42, 0.98));
+        }
+
+        .leaderboard-table th {
+            text-align: left;
+            padding: 0.9vh 1.2vw;
+            color: var(--text-muted);
+            font-weight: 600;
+            text-transform: uppercase;
+            font-size: 0.9em;
+            position: sticky;
+            top: 0;
+            z-index: 2;
+            backdrop-filter: blur(7px);
+            border-bottom: 1px solid rgba(148, 163, 184, 0.5);
+        }
+
+        .leaderboard-table th:last-child {
+            text-align: right;
+        }
+
+        /* SATIRLAR */
+
+        .leaderboard-table tbody tr {
+            background:
+                radial-gradient(circle at 0 0, var(--accent-soft), transparent 60%),
+                linear-gradient(135deg, #020617, #020617);
+            border-radius: 999px;
+            opacity: 0;
+            animation: fadeInRow 0.6s ease-out forwards;
+            transition:
+                transform 0.18s ease,
+                box-shadow 0.18s ease,
+                background 0.18s ease;
+        }
+
+        .leaderboard-table tbody tr:hover {
+            transform: translateY(-2px) scale(1.002);
+            box-shadow: 0 14px 36px rgba(15, 23, 42, 0.9);
+            background:
+                radial-gradient(circle at 0 0, rgba(56, 189, 248, 0.4), transparent 70%),
+                linear-gradient(135deg, #020617, #0b1120);
+        }
+
+        .leaderboard-table tbody tr td {
+            padding: 1.05vh 1.2vw;
+            vertical-align: middle;
+            border-bottom: 1px solid rgba(15, 23, 42, 0.95);
+        }
+
+        .leaderboard-table tr td:first-child {
+            border-top-left-radius: 999px;
+            border-bottom-left-radius: 999px;
+        }
+
+        .leaderboard-table tr td:last-child {
+            border-top-right-radius: 999px;
+            border-bottom-right-radius: 999px;
+        }
+
+        .rank-cell {
+            font-size: 1.7em;
+            text-align: center;
+            width: 7%;
+            font-weight: 800;
+        }
+
+        /* İlk 3 için özel görünüm */
+
+        tr.rank-1,
+        tr.rank-2,
+        tr.rank-3 {
+            border-left: 6px solid transparent;
+            box-shadow: 0 0 24px rgba(250, 204, 21, 0.18);
+        }
+
+        tr.rank-1 {
+            border-image: linear-gradient(180deg, #facc15, #f97316) 1;
+            background:
+                radial-gradient(circle at 0 0, rgba(250, 204, 21, 0.45), transparent 68%),
+                linear-gradient(135deg, #0b1120, #020617);
+        }
+
+        tr.rank-2 {
+            border-image: linear-gradient(180deg, #e5e7eb, #9ca3af) 1;
+            background:
+                radial-gradient(circle at 0 0, rgba(209, 213, 219, 0.45), transparent 68%),
+                linear-gradient(135deg, #020617, #020617);
+        }
+
+        tr.rank-3 {
+            border-image: linear-gradient(180deg, #fb923c, #f97316) 1;
+            background:
+                radial-gradient(circle at 0 0, rgba(248, 113, 113, 0.4), transparent 68%),
+                linear-gradient(135deg, #020617, #0f172a);
+        }
+
+        .name-cell {
+            font-weight: 700;
+            font-size: 1.25em;
+            letter-spacing: 0.02em;
+        }
+
+        .club-cell {
+            color: var(--text-muted);
+            font-size: 1em;
+        }
+
+        .score-cell {
+            text-align: right;
+            font-weight: 600;
+            font-size: 1.1em;
+        }
+
+        .total-score {
+            font-size: 1.5em;
+            font-weight: 800;
+        }
+
+        tr.rank-1 .total-score {
+            color: var(--gold-color);
+            text-shadow: 0 0 18px rgba(250, 204, 21, 0.5);
+        }
+
+        tr.rank-2 .total-score {
+            color: var(--silver-color);
+            text-shadow: 0 0 18px rgba(148, 163, 184, 0.5);
+        }
+
+        tr.rank-3 .total-score {
+            color: var(--bronze-color);
+            text-shadow: 0 0 18px rgba(248, 113, 113, 0.5);
+        }
+
+        @keyframes fadeInRow {
+            from { opacity: 0; transform: translateY(14px); }
+            to   { opacity: 1; transform: translateY(0); }
+        }
+
+        .leaderboard-table tbody tr:nth-child(n) {
+            animation-delay: calc(0.04s * var(--row-index, 1));
+        }
+
+        /* SAĞ ALTTaki KONTROLLER */
+
+        .controls {
+            position: fixed;
+            bottom: 16px;
+            right: 20px;
+            background:
+                radial-gradient(circle at top left, rgba(56, 189, 248, 0.34), transparent 60%),
+                rgba(15, 23, 42, 0.96);
+            backdrop-filter: blur(12px);
+            padding: 10px 16px;
+            border-radius: 999px;
+            border: 1px solid rgba(148, 163, 184, 0.6);
+            display: flex;
+            align-items: center;
+            gap: 14px;
+            z-index: 1000;
+            box-shadow: 0 18px 42px rgba(15, 23, 42, 1);
+            transition: opacity 0.25s ease, transform 0.25s ease;
+        }
+
+        .control-group {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            padding: 4px 10px;
+            border-radius: 999px;
+            background: rgba(15, 23, 42, 0.9);
+            border: 1px solid rgba(148, 163, 184, 0.5);
+        }
+
+        .controls label {
+            font-weight: 500;
+            font-size: 0.8em;
+            color: var(--text-muted);
+        }
+
+        .controls input {
+            width: 60px;
+            padding: 3px 6px;
+            border-radius: 999px;
+            border: none;
+            outline: none;
+            font-size: 0.8em;
+            background: #020617;
+            color: var(--text-color);
+            text-align: center;
+        }
+
+        .controls input:focus {
+            box-shadow: 0 0 0 1px var(--accent-color);
+        }
+
+        .controls button {
+            color: white;
+            background:
+                radial-gradient(circle at 0 0, rgba(56, 189, 248, 0.75), transparent 60%),
+                linear-gradient(135deg, #0ea5e9, #0369a1);
+            border: none;
+            padding: 8px 12px;
+            border-radius: 999px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 10px 30px rgba(59, 130, 246, 0.9);
+            transition: transform 0.15s ease, box-shadow 0.15s ease;
+        }
+
+        .controls button:hover {
+            transform: translateY(-1px) scale(1.03);
+            box-shadow: 0 16px 40px rgba(56, 189, 248, 1);
+        }
+
+        .controls button:active {
+            transform: translateY(1px) scale(0.98);
+            box-shadow: 0 6px 20px rgba(15, 23, 42, 1);
+        }
+
+        .controls .material-icons {
+            font-size: 1.3em;
+        }
+
+        @media (max-width: 1024px) {
+            body { font-size: 1.8vw; }
+            .header h1 { font-size: 5vw; }
+            .header #currentScreenHeader { font-size: 2.4vw; }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header class="header">
+            <h1 id="competitionNameHeader">Yarışma Yükleniyor...</h1>
+            <p id="currentScreenHeader">Canlı Puan Durumu</p>
+        </header>
+        <main class="content-area"></main>
+    </div>
+
+    <div class="controls" id="controlsPanel">
+        <div class="control-group">
+            <label for="rotationSpeed">Süre (sn):</label>
+            <input type="number" id="rotationSpeed" value="15" min="3">
+        </div>
+        <div class="control-group">
+            <label for="displayLimit">Limit:</label>
+            <input type="number" id="displayLimit" value="15" min="1">
+        </div>
+        <div class="control-group">
+            <label for="scrollSpeed">Hız (ms):</label>
+            <input type="number" id="scrollSpeed" value="35" min="10">
+        </div>
+        <button id="fullscreenBtn" title="Tam Ekran Modu">
+            <i class="material-icons">fullscreen</i>
+        </button>
+    </div>
+
+    <script>
+        const firebaseConfig = {
+            apiKey: "AIzaSyA5VNkBsZkZqaDr8YgOnhiGCDql9-lJ6Gk",
+            authDomain: "analig2025.firebaseapp.com",
+            databaseURL: "https://analig2025-default-rtdb.firebaseio.com"
+        };
+        firebase.initializeApp(firebaseConfig);
+        const db = firebase.database();
+
+        let activeCompetitionId = null;
+        let globalSporcular = [];
+        let rotationInterval;
+        let rotationSpeed = 15000;
+        let displayLimit = 15;
+        let currentSectionIndex = 0;
+        let lastCompetitionData = null;
+        let activeScrollIntervals = [];
+        let scrollSpeed = 35; // ms
+
+        const APPARATUS_CONFIG = {
+            minikler: { yer: 'Yer', atlama: 'Atlama', barfiks: 'Barfiks', denge: 'Denge' },
+            kucukler: { yer: 'Yer', atlama: 'Atlama', barfiks: 'Barfiks', denge: 'Denge', asimetrik_paralel: 'Asimetrik Paralel' }
+        };
+        const APPARATUS_PATHS = {
+            yer: 'yerPuanlari',
+            atlama: 'atlamaPuanlari',
+            barfiks: 'barfiksPuanlari',
+            denge: 'dengePuanlari',
+            asimetrik_paralel: 'asimetrikParalelPuanlari'
+        };
+
+        document.addEventListener('DOMContentLoaded', () => {
+            initializePage();
+
+            document.getElementById('rotationSpeed').addEventListener('change', (e) => {
+                rotationSpeed = parseInt(e.target.value, 10) * 1000;
+                startRotation();
+            });
+
+            document.getElementById('displayLimit').addEventListener('change', (e) => {
+                const newLimit = parseInt(e.target.value, 10);
+                if (newLimit > 0) {
+                    displayLimit = newLimit;
+                    if (lastCompetitionData) processAllData(lastCompetitionData);
+                }
+            });
+
+            document.getElementById('scrollSpeed').addEventListener('change', (e) => {
+                const newSpeed = parseInt(e.target.value, 10);
+                if (newSpeed >= 10) {
+                    scrollSpeed = newSpeed;
+                    startRotation(); // hız değişince scroll interval'lar yeniden kurulsun
+                }
+            });
+
+            document.getElementById('fullscreenBtn').addEventListener('click', toggleFullScreen);
+
+            // TAM EKRAN OLUNCA SAĞ ALTTAKİ KONTROL PANELİNİ GİZLE
+            document.addEventListener('fullscreenchange', () => {
+                const controls = document.getElementById('controlsPanel');
+                if (document.fullscreenElement) {
+                    controls.style.display = 'none';
+                } else {
+                    controls.style.display = 'flex';
+                }
+            });
+        });
+
+        async function initializePage() {
+            activeCompetitionId =
+                new URLSearchParams(window.location.search).get('competitionId') ||
+                localStorage.getItem('activeCompetitionId');
+
+            if (!activeCompetitionId) {
+                document.getElementById('competitionNameHeader').textContent = "Yarışma Seçilmedi!";
+                return;
+            }
+
+            await loadGlobalSporcular();
+            listenForCompetitionData();
+        }
+
+        async function loadGlobalSporcular() {
+            const snapshot = await db.ref('globalSporcular').once('value');
+            if (snapshot.exists()) globalSporcular = Object.values(snapshot.val());
+        }
+
+        function listenForCompetitionData() {
+            db.ref(`competitions/${activeCompetitionId}`).on('value', (snapshot) => {
+                if (!snapshot.exists()) return;
+                lastCompetitionData = snapshot.val();
+                document.getElementById('competitionNameHeader').textContent = lastCompetitionData.isim;
+                processAllData(lastCompetitionData);
+            });
+        }
+
+        function assignRanks(results, scoreKey) {
+            let lastScore = -Infinity;
+            let lastRank = 0;
+            results.forEach((result, index) => {
+                const currentScore = result[scoreKey] ?? 0;
+                if (currentScore !== lastScore) lastRank = index + 1;
+                result.rank = lastRank;
+                lastScore = currentScore;
+            });
+            return results;
+        }
+
+        function safeNumber(value) {
+            const num = typeof value === 'number' ? value : parseFloat(value);
+            return Number.isFinite(num) ? num : 0;
+        }
+
+        function processAllData(competitionData) {
+            activeScrollIntervals.forEach(clearInterval);
+            activeScrollIntervals = [];
+
+            const participantIds = Object.keys(competitionData.katilimcilar || {});
+            const scoresData = competitionData.cimnastikVerileri || {};
+            const category = competitionData.kategori || 'minikler';
+            const apparatuses = APPARATUS_CONFIG[category] || APPARATUS_CONFIG.minikler;
+            const contentArea = document.querySelector('.content-area');
+            contentArea.innerHTML = '';
+
+            const apparatusKeys = Object.keys(apparatuses);
+
+            // GENEL BİREYSEL
+            let allAroundResults = participantIds.map(id => {
+                const athlete = globalSporcular.find(s => String(s.id) === String(id));
+                if (!athlete) return null;
+
+                let totalScore = 0;
+                const scores = {};
+
+                apparatusKeys.forEach(key => {
+                    const path = APPARATUS_PATHS[key];
+                    const rawScore = scoresData[path]?.[id]?.sonPuan;
+                    const score = safeNumber(rawScore);
+                    scores[key] = score;
+                    totalScore += score;
+                });
+
+                return { ...athlete, scores, totalScore };
+            }).filter(Boolean).sort((a, b) => b.totalScore - a.totalScore);
+
+            allAroundResults = assignRanks(allAroundResults, 'totalScore');
+            contentArea.appendChild(
+                createSection(
+                    'allAroundSection',
+                    'Genel Bireysel Sıralama',
+                    createAllAroundTable(allAroundResults, apparatuses)
+                )
+            );
+
+            // TAKIM PUANLARI (en iyi 3 sporcu)
+            const teamScores = {};
+
+            allAroundResults.forEach(athlete => {
+                const teamName = athlete.kulup || 'Bireysel';
+                if (!teamScores[teamName]) {
+                    teamScores[teamName] = { athletes: [], scores: {} };
+                    apparatusKeys.forEach(key => (teamScores[teamName].scores[key] = []));
+                }
+                teamScores[teamName].athletes.push(athlete);
+                apparatusKeys.forEach(key => {
+                    const s = safeNumber(athlete.scores[key]);
+                    teamScores[teamName].scores[key].push(s);
+                });
+            });
+
+            let teamResults = Object.keys(teamScores).map(name => {
+                const team = teamScores[name];
+                let totalScore = 0;
+                const finalScores = {};
+
+                apparatusKeys.forEach(key => {
+                    const sortedScores = team.scores[key]
+                        .map(safeNumber)
+                        .sort((a, b) => b - a);
+                    const top3Scores = sortedScores.slice(0, 3);
+                    const apparatusTotal = top3Scores.reduce((sum, score) => sum + score, 0);
+                    finalScores[key] = apparatusTotal;
+                    totalScore += apparatusTotal;
+                });
+
+                return {
+                    name,
+                    totalScore,
+                    scores: finalScores,
+                    members: team.athletes.length
+                };
+            }).sort((a, b) => b.totalScore - a.totalScore);
+
+            teamResults = assignRanks(teamResults, 'totalScore');
+            contentArea.appendChild(
+                createSection(
+                    'teamSection',
+                    'Takım Sıralaması',
+                    createTeamTable(teamResults, apparatuses)
+                )
+            );
+
+            // ALETLERE GÖRE
+            apparatusKeys.forEach(key => {
+                const apparatusName = apparatuses[key];
+                let apparatusResults = participantIds.map(id => {
+                    const athlete = globalSporcular.find(s => String(s.id) === String(id));
+                    if (!athlete) return null;
+                    const rawScore = scoresData[APPARATUS_PATHS[key]]?.[id]?.sonPuan;
+                    const score = safeNumber(rawScore);
+                    return { ...athlete, score };
+                }).filter(Boolean).sort((a, b) => b.score - a.score);
+
+                apparatusResults = assignRanks(apparatusResults, 'score');
+                contentArea.appendChild(
+                    createSection(
+                        `apparatus-${key}-section`,
+                        `${apparatusName} Aleti Sıralaması`,
+                        createApparatusTable(apparatusResults)
+                    )
+                );
+            });
+
+            startRotation();
+        }
+
+        function createSection(id, title, tableElement) {
+            const section = document.createElement('div');
+            section.id = id;
+            section.className = 'rotating-section';
+            section.dataset.title = title;
+
+            const card = document.createElement('div');
+            card.className = 'content-card';
+            card.appendChild(tableElement);
+
+            section.appendChild(card);
+            return section;
+        }
+
+        // 3 SANİYE BEKLEDİKTEN SONRA OTOMATİK KAYDIRMA
+        function enableTableAutoScroll(table) {
+            const container = table.parentElement;
+
+            // DOM yükseklikleri otursun diye kısa bekleme
+            setTimeout(() => {
+                const isOverflowing = table.scrollHeight > container.clientHeight;
+                if (!isOverflowing) return;
+
+                const tbody = table.querySelector('tbody');
+                const originalContent = tbody.innerHTML;
+                tbody.innerHTML += originalContent;
+
+                let currentScrollTop = 0;
+
+                // *** BURADA 3 SANİYE BEKLE ***
+                setTimeout(() => {
+                    const interval = setInterval(() => {
+                        currentScrollTop++;
+                        if (currentScrollTop >= table.scrollHeight / 2) {
+                            currentScrollTop = 0;
+                        }
+                        container.scrollTop = currentScrollTop;
+                    }, scrollSpeed);
+
+                    activeScrollIntervals.push(interval);
+                }, 3000); // 3 sn bekleme
+            }, 100);
+        }
+
+        function createAllAroundTable(results, apparatuses) {
+            const tableContainer = document.createElement('div');
+            tableContainer.className = 'table-container';
+
+            const table = document.createElement('table');
+            table.className = 'leaderboard-table';
+
+            let headersHTML = '<tr><th>Sıra</th><th>Sporcu</th><th>Kulüp</th>';
+            Object.values(apparatuses).forEach(name => {
+                headersHTML += `<th>${name}</th>`;
+            });
+            headersHTML += '<th>Toplam</th></tr>';
+
+            table.innerHTML = `<thead>${headersHTML}</thead>`;
+            const tbody = document.createElement('tbody');
+
+            results.slice(0, displayLimit).forEach((result, index) => {
+                const rank = result.rank;
+                let scoresHTML = '';
+
+                Object.keys(apparatuses).forEach(key => {
+                    const val = safeNumber(result.scores[key]);
+                    scoresHTML += `<td class="score-cell">${val.toFixed(3)}</td>`;
+                });
+
+                const row = tbody.insertRow();
+                row.style.setProperty('--row-index', index + 1);
+                if (rank <= 3) row.className = `rank-${rank}`;
+
+                const total = safeNumber(result.totalScore);
+
+                row.innerHTML = `
+                    <td class="rank-cell">${rank}</td>
+                    <td class="name-cell">${result.soyadAd}</td>
+                    <td class="club-cell">${result.kulup}</td>
+                    ${scoresHTML}
+                    <td class="score-cell total-score">${total.toFixed(3)}</td>
+                `;
+            });
+
+            table.appendChild(tbody);
+            tableContainer.appendChild(table);
+            return tableContainer;
+        }
+
+        function createTeamTable(results, apparatuses) {
+            const tableContainer = document.createElement('div');
+            tableContainer.className = 'table-container';
+
+            const table = document.createElement('table');
+            table.className = 'leaderboard-table';
+
+            let headersHTML = '<tr><th>Sıra</th><th>Takım</th>';
+            Object.values(apparatuses).forEach(name => {
+                headersHTML += `<th>${name}</th>`;
+            });
+            headersHTML += '<th>Toplam Puan</th></tr>';
+
+            table.innerHTML = `<thead>${headersHTML}</thead>`;
+            const tbody = document.createElement('tbody');
+
+            results.slice(0, displayLimit).forEach((result, index) => {
+                const rank = result.rank;
+                let scoresHTML = '';
+
+                Object.keys(apparatuses).forEach(key => {
+                    const val = safeNumber(result.scores[key]);
+                    scoresHTML += `<td class="score-cell">${val.toFixed(3)}</td>`;
+                });
+
+                const row = tbody.insertRow();
+                row.style.setProperty('--row-index', index + 1);
+                if (rank <= 3) row.className = `rank-${rank}`;
+
+                const total = safeNumber(result.totalScore);
+
+                row.innerHTML = `
+                    <td class="rank-cell">${rank}</td>
+                    <td class="name-cell">${result.name}</td>
+                    ${scoresHTML}
+                    <td class="score-cell total-score">${total.toFixed(3)}</td>
+                `;
+            });
+
+            table.appendChild(tbody);
+            tableContainer.appendChild(table);
+            return tableContainer;
+        }
+
+        function createApparatusTable(results) {
+            const tableContainer = document.createElement('div');
+            tableContainer.className = 'table-container';
+
+            const table = document.createElement('table');
+            table.className = 'leaderboard-table';
+            table.innerHTML = `
+                <thead>
+                    <tr>
+                        <th>Sıra</th>
+                        <th>Sporcu</th>
+                        <th>Kulüp</th>
+                        <th>Puan</th>
+                    </tr>
+                </thead>
+            `;
+
+            const tbody = document.createElement('tbody');
+
+            results.slice(0, displayLimit).forEach((result, index) => {
+                const rank = result.rank;
+                const scoreVal = safeNumber(result.score);
+
+                const row = tbody.insertRow();
+                row.style.setProperty('--row-index', index + 1);
+                if (rank <= 3) row.className = `rank-${rank}`;
+
+                row.innerHTML = `
+                    <td class="rank-cell">${rank}</td>
+                    <td class="name-cell">${result.soyadAd}</td>
+                    <td class="club-cell">${result.kulup}</td>
+                    <td class="score-cell total-score">${scoreVal.toFixed(3)}</td>
+                `;
+            });
+
+            table.appendChild(tbody);
+            tableContainer.appendChild(table);
+            return tableContainer;
+        }
+
+        function startRotation() {
+            clearInterval(rotationInterval);
+            activeScrollIntervals.forEach(clearInterval);
+            activeScrollIntervals = [];
+
+            const sections = document.querySelectorAll('.rotating-section');
+            if (sections.length === 0) return;
+
+            const rotate = () => {
+                activeScrollIntervals.forEach(clearInterval);
+                activeScrollIntervals = [];
+
+                sections.forEach(s => s.classList.remove('active'));
+                const currentSection = sections[currentSectionIndex];
+                currentSection.classList.add('active');
+
+                document.getElementById('currentScreenHeader').textContent =
+                    currentSection.dataset.title;
+
+                const tableToScroll = currentSection.querySelector('.leaderboard-table');
+                if (tableToScroll) {
+                    const container = tableToScroll.parentElement;
+                    setTimeout(() => {
+                        if (tableToScroll.scrollHeight > container.clientHeight) {
+                            enableTableAutoScroll(tableToScroll);
+                        }
+                    }, 200);
+                }
+
+                currentSectionIndex = (currentSectionIndex + 1) % sections.length;
+            };
+
+            rotate();
+            rotationInterval = setInterval(rotate, rotationSpeed);
+        }
+
+        function toggleFullScreen() {
+            if (!document.fullscreenElement) {
+                document.documentElement.requestFullscreen().catch(err =>
+                    alert(`Tam ekran hatası: ${err.message}`)
+                );
+            } else if (document.exitFullscreen) {
+                document.exitFullscreen();
+            }
+        }
+    </script>
+</body>
+</html>

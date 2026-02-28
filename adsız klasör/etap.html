@@ -1,0 +1,587 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Yarışma Seçimi - Takım Karşılaştırması</title>
+    <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
+    <script src="https://www.gstatic.com/firebasejs/9.6.7/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.6.7/firebase-database-compat.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Oswald:wght@500;700&family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-gradient: radial-gradient(circle at top left, #22d3ee 0%, #0f172a 45%, #020617 100%);
+            --card-color: rgba(15, 23, 42, 0.96);
+            --primary-color: #22d3ee;
+            --accent-color: #a855f7;
+            --text-color: #e5e7eb;
+            --text-muted: #9ca3af;
+            --border-color: rgba(148, 163, 184, 0.4);
+            --gold-color: #facc15;
+            --silver-color: #e5e7eb; /* Yeni Eklendi */
+            --bronze-color: #f97316; /* Yeni Eklendi */
+            --border-radius: 16px;
+            --shadow-soft: 0 18px 40px rgba(15, 23, 42, 0.9);
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background: var(--bg-gradient);
+            color: var(--text-color);
+            line-height: 1.6;
+            min-height: 100vh;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 20px 16px 40px;
+        }
+
+        .header {
+            margin: -10px -16px 28px;
+            padding: 28px 16px 40px;
+            background: radial-gradient(circle at top, rgba(34, 211, 238, 0.2), rgba(15, 23, 42, 0.95));
+            border-bottom: 1px solid rgba(148, 163, 184, 0.35);
+            box-shadow: var(--shadow-soft);
+        }
+
+        .header h1 {
+            font-family: 'Oswald', sans-serif;
+            font-size: clamp(2rem, 3vw, 2.8rem);
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
+            text-align: center;
+            background: linear-gradient(to right, #22d3ee, #a855f7, #f97316);
+            -webkit-background-clip: text;
+            color: transparent;
+        }
+
+        .content-card {
+            background-color: var(--card-color);
+            border-radius: var(--border-radius);
+            box-shadow: var(--shadow-soft);
+            border: 1px solid var(--border-color);
+            padding: 22px 20px 26px;
+            margin-bottom: 24px;
+            backdrop-filter: blur(16px);
+        }
+
+        .content-card h2 {
+            font-family: 'Oswald', sans-serif;
+            font-size: 1.4rem;
+            color: var(--primary-color);
+            margin-bottom: 20px;
+            padding-bottom: 12px;
+            border-bottom: 1px solid rgba(148, 163, 184, 0.35);
+        }
+
+        .action-button {
+            padding: 12px 24px;
+            border-radius: 8px;
+            font-weight: 600;
+            border: none;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            transition: transform 0.25s;
+            margin-bottom: 20px;
+        }
+
+        .action-button.primary {
+            background: linear-gradient(135deg, #22d3ee, #0ea5e9);
+            color: #0f172a;
+        }
+
+        .action-button.primary:hover {
+            transform: scale(1.02);
+        }
+
+        .action-button.excel {
+            background: linear-gradient(135deg, #22c55e, #4ade80);
+            color: #0f172a;
+        }
+
+        .competition-list {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+            gap: 12px;
+            margin: 20px 0;
+        }
+
+        .competition-item {
+            background: rgba(34, 211, 238, 0.08);
+            border: 1px solid rgba(34, 211, 238, 0.3);
+            border-radius: 8px;
+            padding: 12px;
+            cursor: pointer;
+            transition: all 0.25s;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .competition-item:hover {
+            background: rgba(34, 211, 238, 0.15);
+            border-color: rgba(34, 211, 238, 0.6);
+        }
+
+        .competition-item input[type="checkbox"] {
+            width: 18px;
+            height: 18px;
+            cursor: pointer;
+            accent-color: var(--primary-color);
+        }
+
+        .competition-item label {
+            flex: 1;
+            cursor: pointer;
+        }
+
+        .comp-name {
+            font-weight: 600;
+            display: block;
+        }
+
+        .comp-info {
+            font-size: 0.85rem;
+            color: var(--text-muted);
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            background: rgba(15, 23, 42, 0.8);
+            border-radius: 8px;
+            overflow: hidden;
+            margin-top: 20px;
+        }
+
+        thead {
+            background: rgba(34, 211, 238, 0.15);
+        }
+
+        th {
+            padding: 14px;
+            text-align: left;
+            font-weight: 700;
+            color: var(--primary-color);
+            border-bottom: 2px solid var(--border-color);
+        }
+
+        td {
+            padding: 12px 14px;
+            border-bottom: 1px solid rgba(148, 163, 184, 0.2);
+        }
+
+        tr:hover {
+            background: rgba(34, 211, 238, 0.08);
+        }
+
+        tr.gold { background: rgba(250, 204, 21, 0.1); }
+        tr.gold td { color: var(--gold-color); font-weight: 600; }
+
+        tr.silver { background: rgba(229, 231, 235, 0.05); }
+        tr.silver td { color: var(--silver-color); font-weight: 600; }
+
+        tr.bronze { background: rgba(251, 146, 60, 0.05); }
+        tr.bronze td { color: var(--bronze-color); font-weight: 600; }
+
+        .text-center { text-align: center; font-weight: 600; }
+        .score-cell { background: rgba(34, 211, 238, 0.05); }
+        .total-cell { background: rgba(168, 85, 247, 0.1); font-weight: 700; }
+
+        .message {
+            padding: 20px;
+            border-radius: 8px;
+            margin: 20px 0;
+        }
+
+        .message.loading {
+            background: rgba(34, 211, 238, 0.1);
+            color: var(--primary-color);
+        }
+
+        .message.error {
+            background: rgba(249, 115, 115, 0.1);
+            color: #fca5a5;
+        }
+
+        .message.success {
+            background: rgba(74, 222, 128, 0.1);
+            color: #86efac;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header class="header">
+            <h1>Takım Karşılaştırması</h1>
+        </header>
+
+        <div class="content-card">
+            <h2>1. Yarışmaları Seçin</h2>
+            <div id="competitionList" class="competition-list"></div>
+        </div>
+
+        <div class="content-card">
+            <button onclick="calculateResults()" class="action-button primary">
+                <i class="material-icons">bar_chart</i> Sonuçları Hesapla
+            </button>
+            <button onclick="exportToExcel()" class="action-button excel" style="display:none;" id="exportBtn">
+                <i class="material-icons">download</i> Excel İndir
+            </button>
+
+            <h2>2. Takım Puanları</h2>
+            <div id="message"></div>
+            <div id="tableContainer" style="display: none; overflow-x: auto;">
+                <table id="resultTable">
+                    <thead id="tableHead"></thead>
+                    <tbody id="tableBody"></tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // *** DİKKAT: Firebase yapılandırma bilgileri orijinal dosyadan korundu ***
+        const firebaseConfig = {
+            apiKey: "AIzaSyA5VNkBsZkZqaDr8YgOnhiGCDql9-lJ6Gk",
+            authDomain: "analig2025.firebaseapp.com",
+            databaseURL: "https://analig2025-default-rtdb.firebaseio.com"
+        };
+
+        firebase.initializeApp(firebaseConfig);
+        const db = firebase.database();
+
+        const APPARATUS_KEYS = ['yer', 'atlama', 'barfiks', 'denge', 'asimetrik_paralel'];
+        const APPARATUS_PATHS = {
+            yer: 'yerPuanlari',
+            atlama: 'atlamaPuanlari',
+            barfiks: 'barfiksPuanlari',
+            denge: 'dengePuanlari',
+            asimetrik_paralel: 'asimetrikParalelPuanlari'
+        };
+
+        let allCompetitions = [];
+        let globalSporcular = {};
+        let cachedResults = {};
+
+        function showMessage(text, type = 'info') {
+            const msg = document.getElementById('message');
+            msg.textContent = text;
+            msg.className = `message ${type}`;
+        }
+
+        async function loadInitialData() {
+            try {
+                showMessage('Veriler yükleniyor...', 'loading');
+
+                // globalSporcular'ı yükle
+                const sporcularSnap = await db.ref('globalSporcular').once('value');
+                if (sporcularSnap.exists()) {
+                    const rawSporcular = sporcularSnap.val();
+                    // ID field'ına göre yeniden indeksle
+                    Object.values(rawSporcular).forEach(athlete => {
+                        if (athlete.id) {
+                            globalSporcular[athlete.id] = athlete;
+                            globalSporcular[String(athlete.id)] = athlete;
+                        }
+                    });
+                }
+                console.log('Sporcular yüklendi:', Object.keys(globalSporcular).length);
+
+                // Tüm yarışmaları yükle
+                const compSnap = await db.ref('competitions').once('value');
+                if (!compSnap.exists()) {
+                    showMessage('Yarışma bulunamadı!', 'error');
+                    return;
+                }
+
+                allCompetitions = [];
+                compSnap.forEach(child => {
+                    const comp = child.val();
+                    allCompetitions.push({
+                        id: child.key,
+                        isim: comp.isim || 'İsimsiz',
+                        kategori: comp.kategori || '-',
+                        sporcu_sayisi: Object.keys(comp.katilimcilar || {}).length
+                    });
+                });
+
+                allCompetitions.sort((a, b) => a.isim.localeCompare(b.isim));
+                console.log('Yarışmalar yüklendi:', allCompetitions.length);
+
+                displayCompetitions();
+                showMessage('');
+
+            } catch (error) {
+                console.error('Hata:', error);
+                showMessage('Hata: ' + error.message, 'error');
+            }
+        }
+
+        function displayCompetitions() {
+            const list = document.getElementById('competitionList');
+            list.innerHTML = '';
+
+            allCompetitions.forEach(comp => {
+                const div = document.createElement('div');
+                div.className = 'competition-item';
+                div.innerHTML = `
+                    <input type="checkbox" id="comp_${comp.id}" value="${comp.id}">
+                    <label for="comp_${comp.id}">
+                        <span class="comp-name">${comp.isim}</span>
+                        <span class="comp-info">${comp.kategori} • ${comp.sporcu_sayisi} sporcu</span>
+                    </label>
+                `;
+                list.appendChild(div);
+            });
+        }
+
+        async function calculateResults() {
+            const checked = Array.from(document.querySelectorAll('.competition-item input[type="checkbox"]:checked'));
+            const selectedIds = checked.map(cb => cb.value);
+
+            console.log('Seçilen yarışmalar:', selectedIds);
+
+            if (selectedIds.length === 0) {
+                showMessage('Lütfen en az bir yarışma seçin!', 'error');
+                document.getElementById('tableContainer').style.display = 'none';
+                return;
+            }
+
+            showMessage('Sonuçlar hesaplanıyor...', 'loading');
+
+            try {
+                cachedResults = {};
+
+                // Her yarışma için takım puanlarını hesapla
+                for (const compId of selectedIds) {
+                    const compSnap = await db.ref(`competitions/${compId}`).once('value');
+                    if (!compSnap.exists()) {
+                        console.warn('Yarışma bulunamadı:', compId);
+                        continue;
+                    }
+
+                    const comp = compSnap.val();
+                    // *** HESAPLAMA MANTIĞI DÜZELTİLDİ ***
+                    const teamScores = calculateTeamScoresForCompetition(comp);
+                    cachedResults[compId] = {
+                        name: comp.isim,
+                        scores: teamScores
+                    };
+                }
+
+                console.log('Hesaplanan sonuçlar:', cachedResults);
+                displayResults(selectedIds);
+                showMessage('Hesaplama tamamlandı.', 'success');
+                document.getElementById('exportBtn').style.display = 'inline-flex';
+
+            } catch (error) {
+                console.error('Hata:', error);
+                showMessage('Hata: ' + error.message, 'error');
+            }
+        }
+
+        /**
+         * YENİ HESAPLAMA MANTIĞI: Her alette en yüksek 3 sporcunun puanını toplayarak takım puanını bulur.
+         */
+        function calculateTeamScoresForCompetition(comp) {
+            const participants = Object.keys(comp.katilimcilar || {});
+            const scoresData = comp.cimnastikVerileri || {};
+
+            console.log('===== YENİ HESAPLAMA BAŞLADI (Alet Bazlı) =====');
+
+            // Yeni yapı: Takım -> Alet -> [Puanlar]
+            const teamApparatusScores = {}; 
+
+            participants.forEach(athleteId => {
+                const athlete = globalSporcular[athleteId] || globalSporcular[String(athleteId)];
+
+                if (!athlete || !athlete.kulup) {
+                    return;
+                }
+
+                const team = athlete.kulup;
+
+                if (!teamApparatusScores[team]) {
+                    teamApparatusScores[team] = {
+                        name: team,
+                        city: athlete.sehir || 'N/A',
+                        apparatusScores: {} // { yer: [], atlama: [], ... }
+                    };
+                    APPARATUS_KEYS.forEach(key => {
+                        teamApparatusScores[team].apparatusScores[key] = [];
+                    });
+                }
+
+                // HER SPORCUNUN HER ALETTEKİ PUANINI İLGİLİ LİSTEYE EKLE
+                APPARATUS_KEYS.forEach(key => {
+                    const path = APPARATUS_PATHS[key];
+                    const scoreData = scoresData[path]?.[athleteId];
+                    if (scoreData?.sonPuan) {
+                        const score = parseFloat(scoreData.sonPuan);
+                        // Puan 0'dan büyük ve geçerli bir sayı olmalı
+                        if (!isNaN(score) && score > 0) {
+                            teamApparatusScores[team].apparatusScores[key].push(score);
+                        }
+                    }
+                });
+            });
+
+            // Alet puanlarını topla ve nihai takım puanını hesapla (En iyi 3 puan toplanır)
+            const result = {};
+            for (const team in teamApparatusScores) {
+                let totalTeamScore = 0;
+                let totalAthleteCount = 0;
+
+                APPARATUS_KEYS.forEach(key => {
+                    // Aletteki en yüksek 3 puanı al ve topla
+                    const topScores = teamApparatusScores[team].apparatusScores[key]
+                        .sort((a, b) => b - a)
+                        .slice(0, 3); 
+                    
+                    const apparatusTotal = topScores.reduce((s, v) => s + v, 0);
+                    totalTeamScore += apparatusTotal;
+                    // Kaç sporcunun bu yarışmada puanı var (sadece ilk alet için değil, toplamı)
+                    totalAthleteCount += teamApparatusScores[team].apparatusScores[key].length;
+                });
+                
+                // NOT: Gerçek sporcu sayısı hesaplanırken sadece puanı olanları saymak gerekir. 
+                // Önceki kodda bu biraz karışık olduğu için, bu yeni kodda yalnızca 
+                // o alette puanı olanların sayısını tutmaya devam ettik.
+
+                result[team] = {
+                    name: team,
+                    city: teamApparatusScores[team].city,
+                    score: parseFloat(totalTeamScore.toFixed(3)),
+                    // Tüm aletlerde toplam kaç puan girişi olduğunu tutuyor
+                    sporcu_sayisi: totalAthleteCount 
+                };
+            }
+
+            return result;
+        }
+
+        function displayResults(selectedIds) {
+            // Tüm takımları topla
+            const allTeams = new Set();
+            selectedIds.forEach(compId => {
+                Object.keys(cachedResults[compId]?.scores || {}).forEach(t => allTeams.add(t));
+            });
+
+            // Tablo başlığı
+            let headerHtml = '<tr><th class="text-center">S.N.</th><th>Takım</th><th>Şehir</th>';
+            selectedIds.forEach(compId => {
+                const compName = cachedResults[compId].name;
+                headerHtml += `<th class="score-cell text-center">${compName}</th>`;
+            });
+            headerHtml += '<th class="total-cell text-center">TOPLAM</th></tr>';
+            document.getElementById('tableHead').innerHTML = headerHtml;
+
+            // Veri hazırla
+            const data = Array.from(allTeams).map(team => {
+                let total = 0;
+                const scores = {};
+                let city = 'N/A'; // Şehir bilgisini al
+                
+                selectedIds.forEach(compId => {
+                    const teamData = cachedResults[compId].scores[team];
+                    scores[compId] = teamData?.score || 0;
+                    total += scores[compId];
+                    if (teamData?.city) {
+                         city = teamData.city;
+                    }
+                });
+
+                return {
+                    team,
+                    city: city,
+                    scores,
+                    total: parseFloat(total.toFixed(3))
+                };
+            }).sort((a, b) => b.total - a.total);
+
+            // Tabloyu doldur
+            const tbody = document.getElementById('tableBody');
+            tbody.innerHTML = '';
+
+            data.forEach((item, idx) => {
+                const row = document.createElement('tr');
+                const rank = idx + 1;
+
+                // İlk 3 dereceye renk verme
+                if (rank === 1) {
+                    row.className = 'gold';
+                } else if (rank === 2) {
+                    row.className = 'silver';
+                } else if (rank === 3) {
+                    row.className = 'bronze';
+                }
+
+                let html = `
+                    <td class="text-center">${rank}</td>
+                    <td>${item.team}</td>
+                    <td>${item.city}</td>
+                `;
+
+                selectedIds.forEach(compId => {
+                    html += `<td class="score-cell text-center">${item.scores[compId].toFixed(3)}</td>`;
+                });
+
+                html += `<td class="total-cell text-center">${item.total.toFixed(3)}</td>`;
+                row.innerHTML = html;
+                tbody.appendChild(row);
+            });
+
+            document.getElementById('tableContainer').style.display = 'block';
+        }
+
+        function exportToExcel() {
+            if (Object.keys(cachedResults).length === 0) {
+                alert('Lütfen önce sonuçları hesaplayın!');
+                return;
+            }
+
+            const selectedIds = Array.from(document.querySelectorAll('.competition-item input[type="checkbox"]:checked'))
+                .map(cb => cb.value);
+
+            const allTeams = new Set();
+            selectedIds.forEach(compId => {
+                Object.keys(cachedResults[compId]?.scores || {}).forEach(t => allTeams.add(t));
+            });
+
+            const data = Array.from(allTeams).map((team, idx) => {
+                const row = { 'S.N.': idx + 1, 'Takım': team, 'Şehir': 'N/A' };
+                let total = 0;
+
+                selectedIds.forEach(compId => {
+                    const teamData = cachedResults[compId].scores[team];
+                    // Şehir bilgisini al
+                    if (teamData?.city && row['Şehir'] === 'N/A') {
+                        row['Şehir'] = teamData.city;
+                    }
+                    const score = teamData?.score || 0;
+                    row[cachedResults[compId].name] = score.toFixed(3);
+                    total += score;
+                });
+
+                row['TOPLAM'] = total.toFixed(3);
+                return row;
+            }).sort((a, b) => parseFloat(b['TOPLAM']) - parseFloat(a['TOPLAM']));
+
+            const ws = XLSX.utils.json_to_sheet(data);
+            const wb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(wb, ws, "Takım Karşılaştırması");
+            XLSX.writeFile(wb, "Takim_Karsilastirma.xlsx");
+        }
+
+        document.addEventListener('DOMContentLoaded', loadInitialData);
+    </script>
+</body>
+</html>

@@ -1,0 +1,669 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TV Yayın Ekranı - İSİM SOYAD</title>
+
+    <script src="https://www.gstatic.com/firebasejs/9.6.7/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.6.7/firebase-database-compat.js"></script>
+
+    <link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@400;600;700&family=Oswald:wght@500;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+    <style>
+        :root {
+            --bg-color: #050505;
+            --panel-bg: rgba(20, 20, 20, 0.95);
+            --accent: #00f2ff;
+            --secondary: #7000ff;
+            --text: #ffffff;
+            --gold: #ffcc00;
+            --silver: #e0e0e0;
+            --bronze: #cd7f32;
+            
+            /* === BOYUT AYARLARI === */
+            --header-height: 9vh;      
+            --table-header-height: 8vh; 
+            --row-height: 10vh;        
+            --footer-height: 10px;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            background: var(--bg-color);
+            background-image: 
+                radial-gradient(circle at 10% 20%, rgba(112, 0, 255, 0.2) 0%, transparent 40%),
+                radial-gradient(circle at 90% 80%, rgba(0, 242, 255, 0.2) 0%, transparent 40%);
+            color: var(--text);
+            font-family: 'Chakra Petch', sans-serif;
+            height: 100vh;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+        }
+
+        /* === HEADER === */
+        header {
+            height: var(--header-height);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 2vw;
+            border-bottom: 2px solid rgba(255, 255, 255, 0.1);
+            background: rgba(0,0,0,0.8);
+            backdrop-filter: blur(15px);
+            z-index: 20;
+        }
+
+        .brand h1 {
+            font-family: 'Oswald', sans-serif;
+            font-size: 2.5vw;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            background: linear-gradient(90deg, #fff, var(--accent));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            line-height: 1;
+        }
+
+        .brand span {
+            color: var(--secondary);
+            font-weight: 700;
+            font-size: 0.9vw;
+            letter-spacing: 3px;
+            display: block;
+            margin-top: 2px;
+        }
+
+        .status-badge {
+            background: rgba(255, 0, 0, 0.2);
+            border: 1px solid red;
+            color: #ff4d4d;
+            padding: 0.5vh 1.5vw;
+            border-radius: 6px;
+            font-weight: 700;
+            font-size: 1vw;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .blink-dot {
+            width: 10px;
+            height: 10px;
+            background: red;
+            border-radius: 50%;
+            animation: blink 1s infinite;
+        }
+        @keyframes blink { 50% { opacity: 0; } }
+
+        /* === MAIN STAGE === */
+        #stage {
+            flex: 1;
+            position: relative;
+            overflow: hidden; 
+        }
+
+        .slide {
+            position: absolute;
+            top: 0; left: 0; right: 0; bottom: 0;
+            padding: 1.5vh 2vw;
+            opacity: 0;
+            transform: scale(0.99);
+            transition: opacity 0.8s ease, transform 0.8s ease;
+            pointer-events: none;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .slide.active {
+            opacity: 1;
+            transform: scale(1);
+            pointer-events: auto;
+        }
+
+        .slide-header {
+            display: flex;
+            align-items: center;
+            gap: 1.5vw;
+            margin-bottom: 1vh;
+            padding-bottom: 0.8vh;
+            border-bottom: 1px solid var(--accent);
+            flex-shrink: 0;
+        }
+
+        .slide-header i {
+            font-size: 2vw;
+            color: var(--accent);
+            text-shadow: 0 0 10px var(--accent);
+        }
+
+        .slide-header h2 {
+            font-family: 'Oswald', sans-serif;
+            font-size: 2vw;
+            text-transform: uppercase;
+        }
+
+        /* === TABLO === */
+        .table-container {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            background: var(--panel-bg);
+            border-radius: 12px;
+            overflow: hidden;
+            border: 1px solid rgba(255,255,255,0.1);
+        }
+
+        .fixed-header-wrapper {
+            flex-shrink: 0;
+            background: #000;
+            border-bottom: 2px solid rgba(255, 255, 255, 0.2);
+            z-index: 5;
+        }
+
+        .scroll-viewport {
+            flex: 1;
+            overflow: hidden;
+            position: relative;
+        }
+
+        .scroll-content {
+            will-change: transform;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            table-layout: fixed;
+        }
+
+        th {
+            color: var(--accent);
+            text-align: left;
+            padding: 0 1vw;
+            height: var(--table-header-height);
+            font-size: 1.2vw;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            white-space: nowrap;
+            vertical-align: middle;
+        }
+
+        .apparatus-img {
+            height: 6vh; 
+            width: auto;
+            display: block;
+            margin: 0 auto;
+            filter: invert(1);
+            mix-blend-mode: screen;
+            opacity: 0.9;
+        }
+
+        tbody tr {
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+            height: var(--row-height); 
+        }
+        
+        tbody tr:nth-child(even) { background: rgba(255, 255, 255, 0.03); }
+
+        td {
+            padding: 0 1vw;
+            font-size: 2.2vw;
+            font-weight: 600;
+            vertical-align: middle;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        /* Puan hücreleri kesilmesin */
+        td.score-cell, td.total-cell {
+            overflow: visible !important; 
+            text-overflow: clip !important;
+        }
+
+        .center { text-align: center !important; }
+        .right { text-align: right !important; }
+
+        .rank-box {
+            width: 6.5vh; 
+            height: 6.5vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: rgba(255,255,255,0.1);
+            border-radius: 8px;
+            font-weight: 800;
+            font-size: 1.3em;
+            font-family: 'Oswald', sans-serif;
+        }
+
+        .rank-1 .rank-box { background: var(--gold); color: black; box-shadow: 0 0 20px var(--gold); transform: scale(1.05); }
+        .rank-2 .rank-box { background: var(--silver); color: black; }
+        .rank-3 .rank-box { background: var(--bronze); color: white; }
+
+        .score { 
+            font-family: 'Oswald', sans-serif; 
+            letter-spacing: 1px; 
+            color: #fff; 
+            font-size: 2.0vw; 
+        }
+        
+        .total { 
+            color: var(--accent); 
+            font-weight: 800; 
+            font-size: 2.6vw; 
+            text-shadow: 0 0 10px rgba(0, 242, 255, 0.5);
+        }
+
+        /* === FOOTER & CONTROLS === */
+        footer {
+            height: var(--footer-height);
+            background: #000;
+            position: relative;
+            z-index: 30;
+        }
+
+        #progressBar {
+            height: 100%;
+            width: 0;
+            background: linear-gradient(90deg, var(--accent), var(--secondary));
+            box-shadow: 0 0 20px var(--accent);
+        }
+
+        .controls {
+            position: fixed;
+            bottom: 30px;
+            right: 30px;
+            z-index: 9999;
+            opacity: 0.1;
+            transition: opacity 0.3s ease, transform 0.3s ease;
+        }
+        .controls:hover { opacity: 1; transform: scale(1.1); }
+        
+        .fs-btn {
+            width: 60px;
+            height: 60px;
+            border-radius: 50%;
+            border: 2px solid var(--accent);
+            background: rgba(0, 0, 0, 0.8);
+            color: var(--accent);
+            font-size: 1.5rem;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 0 20px rgba(0, 242, 255, 0.4);
+            backdrop-filter: blur(5px);
+        }
+
+        #loader {
+            position: fixed;
+            inset: 0;
+            background: black;
+            z-index: 100;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            transition: opacity 0.5s;
+        }
+        .hidden { opacity: 0; pointer-events: none; }
+    </style>
+</head>
+<body>
+
+    <div id="loader">
+        <i class="fas fa-circle-notch fa-spin fa-3x" style="color: var(--accent); margin-bottom: 20px;"></i>
+        <h2>VERİLER HAZIRLANIYOR...</h2>
+    </div>
+
+    <header>
+        <div class="brand">
+            <h1 id="compTitle">YARIŞMA YÜKLENİYOR</h1>
+            <span>CANLI SKOR SİSTEMİ</span>
+        </div>
+        <div class="status-badge">
+            <div class="blink-dot"></div> CANLI
+        </div>
+    </header>
+
+    <div id="stage"></div>
+
+    <div class="controls">
+        <button class="fs-btn" id="fsBtn" onclick="toggleFullScreen()" title="Tam Ekran">
+            <i class="fas fa-expand"></i>
+        </button>
+    </div>
+
+    <footer>
+        <div id="progressBar"></div>
+    </footer>
+
+    <script>
+        const CONFIG = {
+            fixedDuration: 30000,
+            scrollSpeed: 45,
+            firebase: {
+                apiKey: "AIzaSyA5VNkBsZkZqaDr8YgOnhiGCDql9-lJ6Gk",
+                authDomain: "analig2025.firebaseapp.com",
+                databaseURL: "https://analig2025-default-rtdb.firebaseio.com"
+            }
+        };
+
+        const APPARATUS_DICT = {
+            'yerPuanlari': { name: 'YER', img: 'image_6a9179.png' },
+            'atlamaPuanlari': { name: 'ATLAMA', img: 'image_6a983d.png' },
+            'dengePuanlari': { name: 'DENGE', img: 'image_6a9479.png' },
+            'barfiksPuanlari': { name: 'BARFİKS', img: 'image_6a94a0.png' },
+            'paralelPuanlari': { name: 'PARALEL', img: 'image_6a94a0.png' },
+            'asimetrikParalelPuanlari': { name: 'ASİMETRİK', img: 'image_6a94a0.png' },
+            'halkaPuanlari': { name: 'HALKA', img: null },
+            'kulpluPuanlari': { name: 'KULPLU', img: 'image_6a9479.png' }
+        };
+
+        let appState = {
+            slides: [], 
+            currentSlideIndex: -1,
+            globalAthletes: [],
+            timeoutId: null
+        };
+
+        function init() {
+            firebase.initializeApp(CONFIG.firebase);
+            const db = firebase.database();
+
+            db.ref('globalSporcular').once('value').then(snap => {
+                appState.globalAthletes = snap.val() ? Object.values(snap.val()) : [];
+                
+                const urlParams = new URLSearchParams(window.location.search);
+                const compId = urlParams.get('competitionId') || localStorage.getItem('activeCompetitionId');
+
+                if(compId) {
+                    db.ref(`competitions/${compId}`).on('value', handleDataUpdate);
+                } else {
+                    document.getElementById('compTitle').innerText = "YARIŞMA ID BULUNAMADI";
+                    hideLoader();
+                }
+            });
+
+            document.addEventListener('keydown', (e) => {
+                if(e.key === 'f' || e.key === 'F') toggleFullScreen();
+            });
+        }
+
+        function hideLoader() { document.getElementById('loader').classList.add('hidden'); }
+
+        function toggleFullScreen() {
+            const btnIcon = document.querySelector('#fsBtn i');
+            if (!document.fullscreenElement) {
+                document.documentElement.requestFullscreen().catch(e => console.log(e));
+                btnIcon.classList.replace('fa-expand', 'fa-compress');
+            } else {
+                if (document.exitFullscreen) {
+                    document.exitFullscreen();
+                    btnIcon.classList.replace('fa-compress', 'fa-expand');
+                }
+            }
+        }
+
+        // İSİM FORMATLAMA FONKSİYONU
+        function formatName(info) {
+            // 1. Durum: ad ve soyad ayrı ayrı varsa (En Temiz Yöntem)
+            if(info.ad && info.soyad) {
+                return `${info.ad} ${info.soyad}`;
+            }
+            
+            // 2. Durum: Sadece soyadAd varsa (Örn: "YILMAZ AHMET")
+            if(info.soyadAd) {
+                const parts = info.soyadAd.trim().split(' ');
+                if(parts.length > 1) {
+                    // Varsayım: İlk kelime soyad, geri kalanı isim (Klasik veritabanı formatı)
+                    // Ancak bazen soyad sonda da olabilir. 
+                    // Genelde "SOYAD AD" formatı yaygındır.
+                    // Biz bunu "AD SOYAD" yapmak için kabaca ilk kelimeyi sona atabiliriz.
+                    const first = parts.shift(); // Soyad'ı al
+                    return `${parts.join(' ')} ${first}`; // İsim + Soyad
+                }
+                return info.soyadAd;
+            }
+            
+            return "İSİMSİZ";
+        }
+
+        function handleDataUpdate(snapshot) {
+            if(!snapshot.exists()) return;
+            const data = snapshot.val();
+            document.getElementById('compTitle').innerText = data.isim || "YARIŞMA";
+
+            const slides = [];
+            const availablePaths = Object.keys(data.cimnastikVerileri || {}).filter(k => APPARATUS_DICT[k]);
+            let athletes = [];
+            const participantIds = Object.keys(data.katilimcilar || {});
+
+            participantIds.forEach(id => {
+                const globalInfo = appState.globalAthletes.find(g => String(g.id) === String(id));
+                if(!globalInfo) return;
+                
+                // İsim Formatlamayı Burada Yapıyoruz
+                let formattedName = formatName(globalInfo);
+
+                let athleteObj = {
+                    name: formattedName,
+                    club: globalInfo.kulup || "Bireysel",
+                    scores: {},
+                    total: 0
+                };
+                availablePaths.forEach(path => {
+                    const scoreVal = parseFloat(data.cimnastikVerileri[path]?.[id]?.sonPuan || 0);
+                    athleteObj.scores[path] = scoreVal;
+                    athleteObj.total += scoreVal;
+                });
+                athletes.push(athleteObj);
+            });
+
+            if(athletes.length > 0) {
+                const sortedAA = [...athletes].sort((a,b) => b.total - a.total);
+                addRank(sortedAA, 'total');
+                slides.push({
+                    type: 'all-around',
+                    title: 'BİREYSEL SIRALAMA',
+                    icon: 'fa-user',
+                    data: sortedAA,
+                    headers: availablePaths
+                });
+            }
+
+            const teams = calculateTeams(athletes, availablePaths);
+            if(teams.length > 0) {
+                slides.push({
+                    type: 'team',
+                    title: 'TAKIM SIRALAMASI',
+                    icon: 'fa-users',
+                    data: teams,
+                    headers: availablePaths
+                });
+            }
+
+            appState.slides = slides;
+            hideLoader();
+            
+            if(appState.timeoutId === null) nextSlide();
+        }
+
+        function calculateTeams(athletes, activePaths) {
+            let clubMap = {};
+            athletes.forEach(ath => {
+                if(ath.club === "Bireysel") return;
+                if(!clubMap[ath.club]) {
+                    clubMap[ath.club] = { name: ath.club, scores: {}, total: 0 };
+                    activePaths.forEach(p => clubMap[ath.club].scores[p] = []);
+                }
+                activePaths.forEach(p => {
+                    clubMap[ath.club].scores[p].push(ath.scores[p] || 0);
+                });
+            });
+
+            let teamList = Object.values(clubMap).map(team => {
+                let finalScores = {};
+                let grandTotal = 0;
+                activePaths.forEach(p => {
+                    const top3 = team.scores[p].sort((a,b) => b-a).slice(0, 3);
+                    const appTotal = top3.reduce((sum, val) => sum + val, 0);
+                    finalScores[p] = appTotal;
+                    grandTotal += appTotal;
+                });
+                return { name: team.name, scores: finalScores, total: grandTotal };
+            });
+
+            teamList.sort((a,b) => b.total - a.total);
+            addRank(teamList, 'total');
+            return teamList;
+        }
+
+        function addRank(arr, key) {
+            let r = 1;
+            for(let i=0; i<arr.length; i++) {
+                if(i > 0 && arr[i][key] < arr[i-1][key]) r = i+1;
+                arr[i].rank = r;
+            }
+        }
+
+        function nextSlide() {
+            if(appState.slides.length === 0) return;
+            appState.currentSlideIndex = (appState.currentSlideIndex + 1) % appState.slides.length;
+            renderSlide(appState.slides[appState.currentSlideIndex]);
+        }
+
+        function renderSlide(slideData) {
+            const stage = document.getElementById('stage');
+            stage.innerHTML = ''; 
+
+            const slideEl = document.createElement('div');
+            slideEl.className = 'slide';
+            
+            // Sütun Hesap
+            const apparatusCount = slideData.headers ? slideData.headers.length : 0;
+            let widthPerApparatus = 45; 
+            if(apparatusCount > 0) widthPerApparatus = 45 / apparatusCount;
+
+            let colGroup = '<colgroup>';
+            colGroup += `<col style="width: 6%">`;  // Rank
+            colGroup += `<col style="width: 22%">`; // İsim
+            if(slideData.type !== 'team') colGroup += `<col style="width: 12%">`; // Kulüp
+            for(let i=0; i<apparatusCount; i++) colGroup += `<col style="width: ${widthPerApparatus}%">`;
+            colGroup += `<col style="width: 15%">`; // Toplam
+            colGroup += '</colgroup>';
+
+            // HEADER
+            let thHtml = `<th class="center">#</th><th>${slideData.type === 'team' ? 'TAKIM' : 'SPORCU'}</th>`;
+            if(slideData.type !== 'team') thHtml += `<th>KULÜP</th>`;
+            
+            if(slideData.headers) {
+                slideData.headers.forEach(h => {
+                    const app = APPARATUS_DICT[h];
+                    if(app && app.img) {
+                        thHtml += `<th class="center"><img src="${app.img}" class="apparatus-img" alt="${app.name}"></th>`;
+                    } else {
+                        thHtml += `<th class="center">${app ? app.name : h}</th>`;
+                    }
+                });
+            }
+            thHtml += `<th class="right">TOPLAM</th>`;
+
+            let trHtml = '';
+            slideData.data.forEach(row => {
+                const rankClass = row.rank <= 3 ? `rank-${row.rank}` : '';
+                trHtml += `<tr class="${rankClass}">
+                    <td><div class="rank-box">${row.rank}</div></td>
+                    <td style="font-weight:600; color:${slideData.type==='team'?'var(--accent)':'white'}">${row.name}</td>`;
+                
+                if(slideData.type !== 'team') {
+                    trHtml += `<td style="color:#aaa; font-size:0.9em">${row.club}</td>`;
+                }
+
+                if(slideData.headers) {
+                    slideData.headers.forEach(h => {
+                        trHtml += `<td class="center score score-cell">${(row.scores[h]||0).toFixed(3)}</td>`;
+                    });
+                }
+                trHtml += `<td class="right total total-cell">${row.total.toFixed(3)}</td></tr>`;
+            });
+
+            slideEl.innerHTML = `
+                <div class="slide-header">
+                    <i class="fas ${slideData.icon}"></i>
+                    <h2>${slideData.title}</h2>
+                </div>
+                <div class="table-container">
+                    <div class="fixed-header-wrapper">
+                        <table>
+                            ${colGroup}
+                            <thead><tr>${thHtml}</tr></thead>
+                        </table>
+                    </div>
+                    <div class="scroll-viewport">
+                        <div class="scroll-content">
+                            <table>
+                                ${colGroup}
+                                <tbody>${trHtml}</tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            `;
+
+            stage.appendChild(slideEl);
+
+            requestAnimationFrame(() => {
+                slideEl.classList.add('active');
+                startFixedTimer(slideEl);
+            });
+        }
+
+        function startFixedTimer(slideElement) {
+            const viewport = slideElement.querySelector('.scroll-viewport');
+            const content = slideElement.querySelector('.scroll-content');
+            
+            const visibleHeight = viewport.clientHeight;
+            const contentHeight = content.clientHeight;
+            const shouldScroll = contentHeight > visibleHeight;
+
+            const TOTAL_DURATION = CONFIG.fixedDuration;
+
+            const progressBar = document.getElementById('progressBar');
+            progressBar.style.transition = 'none';
+            progressBar.style.width = '0%';
+
+            setTimeout(() => {
+                progressBar.style.transition = `width ${TOTAL_DURATION}ms linear`;
+                progressBar.style.width = '100%';
+            }, 50);
+
+            if(shouldScroll) {
+                const scrollDistance = contentHeight - visibleHeight + 20; 
+                const scrollDuration = (scrollDistance / CONFIG.scrollSpeed) * 1000;
+                
+                setTimeout(() => {
+                    content.style.transition = `transform ${scrollDuration}ms linear`;
+                    content.style.transform = `translateY(-${scrollDistance}px)`;
+                }, 2000);
+            }
+
+            if(appState.timeoutId) clearTimeout(appState.timeoutId);
+            
+            appState.timeoutId = setTimeout(() => {
+                slideElement.classList.remove('active');
+                setTimeout(nextSlide, 800);
+            }, TOTAL_DURATION);
+        }
+
+        window.onload = init;
+
+    </script>
+</body>
+</html>

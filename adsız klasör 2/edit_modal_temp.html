@@ -1,0 +1,40 @@
+<!-- Edit Video Modal -->
+<div id="edit-video-modal"
+    style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.8); z-index:9999; align-items:center; justify-content:center">
+    <div class="glass-card" style="max-width:600px; width:90%; max-height:90vh; overflow-y:auto">
+        <h3>Seriyi Düzenle</h3>
+        <form id="edit-video-form" class="admin-form" style="margin-top:20px">
+            <input type="hidden" id="edit-video-id">
+            <div class="form-row">
+                <input type="text" id="edit-v-title" placeholder="Seri Başlığı" required>
+            </div>
+            <div class="form-row">
+                <select id="edit-v-discipline" onchange="updateApparatusOptions('edit-v-apparatus', this.value)">
+                    <option value="WAG">WAG (Kadın)</option>
+                </select>
+                <select id="edit-v-apparatus">
+                    <option value="AtM">Atlama Masası</option>
+                    <option value="KP">Kız Paraleli</option>
+                    <option value="D">Denge</option>
+                    <option value="Y">Yer</option>
+                </select>
+            </div>
+            <div class="form-row">
+                <select id="edit-v-type" onchange="toggleEditExpertInputs(this.value)">
+                    <option value="D">D Değerlendirmesi</option>
+                    <option value="E">E Değerlendirmesi</option>
+                </select>
+            </div>
+            <div class="form-row" id="edit-row-expert-d">
+                <input type="number" id="edit-v-expert-d" step="0.05" placeholder="Uzman D Puanı">
+            </div>
+            <div class="form-row" id="edit-row-expert-e" style="display:none">
+                <input type="number" id="edit-v-expert-e" step="0.05" placeholder="Uzman E Puanı (Örn: 8.5)">
+            </div>
+            <div style="display:flex; gap:10px; margin-top:20px">
+                <button type="submit" class="primary-btn" style="flex:1">Kaydet</button>
+                <button type="button" class="reset-btn" onclick="closeEditModal()" style="flex:1">İptal</button>
+            </div>
+        </form>
+    </div>
+</div>

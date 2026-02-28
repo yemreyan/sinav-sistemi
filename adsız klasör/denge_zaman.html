@@ -1,0 +1,395 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Denge Zamanlayıcı - Cimnastik OS</title>
+    
+    <script src="https://www.gstatic.com/firebasejs/9.6.7/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.6.7/firebase-database-compat.js"></script>
+    
+    <link href="https://fonts.googleapis.com/icon?family=Material+Icons+Round" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Oswald:wght@400;500;700&family=Plus+Jakarta+Sans:wght@300;400;600;700;800&display=swap" rel="stylesheet">
+
+    <style>
+        :root {
+            --bg-body: #030712;
+            --surface-1: rgba(17, 24, 39, 0.7);
+            --surface-glass: rgba(30, 41, 59, 0.4);
+            --border-glass: rgba(255, 255, 255, 0.08);
+            
+            /* Denge Teması (Pembe) */
+            --primary: #e91e63;
+            --primary-glow: rgba(233, 30, 99, 0.5);
+            --accent: #f48fb1;
+            --success: #22c55e;
+            --danger: #ef4444;
+            --warning: #f59e0b;
+
+            --text-main: #ffffff;
+            --text-muted: #94a3b8;
+            
+            --transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            --shadow-card: 0 10px 30px -10px rgba(0, 0, 0, 0.5);
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; outline: none; }
+        
+        body { 
+            font-family: 'Plus Jakarta Sans', sans-serif; 
+            background-color: var(--bg-body); 
+            background-image: 
+                radial-gradient(circle at 0% 0%, rgba(233, 30, 99, 0.15), transparent 40%),
+                radial-gradient(circle at 100% 100%, rgba(244, 143, 177, 0.1), transparent 40%);
+            color: var(--text-main); 
+            height: 100vh; 
+            overflow: hidden; 
+            display: flex;
+            flex-direction: column;
+        }
+
+        /* --- TOP BAR --- */
+        .top-bar {
+            padding: 20px 40px;
+            border-bottom: 1px solid var(--border-glass);
+            background: rgba(3, 7, 18, 0.6);
+            backdrop-filter: blur(10px);
+            display: flex; justify-content: space-between; align-items: center;
+            flex-shrink: 0;
+        }
+
+        .page-title h1 { font-size: 1.5rem; font-weight: 700; display: flex; align-items: center; gap: 12px; margin: 0; }
+        .apparatus-badge {
+            background: rgba(233, 30, 99, 0.2); color: var(--primary);
+            padding: 6px 12px; border-radius: 8px; font-size: 0.8rem; font-weight: 700; text-transform: uppercase;
+        }
+
+        .back-btn {
+            background: rgba(255,255,255,0.1); color: white; border: 1px solid rgba(255,255,255,0.1);
+            padding: 10px 15px; border-radius: 10px; cursor: pointer; text-decoration: none;
+            font-size: 0.9rem; display: flex; align-items: center; gap: 5px; transition: var(--transition);
+        }
+        .back-btn:hover { background: rgba(255,255,255,0.2); }
+
+        /* --- MAIN CONTENT --- */
+        .main-container {
+            flex: 1; display: flex; flex-direction: column;
+            align-items: center; justify-content: center;
+            padding: 20px; position: relative;
+        }
+
+        /* Active Athlete Card */
+        .athlete-card {
+            background: linear-gradient(135deg, rgba(233, 30, 99, 0.15), rgba(3, 7, 18, 0.6));
+            border: 1px solid rgba(233, 30, 99, 0.3);
+            border-radius: 24px; padding: 25px 40px;
+            text-align: center; margin-bottom: 40px;
+            box-shadow: 0 0 40px rgba(233, 30, 99, 0.1);
+            animation: slideDown 0.5s ease-out;
+        }
+        
+        .athlete-name { font-size: 2rem; font-weight: 800; margin-bottom: 5px; }
+        .athlete-club { font-size: 1.2rem; color: var(--text-muted); display: flex; align-items: center; justify-content: center; gap: 8px; }
+
+        /* Timer Display */
+        .timer-wrapper {
+            position: relative; margin-bottom: 50px;
+        }
+        
+        .timer-display {
+            font-family: 'Oswald', sans-serif;
+            font-size: 10rem; font-weight: 700;
+            line-height: 1; color: white;
+            text-shadow: 0 0 50px rgba(233, 30, 99, 0.3);
+            font-variant-numeric: tabular-nums;
+            transition: color 0.3s;
+        }
+        
+        .timer-display.warning { color: var(--warning); text-shadow: 0 0 50px rgba(245, 158, 11, 0.4); animation: pulse 1s infinite; }
+        .timer-display.overtime { color: var(--danger); text-shadow: 0 0 50px rgba(239, 68, 68, 0.4); }
+
+        /* Controls */
+        .controls { display: flex; gap: 20px; }
+        
+        .ctrl-btn {
+            width: 80px; height: 80px; border-radius: 50%; border: none;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 2rem; cursor: pointer; transition: var(--transition);
+            color: white; box-shadow: 0 10px 20px rgba(0,0,0,0.3);
+        }
+        
+        .btn-start { background: var(--success); box-shadow: 0 0 30px rgba(34, 197, 94, 0.3); font-size: 2.5rem; }
+        .btn-start:hover { transform: scale(1.1); box-shadow: 0 0 50px rgba(34, 197, 94, 0.5); }
+        
+        .btn-pause { background: var(--warning); color: black; }
+        .btn-pause:hover { transform: scale(1.1); }
+        
+        .btn-reset { background: var(--text-muted); opacity: 0.5; }
+        .btn-reset:hover { opacity: 1; transform: rotate(90deg); }
+
+        .btn-stop { background: var(--danger); }
+        .btn-stop:hover { transform: scale(1.1); box-shadow: 0 0 30px rgba(239, 68, 68, 0.4); }
+
+        /* Penalty Alert */
+        .penalty-alert {
+            position: absolute; bottom: 40px;
+            background: rgba(239, 68, 68, 0.2); border: 1px solid var(--danger);
+            color: var(--danger); padding: 15px 30px; border-radius: 16px;
+            font-weight: 700; display: none; align-items: center; gap: 10px;
+            animation: slideUp 0.3s ease-out;
+        }
+
+        @keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.5; } 100% { opacity: 1; } }
+        @keyframes slideDown { from { transform: translateY(-20px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+        @keyframes slideUp { from { transform: translateY(20px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+    </style>
+</head>
+<body>
+
+    <div class="top-bar">
+        <div class="page-title">
+            <h1><span class="apparatus-badge">DENGE</span> Zamanlayıcı</h1>
+        </div>
+        <a id="backBtn" href="#" class="back-btn">
+            <i class="material-icons-round">arrow_back</i> Puanlamaya Dön
+        </a>
+    </div>
+
+    <div class="main-container">
+        
+        <div class="athlete-card">
+            <div class="athlete-name" id="athleteName">Bekleniyor...</div>
+            <div class="athlete-club" id="athleteClub">
+                <i class="material-icons-round" style="font-size:18px;">info</i> Sporcu seçilmedi
+            </div>
+        </div>
+
+        <div class="timer-wrapper">
+            <div class="timer-display" id="timerDisplay">01:30</div>
+        </div>
+
+        <div class="controls">
+            <button class="ctrl-btn btn-reset" id="resetBtn" onclick="resetTimer()" title="Sıfırla">
+                <i class="material-icons-round">refresh</i>
+            </button>
+            <button class="ctrl-btn btn-start" id="startBtn" onclick="startTimer()" title="Başlat">
+                <i class="material-icons-round">play_arrow</i>
+            </button>
+            <button class="ctrl-btn btn-pause" id="pauseBtn" onclick="pauseTimer()" disabled title="Duraklat">
+                <i class="material-icons-round">pause</i>
+            </button>
+            <button class="ctrl-btn btn-stop" id="stopBtn" onclick="stopTimer()" disabled title="Bitir">
+                <i class="material-icons-round">stop</i>
+            </button>
+        </div>
+
+        <div id="penaltyAlert" class="penalty-alert">
+            <i class="material-icons-round">warning</i>
+            <div>
+                <div>SÜRE AŞIMI!</div>
+                <div style="font-size:0.8rem; opacity:0.8; font-weight:400;">Tarafsız kesintiye +0.10 eklendi.</div>
+            </div>
+        </div>
+
+    </div>
+
+    <div id="toast-container" style="position:fixed; bottom:30px; right:30px; z-index:9999;"></div>
+
+    <script>
+        const firebaseConfig = { apiKey: "AIzaSyA5VNkBsZkZqaDr8YgOnhiGCDql9-lJ6Gk", authDomain: "analig2025.firebaseapp.com", databaseURL: "https://analig2025-default-rtdb.firebaseio.com" };
+        firebase.initializeApp(firebaseConfig);
+        const db = firebase.database();
+
+        const APPARATUS_NAME = 'denge';
+        const APPARATUS_PATH = 'dengePuanlari';
+        const TIME_LIMIT = 90; // 90 Saniye (1:30)
+
+        let activeCompetitionId = null;
+        let activeAthleteId = null;
+        let globalSporcular = [];
+        let timeRemaining = TIME_LIMIT;
+        let timerInterval = null;
+        let isRunning = false;
+        let isPaused = false;
+        let penaltyApplied = false;
+
+        document.addEventListener('DOMContentLoaded', async () => {
+            activeCompetitionId = new URLSearchParams(window.location.search).get('competitionId') || localStorage.getItem('activeCompetitionId');
+            
+            if (!activeCompetitionId) { 
+                alert("Yarışma ID bulunamadı!"); 
+                return; 
+            }
+            
+            // Geri Dönüş Linkini Ayarla
+            document.getElementById('backBtn').href = `denge.html?competitionId=${activeCompetitionId}`;
+
+            await loadGlobalSporcular();
+            listenToActiveAthlete();
+        });
+
+        async function loadGlobalSporcular() {
+            const s = await db.ref('globalSporcular').once('value');
+            if(s.exists()) globalSporcular = Object.values(s.val());
+        }
+
+        function listenToActiveAthlete() {
+            db.ref(`competitions/${activeCompetitionId}/aktifSporcu/${APPARATUS_NAME}`).on('value', snapshot => {
+                const newAthleteId = snapshot.val();
+                if(newAthleteId !== activeAthleteId) {
+                    activeAthleteId = newAthleteId;
+                    updateAthleteInfo();
+                    resetTimer(); // Yeni sporcu geldiğinde sayacı sıfırla
+                }
+            });
+        }
+
+        function updateAthleteInfo() {
+            const nameEl = document.getElementById('athleteName');
+            const clubEl = document.getElementById('athleteClub');
+            
+            if (activeAthleteId) {
+                const athlete = globalSporcular.find(s => s.id == activeAthleteId);
+                if (athlete) {
+                    nameEl.textContent = athlete.soyadAd;
+                    nameEl.style.color = "white";
+                    clubEl.innerHTML = `<i class="material-icons-round" style="font-size:18px;">groups</i> ${athlete.kulup || 'Bireysel'}`;
+                    
+                    // Kontrolleri Aktif Et
+                    document.getElementById('startBtn').style.opacity = "1";
+                    document.getElementById('startBtn').style.pointerEvents = "auto";
+                } else {
+                    nameEl.textContent = "Sporcu Bulunamadı";
+                }
+            } else {
+                nameEl.textContent = "Bekleniyor...";
+                nameEl.style.color = "var(--text-muted)";
+                clubEl.textContent = "Puanlama ekranından sporcu seçiniz";
+                
+                // Kontrolleri Pasif Yap
+                document.getElementById('startBtn').style.opacity = "0.5";
+                document.getElementById('startBtn').style.pointerEvents = "none";
+            }
+        }
+
+        // --- TIMER LOGIC ---
+        function startTimer() {
+            if(!activeAthleteId) return;
+            
+            isRunning = true;
+            isPaused = false;
+            updateControls();
+            
+            timerInterval = setInterval(() => {
+                timeRemaining--;
+                updateDisplay();
+                
+                if (timeRemaining < 0 && !penaltyApplied) {
+                    applyPenalty();
+                }
+            }, 1000);
+        }
+
+        function pauseTimer() {
+            if (isRunning && !isPaused) {
+                // Duraklat
+                clearInterval(timerInterval);
+                isPaused = true;
+                updateControls();
+            } else if (isPaused) {
+                // Devam Et
+                startTimer();
+            }
+        }
+
+        function stopTimer() {
+            clearInterval(timerInterval);
+            isRunning = false;
+            isPaused = false;
+            updateControls();
+            // Opsiyonel: Bitince ses çalabilir veya görsel uyarı verebiliriz
+        }
+
+        function resetTimer() {
+            clearInterval(timerInterval);
+            isRunning = false;
+            isPaused = false;
+            timeRemaining = TIME_LIMIT;
+            penaltyApplied = false;
+            
+            document.getElementById('penaltyAlert').style.display = 'none';
+            updateDisplay();
+            updateControls();
+        }
+
+        async function applyPenalty() {
+            if(penaltyApplied) return;
+            
+            try {
+                const ref = db.ref(`competitions/${activeCompetitionId}/cimnastikVerileri/${APPARATUS_PATH}/${activeAthleteId}/TarafsizKesinti`);
+                const snap = await ref.once('value');
+                const currentPenalty = parseFloat(snap.val()) || 0;
+                
+                await ref.set(currentPenalty + 0.1);
+                
+                penaltyApplied = true;
+                document.getElementById('penaltyAlert').style.display = 'flex';
+                // Sesli uyarı eklenebilir
+            } catch(e) {
+                console.error("Ceza eklenemedi:", e);
+            }
+        }
+
+        function updateDisplay() {
+            const display = document.getElementById('timerDisplay');
+            const absTime = Math.abs(timeRemaining);
+            const m = Math.floor(absTime / 60);
+            const s = absTime % 60;
+            
+            const formattedTime = `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+            display.textContent = (timeRemaining < 0 ? "-" : "") + formattedTime;
+
+            // Stil Güncellemeleri
+            display.classList.remove('warning', 'overtime');
+            if (timeRemaining < 0) {
+                display.classList.add('overtime');
+            } else if (timeRemaining <= 10) {
+                display.classList.add('warning');
+            }
+        }
+
+        function updateControls() {
+            const startBtn = document.getElementById('startBtn');
+            const pauseBtn = document.getElementById('pauseBtn');
+            const stopBtn = document.getElementById('stopBtn');
+            const resetBtn = document.getElementById('resetBtn');
+
+            if (isRunning && !isPaused) {
+                // Çalışıyor
+                startBtn.style.display = 'none';
+                pauseBtn.style.display = 'flex';
+                pauseBtn.disabled = false;
+                pauseBtn.innerHTML = '<i class="material-icons-round">pause</i>';
+                stopBtn.disabled = false;
+                resetBtn.disabled = true;
+            } else if (isPaused) {
+                // Duraklatıldı
+                startBtn.style.display = 'none';
+                pauseBtn.style.display = 'flex';
+                pauseBtn.innerHTML = '<i class="material-icons-round">play_arrow</i>';
+                stopBtn.disabled = false;
+                resetBtn.disabled = false;
+            } else {
+                // Durdu / Hazır
+                startBtn.style.display = 'flex';
+                pauseBtn.style.display = 'none';
+                stopBtn.disabled = true;
+                resetBtn.disabled = false;
+            }
+        }
+
+        updateDisplay();
+        updateControls();
+    </script>
+</body>
+</html>

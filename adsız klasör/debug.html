@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Firebase Veri Yapısı Debug</title>
+    <script src="https://www.gstatic.com/firebasejs/9.6.7/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.6.7/firebase-database-compat.js"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Courier New', monospace; background: #1e1e1e; color: #d4d4d4; padding: 20px; }
+        .container { max-width: 1200px; margin: 0 auto; }
+        h1 { color: #4ec9b0; margin-bottom: 20px; }
+        .section { background: #252526; padding: 15px; margin-bottom: 20px; border-radius: 5px; border-left: 4px solid #4ec9b0; }
+        .section-title { color: #4ec9b0; font-weight: bold; margin-bottom: 10px; }
+        pre { background: #1e1e1e; padding: 10px; border-radius: 3px; overflow-x: auto; color: #ce9178; font-size: 12px; line-height: 1.4; }
+        .status { padding: 10px; border-radius: 3px; margin: 10px 0; }
+        .loading { background: #ffc107; color: #000; }
+        .success { background: #27ae60; color: #fff; }
+        .error { background: #e74c3c; color: #fff; }
+        .info { background: #3498db; color: #fff; }
+        button { padding: 10px 20px; background: #4ec9b0; color: #000; border: none; border-radius: 3px; cursor: pointer; font-weight: bold; }
+        button:hover { background: #5dd9c1; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔍 Firebase Veri Yapısı Debug</h1>
+        
+        <div class="section">
+            <div class="section-title">Bağlantı Durumu</div>
+            <div id="connectionStatus" class="status loading">Bağlanıyor...</div>
+        </div>
+
+        <div class="section">
+            <div class="section-title">Yarışma Bilgisi</div>
+            <div id="competitionInfo" class="status">Yükleniyor...</div>
+        </div>
+
+        <div class="section">
+            <div class="section-title">Ana Veri Yapısı (İlk 2000 char)</div>
+            <pre id="mainStructure">Yükleniyor...</pre>
+        </div>
+
+        <div class="section">
+            <div class="section-title">Kategoriler</div>
+            <div id="categories"></div>
+        </div>
+
+        <div class="section">
+            <div class="section-title">Sporçuların Nerede Olduğunu Bul</div>
+            <button onclick="searchSporcular()">Sporçuları Ara</button>
+            <pre id="sporcularSearch">Butonuna tıkla...</pre>
+        </div>
+
+        <div class="section">
+            <div class="section-title">Kategori Detayları</div>
+            <pre id="categoryDetails">Seç bir kategoriyi aşağıdan...</pre>
+        </div>
+    </div>
+
+    <script>
+        const firebaseConfig = { 
+            apiKey: "AIzaSyA5VNkBsZkZqaDr8YgOnhiGCDql9-lJ6Gk", 
+            authDomain: "analig2025.firebaseapp.com", 
+            databaseURL: "https://analig2025-default-rtdb.firebaseio.com" 
+        };
+        firebase.initializeApp(firebaseConfig);
+        const db = firebase.database();
+        
+        let activeCompetitionId = null;
+        let competitionData = {};
+
+        document.addEventListener('DOMContentLoaded', () => {
+            updateStatus('connectionStatus', 'loading', 'Firebase bağlantısı kuruldu ✓');
+            initDebug();
+        });
+
+        function updateStatus(elementId, type, message) {
+            const element = document.getElementById(elementId);
+            element.className = `status ${type}`;
+            element.textContent = message;
+        }
+
+        function initDebug() {
+            activeCompetitionId = new URLSearchParams(window.location.search).get('competitionId') || localStorage.getItem('activeCompetitionId');
+            
+            if (!activeCompetitionId) {
+                updateStatus('connectionStatus', 'error', '❌ competitionId bulunamadı! URL\'ye ekle: ?competitionId=YOUR_ID');
+                return;
+            }
+
+            updateStatus('connectionStatus', 'success', `✓ Bağlandı - Yarışma ID: ${activeCompetitionId}`);
+            loadDebugData();
+        }
+
+        function loadDebugData() {
+            const competitionRef = db.ref(`competitions/${activeCompetitionId}`);
+            competitionRef.once('value', (snapshot) => {
+                if (!snapshot.exists()) {
+                    updateStatus('competitionInfo', 'error', '❌ Yarışma bulunamadı!');
+                    return;
+                }
+
+                competitionData = snapshot.val();
+                updateStatus('competitionInfo', 'success', `✓ Yarışma: ${competitionData.isim || 'İsimsiz'}`);
+
+                // Ana veri yapısını göster
+                const mainKeys = Object.keys(competitionData);
+                document.getElementById('mainStructure').textContent = 
+                    `Ana Keys: ${mainKeys.join(', ')}\n\n` +
+                    JSON.stringify(competitionData, null, 2).substring(0, 2000) + '...';
+
+                // Kategorileri listele
+                showCategories(mainKeys);
+
+                // Kategori detaylarını göster
+                showCategoryDetails(mainKeys);
+            });
+        }
+
+        function showCategories(keys) {
+            const categoriesDiv = document.getElementById('categories');
+            categoriesDiv.innerHTML = '';
+
+            const categoryKeys = ['yildizlar', 'gencler', 'buyukler', 'kucukler'];
+            
+            categoryKeys.forEach(cat => {
+                if (competitionData[cat]) {
+                    const count = Object.keys(competitionData[cat] || {}).length;
+                    const btn = document.createElement('button');
+                    btn.textContent = `${cat} (${count} öğe)`;
+                    btn.onclick = () => showCategoryInfo(cat);
+                    btn.style.marginRight = '10px';
+                    btn.style.marginBottom = '10px';
+                    categoriesDiv.appendChild(btn);
+                }
+            });
+
+            // Tüm keys'i de göster
+            const allKeysDiv = document.createElement('div');
+            allKeysDiv.style.marginTop = '20px';
+            allKeysDiv.innerHTML = `<strong>Tüm Keys:</strong><br>` + 
+                keys.map(k => `<span style="background: #333; padding: 2px 5px; margin: 2px; display: inline-block;">` + k + `</span>`).join('');
+            categoriesDiv.appendChild(allKeysDiv);
+        }
+
+        function showCategoryInfo(category) {
+            const detailsDiv = document.getElementById('categoryDetails');
+            const data = competitionData[category];
+            
+            if (!data) {
+                detailsDiv.textContent = `${category} boş!`;
+                return;
+            }
+
+            const entries = Object.entries(data).slice(0, 3);
+            let output = `${category} - İlk 3 Kayıt:\n\n`;
+            
+            entries.forEach(([key, value]) => {
+                output += `KEY: ${key}\n`;
+                output += JSON.stringify(value, null, 2) + '\n\n';
+            });
+
+            detailsDiv.textContent = output;
+        }
+
+        function searchSporcular() {
+            const searchDiv = document.getElementById('sporcularSearch');
+            searchDiv.textContent = 'Aranıyor...\n';
+
+            const db = firebase.database();
+            const ref = db.ref(`competitions/${activeCompetitionId}`);
+
+            ref.once('value', (snapshot) => {
+                const data = snapshot.val();
+                let results = '';
+
+                // Olası sporçu alanlarını ara
+                const possiblePaths = [
+                    { path: 'sporcular', type: 'doğrudan sporcular' },
+                    { path: 'yildizlar', type: 'yildizlar kategorisi' },
+                    { path: 'gencler', type: 'gencler kategorisi' },
+                    { path: 'buyukler', type: 'buyukler kategorisi' },
+                    { path: 'kucukler', type: 'kucukler kategorisi' }
+                ];
+
+                possiblePaths.forEach(({ path, type }) => {
+                    if (data[path]) {
+                        const items = Object.entries(data[path]);
+                        results += `\n✓ ${type} (${path}): ${items.length} kayıt\n`;
+                        results += `  İlk kayıt: ${JSON.stringify(items[0][1]).substring(0, 100)}...\n`;
+                    }
+                });
+
+                // Sporçu adı içeren alanları ara
+                results += '\n\n📍 Sporçu adı içeren alanlar:\n';
+                Object.entries(data).forEach(([key, value]) => {
+                    if (typeof value === 'object' && value !== null) {
+                        Object.entries(value).forEach(([subKey, subValue]) => {
+                            if (typeof subValue === 'object' && subValue.soyadAd) {
+                                results += `  ${key} → ${subKey}: ${subValue.soyadAd}\n`;
+                            }
+                        });
+                    }
+                });
+
+                searchDiv.textContent = results || 'Sporçu bulunamadı!';
+            });
+        }
+    </script>
+</body>
+</html>

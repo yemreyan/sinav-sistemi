@@ -1,0 +1,286 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8" />
+    <title>Sporcu × Alet × Hareket Excel Çıktısı (Firebase)</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+
+    <!-- Firebase (Compat v9) -->
+    <script src="https://www.gstatic.com/firebasejs/9.6.7/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.6.7/firebase-database-compat.js"></script>
+
+    <!-- SheetJS: Excel oluşturma -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+
+    <style>
+        body { font-family: Arial, sans-serif; background:#f1f1f1; padding:20px; margin:0; }
+        .card { background:#fff; padding:20px; border-radius:12px; margin-bottom:20px; box-shadow:0 4px 10px rgba(0,0,0,0.05); }
+        h2, h3 { margin-top:0; }
+        .btn { padding:10px 16px; border-radius:8px; cursor:pointer; font-weight:bold; font-size:13px; }
+        .btn-primary { background:#ff9800; border:none; color:#000; }
+        .btn-secondary { background:#fff; border:1px solid #ccc; }
+        .btn:disabled { opacity:0.4; cursor:not-allowed; }
+        #previewTable { width:100%; border-collapse:collapse; margin-top:10px; font-size:12px; }
+        #previewTable th, #previewTable td { border:1px solid #ccc; padding:4px; white-space:nowrap; }
+        #previewTable thead { background:#f5f5f5; }
+        #status { font-size:13px; color:#555; }
+        input[type="text"] { padding:6px 10px; border-radius:8px; border:1px solid #ccc; font-size:13px; }
+    </style>
+</head>
+
+<body>
+<div class="card">
+    <h2>Sporcu × Alet × Hareket – Excel Çıktısı</h2>
+    <p>
+        Her sporcu için her aletteki tüm hareketlerin <strong>D puanlarını</strong> içeren,
+        alet bazlı çok sheet’li bir <strong>.xlsx</strong> dosyası üretir.<br>
+        Sheet’ler: <strong>Yer, Denge, Barfiks, Atlama</strong>.
+    </p>
+
+    <label for="competitionIdInput">Yarışma ID:</label>
+    <input id="competitionIdInput" type="text" value="-Od9Tcbf6CnbTVmzOjiA" style="width:260px; margin-left:6px;">
+
+    <div style="margin-top:10px; display:flex; gap:8px; flex-wrap:wrap;">
+        <button id="fetchBtn" class="btn btn-primary">🔥 Firebase'den Veriyi Çek</button>
+        <button id="excelBtn" class="btn btn-secondary" disabled>📊 Excel (.xlsx) İndir</button>
+    </div>
+
+    <p id="status" style="margin-top:8px;">Adım 1: Yarışma ID'yi kontrol et, sonra veriyi çek.</p>
+</div>
+
+<div class="card">
+    <h3>Örnek Önizleme (ilk satırlar)</h3>
+    <p style="font-size:12px; color:#666;">
+        Veriyi çektikten sonra aşağıda ilk birkaç satırdan örnek görünecek.
+        Excel dosyası ise tüm sporcu × alet kayıtlarını ve tüm hareket kolonlarını içerecek.
+    </p>
+    <div style="overflow:auto;">
+        <table id="previewTable"></table>
+    </div>
+</div>
+
+<script>
+/* ------------------ 1) Firebase ------------------ */
+const firebaseConfig = {
+    apiKey: "API_KEYIN",
+    authDomain: "PROJEN.firebaseapp.com",
+    databaseURL: "https://analig2025-default-rtdb.firebaseio.com",
+    projectId: "PROJE_ID",
+    storageBucket: "PROJE_ID.appspot.com",
+    messagingSenderId: "MESAJ_ID",
+    appId: "APP_ID"
+};
+if (!firebase.apps.length) {
+    firebase.initializeApp(firebaseConfig);
+}
+
+/* ------------------ 2) Elemanlar ------------------ */
+const fetchBtn = document.getElementById("fetchBtn");
+const excelBtn = document.getElementById("excelBtn");
+const statusEl = document.getElementById("status");
+const compIdInput = document.getElementById("competitionIdInput");
+const previewTable = document.getElementById("previewTable");
+
+let excelSheetsData = null;
+
+/* ------------------ 3) Yardımcı ------------------ */
+function isNumeric(v) {
+    return typeof v === "number" || (!isNaN(v) && v !== null && v !== "");
+}
+
+/* ------------------ 4) Firebase'den Veri Çek ------------------ */
+fetchBtn.onclick = async () => {
+    const compId = compIdInput.value.trim();
+    if (!compId) {
+        alert("Lütfen yarışma ID gir.");
+        return;
+    }
+
+    fetchBtn.disabled = true;
+    excelBtn.disabled = true;
+    statusEl.textContent = "Firebase'den veriler çekiliyor...";
+    previewTable.innerHTML = "";
+
+    try {
+        const db = firebase.database();
+        const compSnap = await db.ref("competitions/" + compId).once("value");
+        const sporSnap = await db.ref("globalSporcular").once("value");
+
+        const comp = compSnap.val();
+        const sporcular = sporSnap.val();
+
+        if (!comp) {
+            throw new Error("Belirtilen ID için competition kaydı bulunamadı.");
+        }
+
+        const athleteById = {};
+        Object.values(sporcular || {}).forEach(s => {
+            if (s && typeof s.id !== "undefined") {
+                athleteById[s.id] = s;
+            }
+        });
+
+        excelSheetsData = buildExcelSheets(comp, athleteById);
+        buildPreview(excelSheetsData);
+
+        excelBtn.disabled = false;
+        statusEl.textContent = "Veri hazır. Excel için 'Excel (.xlsx) İndir' butonuna bas.";
+    } catch (err) {
+        console.error(err);
+        alert("Firebase'den veri çekilirken hata: " + err.message);
+        statusEl.textContent = "Hata: " + err.message;
+    } finally {
+        fetchBtn.disabled = false;
+    }
+};
+
+/* ------------------ 5) Excel Sheet Veri Yapısı ------------------ */
+function buildExcelSheets(comp, athleteById) {
+    const cv = comp.cimnastikVerileri || {};
+    const kriterler = cv.kriterler || {};
+
+    const appList = [
+        { name: "Yer",     scoreKey: "yerPuanlari",     critKey: "yer" },
+        { name: "Denge",   scoreKey: "dengePuanlari",   critKey: "denge" },
+        { name: "Barfiks", scoreKey: "barfiksPuanlari", critKey: "barfiks" },
+        { name: "Atlama",  scoreKey: "atlamaPuanlari",  critKey: "atlama" }
+    ];
+
+    const sheets = {};
+
+    appList.forEach(app => {
+        const scores = cv[app.scoreKey] || {};
+        const kriter = kriterler[app.critKey] || {};
+        const hareketler = kriter.hareketler || [];
+        const hareketIds = hareketler.map(h => h.id);   // sıralı hareket ID listesi
+
+        const rows = [];
+
+        Object.entries(scores).forEach(([athleteIdStr, s]) => {
+            if (!s || s.durumNotu !== "Yarıştı") return;
+
+            const athleteIdNum = Number(athleteIdStr);
+            const athlete = athleteById[athleteIdNum];
+
+            // globalSporcular.soyadAd formatı "SOYAD AD" gibi
+            let fullName = (athlete && athlete.soyadAd) ? athlete.soyadAd : ("ID " + athleteIdStr);
+            let parts = fullName.trim().split(/\s+/);
+            let soyad = parts[0] || "";
+            let ad = parts.slice(1).join(" ");
+
+            const row = {
+                SporcuId: athleteIdNum,
+                Soyad: soyad,
+                Ad: ad,
+                Kulup: athlete && athlete.kulup ? athlete.kulup : "",
+                Alet: app.name,
+                DToplam: isNumeric(s.dToplami) ? Number(s.dToplami) : "",
+                EPuani: isNumeric(s.ePuani) ? Number(s.ePuani) : "",
+                E1: isNumeric(s.E1) ? Number(s.E1) : "",
+                E2: isNumeric(s.E2) ? Number(s.E2) : "",
+                Bonus: isNumeric(s.bonus) ? Number(s.bonus) : "",
+                SonPuan: isNumeric(s.sonPuan) ? Number(s.sonPuan) : "",
+                Durum: s.durumNotu || ""
+            };
+
+            // 🔥 D değerlerini okuma:
+            // Yer / Denge / Barfiks: s.D içinde
+            // Atlama: D hareketleri root seviyede (h1763... anahtarı olarak)
+            const Dobj = (s.D && typeof s.D === "object") ? s.D : null;
+
+            hareketIds.forEach((hid, index) => {
+                const colName = `H${index + 1}_${hid}`;
+
+                let val;
+                if (Dobj) {
+                    // Yer, denge, barfiks vb.
+                    val = Dobj[hid];
+                } else {
+                    // Atlama veya D objesi olmayan durumlar:
+                    val = s[hid];
+                }
+
+                if (val === undefined || val === null) {
+                    row[colName] = "";
+                } else {
+                    row[colName] = isNumeric(val) ? Number(val) : val;
+                }
+            });
+
+            rows.push(row);
+        });
+
+        sheets[app.name] = rows;
+    });
+
+    return sheets;
+}
+
+/* ------------------ 6) Önizleme Tablosu ------------------ */
+function buildPreview(sheets) {
+    previewTable.innerHTML = "";
+    const sheetNames = Object.keys(sheets);
+    if (!sheetNames.length) {
+        previewTable.innerHTML = "<tbody><tr><td>Veri bulunamadı.</td></tr></tbody>";
+        return;
+    }
+
+    // İlk dolu sheet'i bul
+    let firstSheetRows = null;
+    for (const name of sheetNames) {
+        if (sheets[name] && sheets[name].length) {
+            firstSheetRows = sheets[name];
+            break;
+        }
+    }
+    if (!firstSheetRows || !firstSheetRows.length) {
+        previewTable.innerHTML = "<tbody><tr><td>Hiç veri yok.</td></tr></tbody>";
+        return;
+    }
+
+    const rows = firstSheetRows.slice(0, 5); // ilk 5 satır
+    const cols = Object.keys(rows[0]);
+
+    const theadTr = document.createElement("tr");
+    cols.forEach(col => {
+        const th = document.createElement("th");
+        th.textContent = col;
+        theadTr.appendChild(th);
+    });
+
+    const thead = document.createElement("thead");
+    thead.appendChild(theadTr);
+
+    const tbody = document.createElement("tbody");
+    rows.forEach(r => {
+        const tr = document.createElement("tr");
+        cols.forEach(col => {
+            const td = document.createElement("td");
+            const val = r[col];
+            td.textContent = (val === undefined || val === null) ? "" : val;
+            tr.appendChild(td);
+        });
+        tbody.appendChild(tr);
+    });
+
+    previewTable.appendChild(thead);
+    previewTable.appendChild(tbody);
+}
+
+/* ------------------ 7) Excel Oluştur ve İndir ------------------ */
+excelBtn.onclick = () => {
+    if (!excelSheetsData) return;
+
+    const wb = XLSX.utils.book_new();
+    Object.entries(excelSheetsData).forEach(([sheetName, rows]) => {
+        const ws = XLSX.utils.json_to_sheet(rows);
+        XLSX.utils.book_append_sheet(wb, ws, sheetName.substring(0, 31)); // Excel sheet name limit
+    });
+
+    const compId = compIdInput.value.trim() || "yarisma";
+    const fileName = `sporcu_hareket_puanlari_${compId}.xlsx`;
+    XLSX.writeFile(wb, fileName);
+};
+</script>
+</body>
+</html>

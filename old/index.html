@@ -1,0 +1,305 @@
+<!DOCTYPE html>
+<html lang="tr">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
+    <title>FIG TR Judge</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="styles.css">
+</head>
+
+<body>
+    <div id="app">
+        <!-- AUTH SCREEN -->
+        <section id="auth-screen" class="screen">
+            <div class="glass-card auth-card">
+                <h1>FIG TR Judge</h1>
+                <p class="subtitle">Hakem Değerlendirme Sistemi</p>
+
+                <div id="judge-auth-area">
+                    <div class="login-form">
+                        <div class="auth-input-group">
+                            <input type="email" id="login-email" placeholder="E-posta Adresiniz" required>
+                        </div>
+                        <div class="auth-input-group">
+                            <input type="password" id="login-tckn" placeholder="TCKN (Şifre)" maxlength="11" required>
+                        </div>
+                        <button id="btn-judge-login" class="primary-btn" style="width:100%">
+                            Giriş Yap <span style="margin-left:8px">→</span>
+                        </button>
+                    </div>
+
+                    <div class="auth-divider">
+                        <span>veya</span>
+                    </div>
+
+                    <p style="font-size: 0.9rem; margin-bottom: 20px;">Size iletilen giriş linki ile otomatik giriş
+                        yapabilirsiniz.</p>
+
+                    <div class="loader-circle" id="auth-loader" style="display:none"></div>
+                    <div id="login-error" class="error-message" style="display:none"></div>
+                </div>
+            </div>
+
+            <div style="text-align:center; margin-top:30px; opacity:0.6; font-size:0.8rem;">
+                © 2025 Türkiye Cimnastik Federasyonu
+            </div>
+        </section>
+
+
+        <!-- PODIUM SELECTION SCREEN -->
+        <section id="podium-screen" class="screen" style="display:none">
+            <div class="glass-card" style="max-width: 800px; margin: 0 auto; text-align: center;">
+                <h1 style="margin-bottom: 10px;">Podyum Seçimi</h1>
+                <p class="subtitle">Lütfen görevli olduğunuz podyumu seçerek yayına bağlanın.</p>
+
+                <div id="judge-podium-list" class="podium-grid" style="margin: 40px 0; text-align: left;">
+                    <!-- JS ile Podyumlar Buraya Eklenecek -->
+                    <div class="loader-circle"></div>
+                </div>
+
+                <div style="display:flex; justify-content:center; gap:15px; margin-top:30px">
+                    <button id="btn-refresh-podiums" class="reset-btn sm-btn">Listeyi Yenile</button>
+                    <button class="logout-btn sm-btn" onclick="location.reload()" style="width:auto">Çıkış Yap</button>
+                </div>
+            </div>
+        </section>
+
+        <!-- JUDGE SCREEN -->
+        <section id="judge-screen" class="screen" style="display:none">
+            <header class="judge-header glass-card">
+                <div class="j-info">
+                    <span id="j-display-name" style="color:var(--primary-hover)">-</span>
+                    <span style="margin: 0 10px; opacity: 0.3">|</span>
+                    <span id="j-display-apparatus" class="badge tag-D">-</span>
+                    <span style="margin: 0 10px; opacity: 0.3">|</span>
+                    <span id="j-series-info" style="color:var(--text-dim); font-size:0.9rem">Bekliyor...</span>
+                </div>
+                <!-- Timer with visual flair -->
+                <div style="display:flex; align-items:center; gap:15px">
+                    <div style="font-size:0.8rem; color:var(--text-dim); text-transform:uppercase; letter-spacing:1px">
+                        Süre</div>
+                    <div id="j-timer" class="timer">00:00</div>
+                    <button id="btn-judge-logout" class="logout-btn sm-btn" style="margin-left:10px">Çıkış</button>
+                </div>
+            </header>
+
+            <div class="judge-main" style="grid-template-columns: 1fr; padding-top:20px">
+                <!-- Scoring Panel -->
+                <div class="scoring-panels">
+                    <!-- E SCORE PANEL -->
+                    <div id="panel-e" class="glass-card scoring-card">
+                        <h3>E-Puanı (Kesinti)</h3>
+                        <div class="e-input-container">
+                            <input type="text" id="j-e-deduction-display" placeholder="0.00" readonly>
+                        </div>
+                        <div class="keypad numeric-keypad">
+                            <button class="key-btn num-key" data-val="7">7</button>
+                            <button class="key-btn num-key" data-val="8">8</button>
+                            <button class="key-btn num-key" data-val="9">9</button>
+                            <button class="key-btn num-key" data-val="4">4</button>
+                            <button class="key-btn num-key" data-val="5">5</button>
+                            <button class="key-btn num-key" data-val="6">6</button>
+                            <button class="key-btn num-key" data-val="1">1</button>
+                            <button class="key-btn num-key" data-val="2">2</button>
+                            <button class="key-btn num-key" data-val="3">3</button>
+                            <button class="key-btn clear-key" id="j-e-clear">SIL</button>
+                            <button class="key-btn num-key" data-val="0">0</button>
+                            <button class="key-btn num-key" data-val=".">.</button>
+                        </div>
+                        <div class="result-summary"
+                            style="margin-top:20px; padding-top:20px; border-top:1px solid var(--glass-border)">
+                            <div
+                                style="display:flex; justify-content:space-between; color:var(--text-dim); font-size:0.9rem">
+                                <span>Başlangıç: 10.00</span>
+                                <span>Kesinti: <strong id="j-val-deduction"
+                                        style="color:var(--danger)">0.00</strong></span>
+                            </div>
+                            <div class="score-box">E-Puanı: <span id="j-score-e"
+                                    style="color:var(--success)">10.00</span></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- D SCORE PANEL -->
+                <div id="panel-d" class="glass-card scoring-card">
+                    <h3>D-Puanı (Zorluk)</h3>
+                    <div id="j-panel-d-standard">
+                        <div class="difficulty-table-container">
+                            <table class="diff-table" id="j-diff-grid">
+                                <!-- Generated by JS -->
+                            </table>
+                        </div>
+                    </div>
+
+                    <div id="j-panel-d-zorunlu" style="display:none; padding:10px">
+                        <!-- Dynamic Content -->
+                    </div>
+
+                    <!-- VAULT D-SCORE PANEL (Simple Keypad) -->
+                    <div id="j-panel-d-vault" style="display:none;">
+                        <div class="e-input-container">
+                            <input type="text" id="j-d-vault-display" placeholder="0.00" readonly>
+                        </div>
+                        <div class="keypad numeric-keypad">
+                            <button class="key-btn num-key-vault" data-val="7">7</button>
+                            <button class="key-btn num-key-vault" data-val="8">8</button>
+                            <button class="key-btn num-key-vault" data-val="9">9</button>
+                            <button class="key-btn num-key-vault" data-val="4">4</button>
+                            <button class="key-btn num-key-vault" data-val="5">5</button>
+                            <button class="key-btn num-key-vault" data-val="6">6</button>
+                            <button class="key-btn num-key-vault" data-val="1">1</button>
+                            <button class="key-btn num-key-vault" data-val="2">2</button>
+                            <button class="key-btn num-key-vault" data-val="3">3</button>
+                            <button class="key-btn clear-key" id="j-d-vault-clear">SIL</button>
+                            <button class="key-btn num-key-vault" data-val="0">0</button>
+                            <button class="key-btn num-key-vault" data-val=".">.</button>
+                        </div>
+                    </div>
+
+                    <div class="bonus-section">
+                        <div class="bonus-group">
+                            <h4>CR (Gereklilikler)</h4>
+                            <div class="bonus-options" id="j-cr-options">
+                                <button class="bonus-opt" data-val="0">0.0</button>
+                                <button class="bonus-opt" data-val="0.5">0.5</button>
+                                <button class="bonus-opt" data-val="1.0">1.0</button>
+                                <button class="bonus-opt" data-val="1.5">1.5</button>
+                                <button class="bonus-opt" data-val="2.0">2.0</button>
+                            </div>
+                        </div>
+                        <div class="bonus-group" style="margin-top:15px">
+                            <h4>CV (Bağlantı)</h4>
+                            <div class="bonus-options" id="j-cv-options">
+                                <button class="bonus-opt" data-val="0">0.0</button>
+                                <button class="bonus-opt" data-val="0.1">0.1</button>
+                                <button class="bonus-opt" data-val="0.2">0.2</button>
+                                <button class="bonus-opt" data-val="0.3">0.3</button>
+                                <button class="bonus-opt" data-val="0.4">0.4</button>
+                                <button class="bonus-opt" data-val="0.5">0.5</button>
+                                <button class="bonus-opt" data-val="0.6">0.6</button>
+                                <button class="bonus-opt" data-val="0.7">0.7</button>
+                                <button class="bonus-opt" data-val="0.8">0.8</button>
+                                <button class="bonus-opt" data-val="0.9">0.9</button>
+                                <button class="bonus-opt" data-val="1.0">1.0</button>
+                                <button class="bonus-opt" data-val="1.1">1.1</button>
+                                <button class="bonus-opt" data-val="1.2">1.2</button>
+                                <button class="bonus-opt" data-val="1.3">1.3</button>
+                                <button class="bonus-opt" data-val="1.4">1.4</button>
+                                <button class="bonus-opt" data-val="1.5">1.5</button>
+                            </div>
+                        </div>
+                        <div class="bonus-group" style="margin-top:15px">
+                            <h4>BTRS</h4>
+                            <div class="bonus-options" id="j-btrs-options">
+                                <button class="bonus-opt" data-val="0">0.0</button>
+                                <button class="bonus-opt" data-val="0.2">0.2</button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div id="j-panel-d-zorunlu" style="display:none; padding:10px">
+                        <div style="display:grid; grid-template-columns:repeat(auto-fill, minmax(80px, 1fr)); gap:15px">
+                            <!-- D1-D11 Inputs -->
+                            <div class="z-input-wrapper"><label>D1</label><input type="number" step="0.1"
+                                    class="z-d-input" id="j-z-d1"></div>
+                            <div class="z-input-wrapper"><label>D2</label><input type="number" step="0.1"
+                                    class="z-d-input" id="j-z-d2"></div>
+                            <div class="z-input-wrapper"><label>D3</label><input type="number" step="0.1"
+                                    class="z-d-input" id="j-z-d3"></div>
+                            <div class="z-input-wrapper"><label>D4</label><input type="number" step="0.1"
+                                    class="z-d-input" id="j-z-d4"></div>
+                            <div class="z-input-wrapper"><label>D5</label><input type="number" step="0.1"
+                                    class="z-d-input" id="j-z-d5"></div>
+                            <div class="z-input-wrapper"><label>D6</label><input type="number" step="0.1"
+                                    class="z-d-input" id="j-z-d6"></div>
+                            <div class="z-input-wrapper"><label>D7</label><input type="number" step="0.1"
+                                    class="z-d-input" id="j-z-d7"></div>
+                            <div class="z-input-wrapper"><label>D8</label><input type="number" step="0.1"
+                                    class="z-d-input" id="j-z-d8"></div>
+                            <div class="z-input-wrapper"><label>D9</label><input type="number" step="0.1"
+                                    class="z-d-input" id="j-z-d9"></div>
+                            <div class="z-input-wrapper"><label>D10</label><input type="number" step="0.1"
+                                    class="z-d-input" id="j-z-d10"></div>
+                            <div class="z-input-wrapper"><label>D11</label><input type="number" step="0.1"
+                                    class="z-d-input" id="j-z-d11"></div>
+                        </div>
+                        <style>
+                            .z-input-wrapper {
+                                display: flex;
+                                flex-direction: column;
+                                align-items: center;
+                            }
+
+                            .z-input-wrapper label {
+                                font-weight: bold;
+                                color: var(--text-dim);
+                                margin-bottom: 5px;
+                            }
+
+                            .z-d-input {
+                                width: 100%;
+                                padding: 10px;
+                                background: var(--surface-light);
+                                border: 2px solid var(--glass-border);
+                                border-radius: 8px;
+                                color: var(--text-main);
+                                font-weight: 700;
+                                text-align: center;
+                                font-size: 1.1rem;
+                            }
+
+                            .z-d-input:focus {
+                                border-color: var(--primary);
+                                outline: none;
+                            }
+                        </style>
+                    </div>
+                    <div class="score-box">D-Puanı: <span id="j-score-d" style="color:var(--primary-hover)">0.00</span>
+                    </div>
+                </div>
+
+                <button id="btn-submit-score" class="submit-btn"
+                    style="width:100%; margin-top:20px; padding:20px; font-size:1.2rem" disabled>
+                    PUANIMI GÖNDER 🚀
+                </button>
+            </div>
+    </div>
+    </section>
+
+    <!-- SUCCESS SCREEN -->
+    <section id="success-screen" class="screen" style="display:none">
+        <div class="glass-card" style="max-width:500px; margin:100px auto; text-align:center; padding:40px">
+            <div style="font-size:4rem; margin-bottom:20px; color:var(--success)">✓</div>
+            <h2 style="color:var(--success)">Puan Gönderildi!</h2>
+            <div id="submitted-score-summary"
+                style="margin:20px 0; background:rgba(0,0,0,0.2); padding:20px; border-radius:10px">
+                <!-- JS ile dolacak -->
+            </div>
+            <p>Yeni video için bekleyiniz...</p>
+            <div class="loader-circle" style="width:30px; height:30px; margin-top:20px"></div>
+            <div style="margin-top:30px">
+                <button class="reset-btn sm-btn" style="opacity:0.6" onclick="location.reload()">Panel'e
+                    Dön</button>
+            </div>
+        </div>
+    </section>
+    </div>
+
+    <!-- Firebase SDKs -->
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-database-compat.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.bundle.js"></script>
+    <script src="scoring_config.js?v=1.0"></script>
+    <script src="data.js"></script>
+    <script src="app.js?v=2.78"></script>
+    <script src="match_report.js"></script>
+</body>
+
+</html>

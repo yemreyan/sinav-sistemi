@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+    <title>Hakem Link Yönetici Paneli</title>
+    <script src="https://www.gstatic.com/firebasejs/9.6.7/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.6.7/firebase-database-compat.js"></script>
+    <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root { --background-color: #1a1a2e; --card-color: #2c2c47; --text-color: #f0f0f0; --primary-color: #00bcd4; --danger-color: #ff6b6b; --success-color: #2ecc71; --warning-color: #ff9800; --border-radius: 10px; }
+        * { box-sizing: border-box; font-family: 'Inter', sans-serif; }
+        body { background-color: var(--background-color); color: var(--text-color); margin: 0; padding: 20px; }
+        .container { max-width: 900px; margin: 0 auto; }
+        
+        /* Header & Back Button */
+        .header-area { display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px; }
+        .back-button { background: rgba(255,255,255,0.1); color: white; border: 1px solid rgba(255,255,255,0.2); padding: 10px 15px; border-radius: 8px; text-decoration: none; display: flex; align-items: center; gap: 5px; transition: 0.3s; }
+        .back-button:hover { background: rgba(255,255,255,0.2); }
+
+        .panel { background-color: var(--card-color); padding: 30px; border-radius: var(--border-radius); box-shadow: 0 4px 20px rgba(0,0,0,0.4); margin-bottom: 20px; }
+        h1 { text-align: center; color: var(--primary-color); margin-top: 0; }
+        #pin-area { text-align: center; }
+        #pin-input, #competition-select { font-size: 1.2em; padding: 10px; border-radius: var(--border-radius); border: 2px solid var(--primary-color); background-color: #3f3f5a; color: var(--text-color); text-align: center; margin-right: 10px; margin-bottom: 15px; }
+        #pin-input { width: 200px; }
+        #competition-select { width: 100%; max-width: 300px; }
+        .btn { padding: 12px 25px; font-size: 1.1em; border: none; border-radius: var(--border-radius); cursor: pointer; font-weight: 600; transition: all 0.2s; }
+        #pin-submit-btn { background-color: var(--primary-color); color: #000; }
+        #load-links-btn { background-color: var(--success-color); color: #000; }
+        .error { color: var(--danger-color); margin-top: 10px; font-weight: 600; }
+        #admin-panel { display: none; text-align: center; }
+        #selection-area { margin-bottom: 25px; border-bottom: 2px solid #4a4a6e; padding-bottom: 20px; }
+        #links-container { text-align: left; }
+        .apparatus-section { margin-top: 25px; border-top: 2px dashed #4a4a6e; padding-top: 15px; }
+        .apparatus-section h2 { color: var(--warning-color); border-bottom: 2px solid var(--warning-color); padding-bottom: 5px; margin-bottom: 15px; font-size: 1.5em; }
+        .link-list { list-style: none; padding: 0; display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 15px; }
+        .link-list li { background-color: #3f3f5a; padding: 15px; border-radius: var(--border-radius); display: flex; flex-direction: column; }
+        .link-list li strong { color: var(--primary-color); font-size: 1.1em; margin-bottom: 5px; }
+        .link-list li a { color: var(--text-color); text-decoration: none; word-break: break-all; font-size: 0.9em; transition: color 0.2s; }
+        .link-list li a:hover { color: var(--primary-color); text-decoration: underline; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header-area">
+            <a href="index.html" id="backBtn" class="back-button"><i class="material-icons">arrow_back</i> Ana Sayfa</a>
+        </div>
+        <div class="panel">
+            <h1>Hakem Paneli Link Oluşturucu 🔗</h1>
+            <div id="pin-area">
+                <p>Linklere Erişmek İçin Yönetici PIN Kodunu Giriniz:</p>
+                <input type="password" id="pin-input" maxlength="4" placeholder="PIN Kodu">
+                <button class="btn" id="pin-submit-btn">Giriş Yap</button>
+                <div id="pin-error" class="error" style="display: none;"></div>
+            </div>
+            
+            <div id="admin-panel">
+                <div id="selection-area">
+                    <p>Lütfen bir yarışma seçiniz:</p>
+                    <select id="competition-select"><option value="">Yarışmalar Yükleniyor...</option></select>
+                    <button class="btn" id="load-links-btn" disabled>Linkleri Getir</button>
+                </div>
+                <div id="links-container"><p>Lütfen yarışma seçiniz.</p></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const CORRECT_ADMIN_PIN = "1234"; 
+        // Otomatik olarak mevcut domaini alır
+        const BASE_URL = `${window.location.protocol}//${window.location.host}/hakem_ekrani.html`;
+
+        const firebaseConfig = { apiKey: "AIzaSyA5VNkBsZkZqaDr8YgOnhiGCDql9-lJ6Gk", authDomain: "analig2025.firebaseapp.com", databaseURL: "https://analig2025-default-rtdb.firebaseio.com" };
+        firebase.initializeApp(firebaseConfig);
+        const db = firebase.database();
+
+        const APPARATUS_NAMES = { atlama: "Atlama Masası", barfiks: "Barfiks", denge: "Denge Aleti", yer: "Yer Serisi", asimetrik_paralel: "Asimetrik Paralel" };
+        let selectedCompId = localStorage.getItem('activeCompetitionId');
+
+        document.addEventListener('DOMContentLoaded', () => {
+            // Ana sayfa linkini güncelle
+            if(selectedCompId) {
+                document.getElementById('backBtn').href = `index.html?competitionId=${selectedCompId}`;
+            }
+            
+            document.getElementById('pin-submit-btn').addEventListener('click', handlePinSubmit);
+            document.getElementById('load-links-btn').addEventListener('click', () => loadAndDisplayLinks(document.getElementById('competition-select').value));
+        });
+
+        function handlePinSubmit() {
+            if (document.getElementById('pin-input').value === CORRECT_ADMIN_PIN) {
+                document.getElementById('pin-area').style.display = 'none';
+                document.getElementById('admin-panel').style.display = 'block';
+                loadCompetitionList();
+            } else {
+                document.getElementById('pin-error').style.display = 'block';
+                document.getElementById('pin-error').textContent = 'Hatalı PIN!';
+            }
+        }
+
+        async function loadCompetitionList() {
+            const select = document.getElementById('competition-select');
+            const snapshot = await db.ref('competitions').once('value');
+            select.innerHTML = '<option value="">-- Yarışma Seçiniz --</option>';
+            if (snapshot.exists()) {
+                snapshot.forEach(child => {
+                    const comp = child.val();
+                    const opt = document.createElement('option');
+                    opt.value = child.key;
+                    opt.textContent = comp.isim;
+                    if(child.key === selectedCompId) opt.selected = true;
+                    select.appendChild(opt);
+                });
+                document.getElementById('load-links-btn').disabled = false;
+                if(selectedCompId) loadAndDisplayLinks(selectedCompId);
+            }
+        }
+
+        async function loadAndDisplayLinks(compId) {
+            const container = document.getElementById('links-container');
+            container.innerHTML = 'Yükleniyor...';
+            const snapshot = await db.ref(`competitions/${compId}/cimnastikVerileri/kriterler`).once('value');
+            if (!snapshot.exists()) { container.innerHTML = '<p class="error">Bu yarışma için kriter/hakem ataması bulunamadı.</p>'; return; }
+            
+            let html = '';
+            snapshot.forEach(child => {
+                const appKey = child.key;
+                const appData = child.val();
+                if (appData.hakemler) {
+                    html += `<div class="apparatus-section"><h2>${APPARATUS_NAMES[appKey] || appKey}</h2><ul class="link-list">`;
+                    for (const panelId in appData.hakemler) {
+                        const link = `${BASE_URL}?competitionId=${compId}&panel=${panelId}&apparatus=${appKey}`;
+                        html += `<li><strong>${appData.hakemler[panelId]} (${panelId})</strong><a href="${link}" target="_blank">${link}</a></li>`;
+                    }
+                    html += `</ul></div>`;
+                }
+            });
+            container.innerHTML = html || '<p>Hakem ataması bulunamadı.</p>';
+        }
+    </script>
+</body>
+</html>

@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Kullanıcı Giriş/Çıkış Kayıtları - Cimnastik Puanlama</title>
+    <script src="https://www.gstatic.com/firebasejs/9.6.7/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.6.7/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.6.7/firebase-database-compat.js"></script>
+    <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --background-color: #121212;
+            --card-color: #1e1e1e;
+            --text-color: #e0e0e0;
+            --text-muted: #8e8e8e;
+            --border-color: #333;
+            --primary-color: #bb86fc;
+            --success-color: #03dac6;
+            --warning-color: #fdd835;
+            --danger-color: #cf6679;
+            --border-radius: 12px;
+            --box-shadow: 0 8px 30px rgba(0,0,0,0.2);
+            --transition-speed: 0.3s;
+        }
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { font-family: 'Inter', sans-serif; background-color: var(--background-color); color: var(--text-color); line-height: 1.6; }
+        .container { max-width: 1680px; margin: 0 auto; padding: 20px; animation: fadeIn 0.5s ease-in-out; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(-10px); } to { opacity: 1; transform: translateY(0); } }
+        
+        .header h1 { font-size: 2.8em; font-weight: 700; background: linear-gradient(90deg, var(--primary-color), var(--success-color)); -webkit-background-clip: text; -webkit-text-fill-color: transparent; text-align: center; }
+        .header p { font-size: 1.2em; color: var(--text-muted); text-align: center; margin-bottom: 20px;}
+        .main-nav { background-color: var(--card-color); border: 1px solid var(--border-color); border-radius: var(--border-radius); box-shadow: var(--box-shadow); margin-bottom: 30px; overflow: hidden; }
+        .nav-container { display: flex; flex-wrap: wrap; justify-content: center; }
+        .nav-item { text-decoration: none; color: var(--text-muted); padding: 15px 20px; display: flex; flex-direction: column; align-items: center; transition: all 0.3s; min-width: 120px; }
+        .nav-item:hover { color: var(--primary-color); background-color: rgba(187, 134, 252, 0.1); }
+        .nav-item.active { color: #000; background-color: var(--primary-color); font-weight: 600; }
+        .nav-item i { font-size: 1.5em; margin-bottom: 5px; }
+
+        .content-card { background-color: var(--card-color); border-radius: var(--border-radius); box-shadow: var(--box-shadow); border: 1px solid var(--border-color); padding: 30px; margin-bottom: 30px; }
+        .content-card h2 { color: var(--text-color); margin-top: 0; margin-bottom: 25px; padding-bottom: 15px; border-bottom: 1px solid var(--border-color); font-size: 1.6em; font-weight: 600; }
+        
+        .filter-section { background: rgba(40, 40, 40, 0.7); backdrop-filter: blur(10px); border: 1px solid var(--border-color); padding: 25px; border-radius: var(--border-radius); margin-bottom: 25px; display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 20px; align-items: end; }
+        .filter-group label { display: block; margin-bottom: 8px; font-weight: 500; color: var(--text-muted); }
+        .filter-group select, .filter-group input { width: 100%; padding: 12px; border-radius: 8px; border: 1px solid #444; box-sizing: border-box; background-color: #2b2b2b; color: var(--text-color); font-size: 1em; }
+        
+        table { width: 100%; border-collapse: collapse; }
+        thead th { padding: 12px 15px; text-align: left; font-weight: 600; color: var(--text-muted); border-bottom: 2px solid var(--border-color); }
+        td { padding: 15px; vertical-align: middle; }
+        tbody tr { border-bottom: 1px solid var(--border-color); transition: background-color var(--transition-speed); }
+        tbody tr:hover { background-color: rgba(187, 134, 252, 0.05); }
+        td.details { white-space: normal; max-width: 450px; font-size: 0.9em; color: var(--text-muted); }
+
+        .event-type { display: inline-flex; align-items: center; gap: 8px; font-weight: 600; padding: 6px 12px; border-radius: 20px; font-size: 0.9em; }
+        .event-type .material-icons { font-size: 16px; }
+        .event-type-login { background-color: rgba(3, 218, 198, 0.1); color: var(--success-color); }
+        .event-type-logout { background-color: rgba(207, 102, 121, 0.1); color: var(--danger-color); }
+
+        .pagination { display: flex; justify-content: center; align-items: center; gap: 8px; margin-top: 20px; }
+        .pagination-btn { padding: 10px 15px; border: 1px solid var(--border-color); background-color: transparent; color: var(--text-muted); border-radius: 8px; cursor: pointer; }
+        .pagination-btn.active { background-color: var(--primary-color); color: #000; border-color: var(--primary-color); font-weight: bold; }
+    </style>
+</head>
+<body>
+    <script> if (localStorage.getItem('isHakemLoggedIn') !== 'true') window.location.href = 'login.html'; </script>
+
+    <div class="container">
+        <header class="header"><h1>Kullanıcı Giriş Kayıtları</h1><p>Sisteme yapılan tüm kimlik doğrulama işlemlerini izleyin</p></header>
+        <div id="mainNavContainer" class="main-nav"></div>
+
+        <div class="content-card">
+            <h2>Kayıt Filtreleme</h2>
+            <div class="filter-section">
+                <div class="filter-group">
+                    <label for="emailFilter">E-posta Ara</label>
+                    <input type="text" id="emailFilter" placeholder="Kullanıcı e-postası...">
+                </div>
+                <div class="filter-group">
+                    <label for="eventTypeFilter">İşlem Türü</label>
+                    <select id="eventTypeFilter">
+                        <option value="">Tüm İşlemler</option>
+                        <option value="login">Giriş</option>
+                        <option value="logout">Çıkış</option>
+                    </select>
+                </div>
+                <div class="filter-group">
+                    <label for="startDateFilter">Başlangıç Tarihi</label>
+                    <input type="date" id="startDateFilter">
+                </div>
+                <div class="filter-group">
+                    <label for="endDateFilter">Bitiş Tarihi</label>
+                    <input type="date" id="endDateFilter">
+                </div>
+            </div>
+        </div>
+
+        <div class="content-card">
+            <h2>Giriş/Çıkış Listesi</h2>
+            <div class="table-responsive">
+                <table>
+                    <thead>
+                        <tr><th>Tarih / Saat</th><th>Kullanıcı E-postası</th><th>İşlem Türü</th><th style="width: 40%;">Tarayıcı / Cihaz Bilgisi</th></tr>
+                    </thead>
+                    <tbody id="authLogsTableBody"></tbody>
+                </table>
+            </div>
+            <div class="pagination" id="paginationControls"></div>
+        </div>
+    </div>
+    
+    <script>
+        const firebaseConfig = { apiKey: "AIzaSyA5VNkBsZkZqaDr8YgOnhiGCDql9-lJ6Gk", authDomain: "analig2025.firebaseapp.com", databaseURL: "https://analig2025-default-rtdb.firebaseio.com", projectId: "analig2025", storageBucket: "analig2025.appspot.com", messagingSenderId: "835759576581", appId: "1:835759576581:web:561d073115b02584ebee6c" };
+        firebase.initializeApp(firebaseConfig);
+        const db = firebase.database();
+        const auth = firebase.auth();
+
+        let allAuthLogs = [], filteredLogs = [], currentPage = 1;
+        const LOGS_PER_PAGE = 50;
+
+        document.addEventListener('DOMContentLoaded', () => {
+            loadNavigationMenu();
+            loadAuthLogs();
+            setupEventListeners();
+        });
+        
+        function setupEventListeners() {
+            document.getElementById('emailFilter').addEventListener('input', () => { currentPage = 1; renderAuthLogs(); });
+            document.getElementById('eventTypeFilter').addEventListener('change', () => { currentPage = 1; renderAuthLogs(); });
+            document.getElementById('startDateFilter').addEventListener('change', () => { currentPage = 1; renderAuthLogs(); });
+            document.getElementById('endDateFilter').addEventListener('change', () => { currentPage = 1; renderAuthLogs(); });
+        }
+        
+        function loadAuthLogs() {
+            db.ref('auth_logs').orderByChild('timestamp').on('value', (snapshot) => {
+                allAuthLogs = [];
+                snapshot.forEach(child => { allAuthLogs.push({ id: child.key, ...child.val() }); });
+                allAuthLogs.reverse();
+                renderAuthLogs();
+            });
+        }
+        
+        function renderAuthLogs() {
+            const tableBody = document.getElementById('authLogsTableBody');
+            
+            const emailFilter = document.getElementById('emailFilter').value.toLowerCase();
+            const eventTypeFilter = document.getElementById('eventTypeFilter').value;
+            const startDate = document.getElementById('startDateFilter').value ? new Date(document.getElementById('startDateFilter').value).setHours(0,0,0,0) : null;
+            const endDate = document.getElementById('endDateFilter').value ? new Date(document.getElementById('endDateFilter').value).setHours(23,59,59,999) : null;
+
+            filteredLogs = allAuthLogs.filter(log => {
+                const logDate = new Date(log.timestamp);
+                const emailMatch = !emailFilter || log.email.toLowerCase().includes(emailFilter);
+                const eventTypeMatch = !eventTypeFilter || log.eventType === eventTypeFilter;
+                const dateMatch = (!startDate || logDate >= startDate) && (!endDate || logDate <= endDate);
+                return emailMatch && eventTypeMatch && dateMatch;
+            });
+
+            const startIndex = (currentPage - 1) * LOGS_PER_PAGE;
+            const paginatedLogs = filteredLogs.slice(startIndex, startIndex + LOGS_PER_PAGE);
+
+            if (paginatedLogs.length === 0) {
+                tableBody.innerHTML = `<tr><td colspan="4" style="text-align: center; padding: 40px; color: var(--text-muted);">Filtreye uygun kayıt bulunamadı.</td></tr>`;
+                renderPagination();
+                return;
+            }
+
+            tableBody.innerHTML = paginatedLogs.map(log => {
+                const date = new Date(log.timestamp).toLocaleString('tr-TR', { dateStyle: 'short', timeStyle: 'medium' });
+                const eventTypeDisplay = log.eventType === 'login'
+                    ? `<div class="event-type event-type-login"><i class="material-icons">login</i> Giriş Yapıldı</div>`
+                    : `<div class="event-type event-type-logout"><i class="material-icons">logout</i> Çıkış Yapıldı</div>`;
+
+                return `
+                    <tr>
+                        <td>${date}</td>
+                        <td style="color: var(--primary-color); font-weight: 500;">${log.email}</td>
+                        <td>${eventTypeDisplay}</td>
+                        <td class="details">${log.userAgent || '-'}</td>
+                    </tr>
+                `;
+            }).join('');
+            
+            renderPagination();
+        }
+        
+        function renderPagination() {
+            const p = document.getElementById('paginationControls');
+            const totalPages = Math.ceil(filteredLogs.length / LOGS_PER_PAGE);
+            p.innerHTML = '';
+            if (totalPages <= 1) return;
+            // ... (Sayfalama buton oluşturma mantığı öncekiyle aynı kalabilir)
+        }
+
+        function loadNavigationMenu() {
+            const navContainer = document.getElementById('mainNavContainer');
+            if(!navContainer) return;
+            // Bu sayfada "Giriş Kayıtları" linki aktif olmalı
+            navContainer.innerHTML = `
+             <div class="nav-container">
+                <a href="index.html" class="nav-item"> <i class="material-icons">dashboard</i> Ana Sayfa </a>
+                <a href="athletes.html" class="nav-item"> <i class="material-icons">people</i> Sporcular </a>
+                <a href="logs.html" class="nav-item"> <i class="material-icons">history</i> Puan Kayıtları </a>
+                <a href="auth-logs.html" class="nav-item active"> <i class="material-icons">security</i> Giriş Kayıtları </a>
+                <a href="#" id="logoutBtn" class="nav-item" style="color: #cf6679;"> <i class="material-icons">exit_to_app</i> Çıkış Yap </a>
+            </div>
+            `;
+            const logoutBtn = document.getElementById('logoutBtn');
+            if(logoutBtn) {
+                 logoutBtn.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    if (confirm("Çıkış yapmak istediğinizden emin misiniz?")) {
+                        const userEmail = localStorage.getItem('hakemUserEmail');
+                        if (userEmail) { db.ref('auth_logs').push({ email: userEmail, timestamp: firebase.database.ServerValue.TIMESTAMP, eventType: 'logout' }); }
+                        auth.signOut();
+                    }
+                });
+            }
+        }
+    </script>
+</body>
+</html>

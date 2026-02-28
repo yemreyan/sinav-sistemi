@@ -1,0 +1,1282 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cimnastik Puanlama Sistemi</title>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --primary: #2563eb;
+            --primary-dark: #1d4ed8;
+            --secondary: #0ea5e9;
+            --success: #10b981;
+            --danger: #ef4444;
+            --warning: #f59e0b;
+            --dark: #1e293b;
+            --light: #f8fafc;
+            --grey: #e2e8f0;
+        }
+        
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+        
+        body {
+            font-family: 'Poppins', sans-serif;
+            background-color: #f0f2f5;
+            color: var(--dark);
+            line-height: 1.6;
+            padding: 10px;
+        }
+        
+        .container {
+            max-width: 1000px;
+            margin: 0 auto;
+            background-color: white;
+            border-radius: 16px;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.08);
+            padding: 20px;
+            overflow: hidden;
+        }
+        
+        header {
+            text-align: center;
+            margin-bottom: 20px;
+            border-bottom: 2px solid var(--grey);
+            padding-bottom: 15px;
+        }
+        
+        h1 {
+            color: var(--primary);
+            font-size: 24px;
+            font-weight: 600;
+            margin-bottom: 5px;
+        }
+        
+        .subtitle {
+            color: var(--secondary);
+            font-size: 14px;
+            font-weight: 400;
+        }
+        
+        .form-row {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 15px;
+            margin-bottom: 15px;
+        }
+        
+        .input-group {
+            margin-bottom: 15px;
+        }
+        
+        label {
+            display: block;
+            font-weight: 500;
+            margin-bottom: 8px;
+            color: var(--dark);
+        }
+        
+        input, select {
+            width: 100%;
+            padding: 12px 15px;
+            border: 1px solid var(--grey);
+            border-radius: 8px;
+            font-size: 16px;
+            font-family: 'Poppins', sans-serif;
+            transition: all 0.3s ease;
+        }
+        
+        input:focus, select:focus {
+            outline: none;
+            border-color: var(--primary);
+            box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.2);
+        }
+        
+        /* Tablo Stilleri */
+        .score-table-container {
+            overflow-x: auto;
+            margin: 20px 0;
+        }
+        
+        .score-table {
+            width: 100%;
+            min-width: 500px;
+            border-collapse: collapse;
+            border-radius: 12px;
+            overflow: hidden;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.05);
+        }
+        
+        .score-table th, .score-table td {
+            padding: 10px 6px;
+            text-align: center;
+            border: 1px solid var(--grey);
+        }
+        
+        .score-table th {
+            background-color: var(--primary);
+            color: white;
+            font-weight: 500;
+            font-size: 14px;
+            position: sticky;
+            top: 0;
+        }
+        
+        .score-table tr:nth-child(even) {
+            background-color: #f8f9fa;
+        }
+        
+        .score-table td:first-child {
+            font-weight: 600;
+            background-color: #e6f0ff;
+            position: sticky;
+            left: 0;
+        }
+        
+        /* Buton Stilleri */
+        .btn {
+            cursor: pointer;
+            padding: 8px 12px;
+            border: none;
+            border-radius: 6px;
+            font-size: 14px;
+            font-weight: 500;
+            font-family: 'Poppins', sans-serif;
+            transition: all 0.2s ease;
+        }
+        
+        .move-btn {
+            width: 30px;
+            height: 30px;
+            margin: 2px;
+            background-color: white;
+            border: 1px solid var(--grey);
+            border-radius: 50%;
+            color: var(--dark);
+        }
+        
+        .move-btn:hover {
+            background-color: #edf2fd;
+            border-color: var(--primary);
+        }
+        
+        .selected {
+            background-color: var(--success) !important;
+            color: white !important;
+            border-color: var(--success) !important;
+            box-shadow: 0 2px 5px rgba(16, 185, 129, 0.3);
+            animation: pulse 0.5s;
+        }
+        
+        .btn-primary {
+            background-color: var(--primary);
+            color: white;
+            padding: 12px 20px;
+            font-size: 16px;
+            width: 100%;
+            max-width: 300px;
+            margin: 0 auto;
+            display: block;
+        }
+        
+        .btn-primary:hover {
+            background-color: var(--primary-dark);
+            box-shadow: 0 4px 10px rgba(37, 99, 235, 0.3);
+        }
+        
+        /* Puan Kutucukları */
+        .score-options {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin: 10px 0;
+        }
+        
+        .score-option {
+            flex: 1;
+            min-width: 50px;
+            padding: 8px 5px;
+            border: 1px solid var(--grey);
+            border-radius: 8px;
+            font-weight: 500;
+            text-align: center;
+            font-size: 14px;
+        }
+        
+        .score-option:hover {
+            border-color: var(--primary);
+            background-color: #edf2fd;
+        }
+        
+        /* E Puanlama Keypad */
+        .keypad {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 10px;
+            max-width: 300px;
+            margin: 15px auto;
+        }
+        
+        .keypad-btn {
+            height: 60px;
+            font-size: 22px;
+            background-color: white;
+            border: 1px solid var(--grey);
+            border-radius: 12px;
+            transition: all 0.2s;
+        }
+        
+        .keypad-btn:hover {
+            background-color: #edf2fd;
+            border-color: var(--primary);
+        }
+        
+        .keypad-btn:active {
+            transform: scale(0.98);
+        }
+        
+        .score-display {
+            width: 100%;
+            padding: 12px;
+            font-size: 20px;
+            text-align: center;
+            margin: 15px 0;
+            border: 2px solid var(--primary);
+            border-radius: 8px;
+            font-weight: 500;
+            background-color: #edf2fd;
+        }
+        
+        /* Sonuç Bölümü */
+        .result-box {
+            background-color: #f0f9ff;
+            border: 1px solid #bae6fd;
+            border-radius: 10px;
+            padding: 15px;
+            margin: 20px 0;
+            text-align: center;
+        }
+        
+        .total-score {
+            font-size: 24px;
+            font-weight: 600;
+            color: var(--primary);
+            margin: 8px 0;
+        }
+        
+        /* Puan Grid Bölümü */
+        .scores-grid-container {
+            margin-top: 30px;
+            border-top: 2px solid var(--grey);
+            padding-top: 20px;
+            overflow-x: auto;
+        }
+        
+        .scores-grid {
+            width: 100%;
+            min-width: 600px;
+            border-collapse: collapse;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+            border-radius: 8px;
+            overflow: hidden;
+        }
+        
+        .scores-grid th {
+            background-color: var(--primary);
+            color: white;
+            padding: 10px;
+            text-align: left;
+            font-weight: 500;
+            font-size: 14px;
+            position: sticky;
+            top: 0;
+        }
+        
+        .scores-grid td {
+            padding: 10px;
+            border-bottom: 1px solid var(--grey);
+            font-size: 14px;
+        }
+        
+        .scores-grid tr:last-child td {
+            border-bottom: none;
+        }
+        
+        .scores-grid tr:nth-child(even) {
+            background-color: #f8fafc;
+        }
+        
+        .scores-grid .score-value {
+            font-weight: 600;
+            text-align: center;
+        }
+        
+        .scores-grid tr:hover {
+            background-color: #edf2fd;
+        }
+        
+        .type-badge {
+            padding: 4px 8px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: 600;
+            display: inline-block;
+        }
+        
+        .type-badge.d-type {
+            background-color: #e0f2fe;
+            color: #0369a1;
+        }
+        
+        .type-badge.e-type {
+            background-color: #e0e7ff;
+            color: #4338ca;
+        }
+        
+        /* Animasyonlar */
+        @keyframes pulse {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.05); }
+            100% { transform: scale(1); }
+        }
+        
+        .hidden {
+            display: none;
+        }
+        
+        /* Bildirimler */
+        .notification {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            padding: 12px 20px;
+            border-radius: 8px;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+            transform: translateY(-100px);
+            opacity: 0;
+            transition: all 0.5s ease;
+            z-index: 1000;
+            max-width: 90%;
+            word-wrap: break-word;
+        }
+        
+        .notification.success {
+            background-color: var(--success);
+            color: white;
+        }
+        
+        .notification.error {
+            background-color: var(--danger);
+            color: white;
+        }
+        
+        .notification.warning {
+            background-color: var(--warning);
+            color: white;
+        }
+        
+        .notification.show {
+            transform: translateY(0);
+            opacity: 1;
+        }
+        
+        /* Mobil Responsive Ayarlar */
+        @media (min-width: 768px) {
+            body {
+                padding: 20px;
+            }
+            
+            .container {
+                padding: 30px;
+            }
+            
+            h1 {
+                font-size: 28px;
+            }
+            
+            .subtitle {
+                font-size: 16px;
+            }
+            
+            .form-row {
+                grid-template-columns: 1fr 1fr;
+                gap: 20px;
+                margin-bottom: 20px;
+            }
+            
+            .btn-primary {
+                width: auto;
+            }
+            
+            .move-btn {
+                width: 35px;
+                height: 35px;
+            }
+            
+            .score-option {
+                padding: 10px 15px;
+                font-size: 15px;
+            }
+            
+            .keypad-btn {
+                height: 70px;
+                font-size: 24px;
+            }
+        }
+        
+        /* Tabletler için */
+        @media (min-width: 992px) {
+            .container {
+                padding: 40px;
+            }
+        }
+        
+        /* Touch cihazlar için buton boyutlarını artır */
+        @media (pointer: coarse) {
+            .move-btn {
+                min-width: 35px;
+                min-height: 35px;
+            }
+            
+            .score-option {
+                min-height: 40px;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+            }
+            
+            .keypad-btn {
+                min-height: 50px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>Cimnastik Puanlama Sistemi</h1>
+            <p class="subtitle">Hareketleri değerlendirin ve puanları kaydedin</p>
+        </header>
+        
+        <div class="form-row">
+            <div class="input-group">
+                <label for="judgeName">Değerlendiren Adı:</label>
+                <input type="text" id="judgeName" placeholder="Adınızı yazınız" required>
+            </div>
+
+            <div class="input-group">
+                <label for="judgeClass">Sınıf Numarası:</label>
+                <input type="text" id="judgeClass" placeholder="Sınıf numaranızı yazınız" required>
+            </div>
+        </div>
+        
+        <div class="form-row">
+            <div class="input-group">
+                <label for="routine">Değerlendirilen Hareket:</label>
+                <select id="routine">
+                    <option value="">Lütfen seçiniz</option>
+                    <option value="UB">Asimetrik Paralel (UB)</option>
+                    <option value="BB">Denge (BB)</option>
+                    <option value="FX">Yer (FX)</option>
+                    <option value="VT">Atlama Masası (VT)</option>
+                </select>
+            </div>
+
+            <div class="input-group">
+                <label for="routineNumber">Hareket No:</label>
+                <input type="text" id="routineNumber" placeholder="Hareket numarasını yazınız" onchange="checkRoutineExists()" required>
+            </div>
+        </div>
+        
+        <div class="input-group">
+            <label for="scoreType">Puanlama Tipi:</label>
+            <select id="scoreType" onchange="toggleScoringMode()">
+                <option value="">Puan tipi seçiniz</option>
+                <option value="D">D Puanlama (Zorluk)</option>
+                <option value="E">E Puanlama (Uygulama)</option>
+            </select>
+        </div>
+        
+        <!-- D Puanlama Bölümü -->
+        <div id="dScoring" class="hidden">
+            <h2 style="margin: 20px 0 10px; color: var(--primary);">Zorluk Puanlaması</h2>
+            
+            <div class="score-table-container">
+                <table class="score-table" id="difficultyTable">
+                    <tr>
+                        <th>Zorluk</th>
+                        <th colspan="9">Hareket Sayıları</th>
+                    </tr>
+                    <!-- JavaScript ile doldurulacak -->
+                </table>
+            </div>
+
+            <div class="form-row">
+                <div class="input-group">
+                    <h3>CR Puanı (Kompozisyon Gereklilikleri):</h3>
+                    <div class="score-options" id="crOptions">
+                        <!-- JavaScript ile doldurulacak -->
+                    </div>
+                </div>
+
+                <div class="input-group">
+                    <h3>CV Puanı (Bağlantı Değeri):</h3>
+                    <div class="score-options" id="cvOptions">
+                        <!-- JavaScript ile doldurulacak -->
+                    </div>
+                </div>
+            </div>
+            
+            <div class="result-box">
+                <h3>Toplam D Puanı</h3>
+                <div class="total-score" id="totalScoreDisplay">0.00</div>
+            </div>
+            
+            <div style="text-align: center; margin-top: 20px;">
+                <button class="btn btn-primary" onclick="saveScores()">Puanı Kaydet</button>
+            </div>
+        </div>
+        
+        <!-- E Puanlama Bölümü -->
+        <div id="eScoring" class="hidden">
+            <h2 style="margin: 20px 0 10px; color: var(--primary); text-align: center;">Uygulama Puanlaması</h2>
+            <p style="text-align: center; margin-bottom: 15px;">Lütfen kesintileri girin:</p>
+            
+            <input type="text" id="eScoreInput" class="score-display" placeholder="0.00" readonly>
+            
+            <div class="keypad">
+                <button class="keypad-btn" onclick="appendEInput('7')">7</button>
+                <button class="keypad-btn" onclick="appendEInput('8')">8</button>
+                <button class="keypad-btn" onclick="appendEInput('9')">9</button>
+                <button class="keypad-btn" onclick="appendEInput('4')">4</button>
+                <button class="keypad-btn" onclick="appendEInput('5')">5</button>
+                <button class="keypad-btn" onclick="appendEInput('6')">6</button>
+                <button class="keypad-btn" onclick="appendEInput('1')">1</button>
+                <button class="keypad-btn" onclick="appendEInput('2')">2</button>
+                <button class="keypad-btn" onclick="appendEInput('3')">3</button>
+                <button class="keypad-btn" onclick="clearEInput()" style="background-color: var(--danger); color: white;">C</button>
+                <button class="keypad-btn" onclick="appendEInput('0')">0</button>
+                <button class="keypad-btn" onclick="appendEInput('.')">.</button>
+            </div>
+            
+            <div class="result-box">
+                <h3>Sonuç E Puanı</h3>
+                <div class="total-score" id="finalEScore">10.00</div>
+                <p id="deductionText">0.00 puan kesinti uygulandı</p>
+            </div>
+            
+            <div style="text-align: center; margin-top: 20px;">
+                <button class="btn btn-primary" onclick="calculateAndSaveEScore()">Puanı Kaydet</button>
+            </div>
+        </div>
+        
+<!-- Puan Listesi Grid Bölümü -->
+<div class="scores-grid-container">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+        <h2 style="color: var(--primary); margin: 0;">Kaydedilen Puanlar</h2>
+        <button id="clearScoresBtn" class="btn" style="background-color: var(--danger); color: white; padding: 8px 15px;">
+            Tüm Puanları Temizle
+        </button>
+    </div>
+    <div style="overflow-x: auto;">
+        <table class="scores-grid" id="scoresGrid">
+            <thead>
+                <tr>
+                    <th>Değerlendiren</th>
+                    <th>Hareket</th>
+                    <th>No</th>
+                    <th>Tip</th>
+                    <th>Puan</th>
+                    <th>Tarih/Saat</th>
+                </tr>
+            </thead>
+            <tbody id="scoresGridBody">
+                <!-- JavaScript ile doldurulacak -->
+            </tbody>
+        </table>
+    </div>
+</div>
+    <div id="notification" class="notification">
+        <span id="notificationText">Bildirim mesajı</span>
+    </div>
+
+    <script>
+        // Temel değişkenler ve tanımlamalar
+        const points = { 'A': 0.1, 'B': 0.2, 'C': 0.3, 'D': 0.4, 'E': 0.5, 'F': 0.6, 'G': 0.7, 'H': 0.8, 'I': 0.9, 'J': 1.0 };
+        const totalMoves = {};
+        let crScore = 0;
+        let cvScore = 0;
+        let eScore = 10;
+        let deduction = 0;
+        
+        // Kaydedilen puanları depolamak için array
+        let savedScores = [];
+        
+        // Google Sheets'e veri göndermek için API URL'si
+        // Bu URL'yi kendi Google Apps Script web uygulamanızla değiştirmelisiniz
+        const GOOGLE_SHEETS_API_URL = "https://script.google.com/macros/s/AKfycbwDQlJgKxjDf0TxA4ZQucxOzwlPB9xDK_sobMj-H-KCPvBycyaSLSlxLxd-r3GYDt51/exec";
+        
+        // Sayfa yüklendiğinde çalışacak kodlar
+        document.addEventListener('DOMContentLoaded', function() {
+            // Yerel depolamadan kaydedilen puanları yükle
+            loadSavedScores();
+            
+// D puanlama tablosunu oluştur
+const difficultyTable = document.getElementById('difficultyTable');
+
+// Anahtarları ters sırada alıyoruz (J'den A'ya)
+const reversedGroups = Object.keys(points).reverse();
+
+for (const group of reversedGroups) {
+    const point = points[group];
+    const row = document.createElement('tr');
+    
+    // İlk sütun: Hareket grubu - Parantezleri kaldırıyoruz
+    const groupCell = document.createElement('td');
+groupCell.innerHTML = `<strong>${group}</strong>`;
+    row.appendChild(groupCell);
+    
+    // Hareket sayıları için butonlar
+    for (let i = 0; i <= 8; i++) {
+        const countCell = document.createElement('td');
+        const btn = document.createElement('button');
+        btn.className = 'move-btn';
+        btn.id = `${group}${i}`;
+        btn.textContent = i;
+        btn.onclick = function() { selectMove(group, i); };
+        countCell.appendChild(btn);
+        row.appendChild(countCell);
+    }
+    
+    difficultyTable.appendChild(row);
+}
+            // CR seçeneklerini oluştur
+            const crValues = [0, 0.5, 0.6, 1.5, 2.0];
+            const crOptions = document.getElementById('crOptions');
+            
+            crValues.forEach(value => {
+                const btn = document.createElement('button');
+                btn.className = 'btn score-option';
+                btn.id = `CR${value}`;
+                btn.textContent = value.toFixed(1);
+                btn.onclick = function() { selectCR(value); };
+                crOptions.appendChild(btn);
+            });
+            
+            // CV seçeneklerini oluştur
+            const cvValues = [0, 0.1, 0.2, 0.3, 0.4,0.5,0.6,0.7,0.8,0.9,1.0,1.1,1.2,1.3,1.4,1.5,1.6,1.7,1.8];
+            const cvOptions = document.getElementById('cvOptions');
+            
+            cvValues.forEach(value => {
+                const btn = document.createElement('button');
+                btn.className = 'btn score-option';
+                btn.id = `CV${value}`;
+                btn.textContent = value.toFixed(1);
+                btn.onclick = function() { selectCV(value); };
+                cvOptions.appendChild(btn);
+            });
+            
+            // Başlangıçta seçili değerler
+            selectCR(0);
+            selectCV(0);
+            
+            // Puan listesini göster
+            renderScoresGrid();
+        });
+        
+        // Yerel depolamadan puanları yükle
+        function loadSavedScores() {
+            const storedScores = localStorage.getItem('gymnasticsScores');
+            if (storedScores) {
+                savedScores = JSON.parse(storedScores);
+            }
+        }
+        
+        // Yerel depolamaya puanları kaydet
+        function storeSavedScores() {
+            localStorage.setItem('gymnasticsScores', JSON.stringify(savedScores));
+        }
+        
+        // Puan tablosunu güncelle
+        function renderScoresGrid() {
+            const tbody = document.getElementById('scoresGridBody');
+            tbody.innerHTML = '';
+            
+            if (savedScores.length === 0) {
+                const row = document.createElement('tr');
+                const cell = document.createElement('td');
+                cell.colSpan = 6;
+                cell.textContent = 'Henüz kaydedilmiş puan bulunmuyor.';
+                cell.style.textAlign = 'center';
+                cell.style.padding = '20px';
+                row.appendChild(cell);
+                tbody.appendChild(row);
+                return;
+            }
+            
+            // En son kaydedilen puanlar en üstte gösterilsin
+            const sortedScores = [...savedScores].reverse();
+            
+            sortedScores.forEach(score => {
+                const row = document.createElement('tr');
+                
+                // Değerlendiren
+                const judgeCell = document.createElement('td');
+                judgeCell.textContent = `${score.judgeName} (${score.judgeClass})`;
+                row.appendChild(judgeCell);
+                
+                // Hareket
+                const routineCell = document.createElement('td');
+                routineCell.textContent = getRoutineName(score.routine);
+                row.appendChild(routineCell);
+                
+                // Hareket No
+                const numberCell = document.createElement('td');
+                numberCell.textContent = score.routineNumber;
+                row.appendChild(numberCell);
+                
+                // Puan Tipi
+                const typeCell = document.createElement('td');
+                const typeBadge = document.createElement('span');
+                typeBadge.className = `type-badge ${score.type.toLowerCase()}-type`;
+                typeBadge.textContent = score.type;
+                typeCell.appendChild(typeBadge);
+                row.appendChild(typeCell);
+                
+                // Puan
+                const scoreCell = document.createElement('td');
+                scoreCell.className = 'score-value';
+                
+                if (score.type === 'D') {
+                    scoreCell.textContent = score.totalScore;
+                    scoreCell.title = `Hareket: ${score.dScore}, CR: ${score.crScore}, CV: ${score.cvScore}`;
+                } else {
+                    scoreCell.textContent = score.eScore;
+                    scoreCell.title = `Kesinti: ${score.deduction}`;
+                }
+                
+                row.appendChild(scoreCell);
+                
+                // Tarih/Saat
+                const dateCell = document.createElement('td');
+                const scoreDate = new Date(score.timestamp);
+                dateCell.textContent = formatDate(scoreDate);
+                row.appendChild(dateCell);
+                
+                tbody.appendChild(row);
+            });
+        }
+        
+        // Hareket adını almak için yardımcı fonksiyon
+        function getRoutineName(routineCode) {
+            const routines = {
+                'UB': 'Asimetrik Paralel',
+                'BB': 'Denge',
+                'FX': 'Yer',
+                'VT': 'Atlama Masası'
+            };
+            
+            return routines[routineCode] || routineCode;
+        }
+        
+        // Tarih biçimlendirme
+        function formatDate(date) {
+            const day = date.getDate().toString().padStart(2, '0');
+            const month = (date.getMonth() + 1).toString().padStart(2, '0');
+            const year = date.getFullYear();
+            const hours = date.getHours().toString().padStart(2, '0');
+            const minutes = date.getMinutes().toString().padStart(2, '0');
+            
+            return `${day}.${month}.${year} ${hours}:${minutes}`;
+        }
+        
+        // Bildirim gösterme fonksiyonu
+        function showNotification(message, type = 'success') {
+            const notification = document.getElementById('notification');
+            const notificationText = document.getElementById('notificationText');
+            
+            notification.className = 'notification';
+            notification.classList.add(type);
+            notificationText.textContent = message;
+            
+            notification.classList.add('show');
+            
+            // 3 saniye sonra bildirimi kaldır
+            setTimeout(() => {
+                notification.classList.remove('show');
+            }, 3000);
+        }
+        
+        // Aynı hareket numarası kontrolü
+        function checkRoutineExists() {
+            const routine = document.getElementById('routine').value;
+            const routineNumber = document.getElementById('routineNumber').value;
+            
+            if (!routine || !routineNumber) return false;
+            
+            // Aynı hareket numarası ve türü için kayıt olup olmadığını kontrol et
+            const exists = savedScores.some(score => 
+                score.routine === routine && 
+                score.routineNumber === routineNumber
+            );
+            
+            if (exists) {
+                showNotification(`Bu hareket numarası (${routine} #${routineNumber}) için zaten puanlama yapılmış!`, 'warning');
+                document.getElementById('routineNumber').focus();
+                return true;
+            }
+            
+            return false;
+        }
+        
+        // Puanlama modunu değiştir
+        function toggleScoringMode() {
+            const scoreType = document.getElementById('scoreType').value;
+            if (!scoreType) return;
+            
+            if (scoreType === 'E') {
+                document.getElementById('eScoring').classList.remove('hidden');
+                document.getElementById('dScoring').classList.add('hidden');
+            } else {
+                document.getElementById('dScoring').classList.remove('hidden');
+                document.getElementById('eScoring').classList.add('hidden');
+            }
+        }
+        
+// D Puanlama İşlevleri
+        function selectMove(group, value) {
+            for (let i = 0; i <= 8; i++) {
+                document.getElementById(`${group}${i}`).classList.remove('selected');
+            }
+            document.getElementById(`${group}${value}`).classList.add('selected');
+            totalMoves[group] = value;
+            calculateTotalScore();
+        }
+        
+        function selectCR(value) {
+            crScore = value;
+            document.querySelectorAll('[id^=CR]').forEach(btn => btn.classList.remove('selected'));
+            document.getElementById(`CR${value}`).classList.add('selected');
+            calculateTotalScore();
+        }
+        
+        function selectCV(value) {
+            cvScore = value;
+            document.querySelectorAll('[id^=CV]').forEach(btn => btn.classList.remove('selected'));
+            document.getElementById(`CV${value}`).classList.add('selected');
+            calculateTotalScore();
+        }
+        
+        function calculateTotalScore() {
+            // Hareket puanları
+            let dScore = Object.entries(totalMoves).reduce((sum, [group, count]) => {
+                return sum + (count * points[group]);
+            }, 0);
+            
+            // Toplam D puanı
+            let totalScore = dScore + crScore + cvScore;
+            document.getElementById('totalScoreDisplay').innerText = totalScore.toFixed(2);
+        }
+        
+        // E Puanlama İşlevleri
+        function appendEInput(value) {
+            const inputField = document.getElementById('eScoreInput');
+            
+            // Nokta kontrolü - bir noktadan fazla olmamalı
+            if (value === '.' && inputField.value.includes('.')) {
+                return;
+            }
+            
+            // İlk karakter için özel durumlar
+            if (inputField.value === '0' || inputField.value === '') {
+                if (value === '.') {
+                    inputField.value = '0.';
+                } else if (value !== '0') {
+                    inputField.value = value;
+                }
+            } else {
+                inputField.value += value;
+            }
+            
+            // Girilen değer 10'dan büyük olamaz
+            const numValue = parseFloat(inputField.value);
+            if (numValue > 10) {
+                inputField.value = '10';
+            }
+            
+            // E puanını güncelle
+            updateEScoreDisplay();
+        }
+        
+        function clearEInput() {
+            document.getElementById('eScoreInput').value = '';
+            updateEScoreDisplay();
+        }
+        
+        function updateEScoreDisplay() {
+            const deductionInput = document.getElementById('eScoreInput').value;
+            deduction = deductionInput ? parseFloat(deductionInput) : 0;
+            
+            // Maksimum kesinti kontrolü
+            if (deduction > 10) deduction = 10;
+            
+            // E puanını hesapla (10'dan kesinti çıkarılır)
+            eScore = Math.max(0, 10 - deduction);
+            
+            document.getElementById('finalEScore').innerText = eScore.toFixed(2);
+            document.getElementById('deductionText').innerText = `${deduction.toFixed(2)} puan kesinti uygulandı`;
+        }
+        
+        function calculateAndSaveEScore() {
+            updateEScoreDisplay();
+            
+            if (checkRoutineExists()) return;
+            
+            if (!validateForm()) return;
+            
+            saveEScore();
+        }
+        
+        // Puan Kaydetme İşlevleri
+        function saveScores() {
+            // Hareket numarası kontrolü
+            if (checkRoutineExists()) return;
+            
+            // Form doğrulaması
+            if (!validateForm()) return;
+            
+            // D puanını hesapla
+            let dScore = Object.entries(totalMoves).reduce((sum, [group, count]) => {
+                return sum + (count * points[group]);
+            }, 0);
+            
+            // Toplam D puanı
+            let totalScore = dScore + crScore + cvScore;
+            
+            // Değerlendirici bilgileri
+            const judgeName = document.getElementById('judgeName').value;
+            const judgeClass = document.getElementById('judgeClass').value;
+            const routine = document.getElementById('routine').value;
+            const routineNumber = document.getElementById('routineNumber').value;
+            
+            // Kaydedilecek veri
+            const scoreData = {
+                type: 'D',
+                judgeName: judgeName,
+                judgeClass: judgeClass,
+                routine: routine,
+                routineNumber: routineNumber,
+                dScore: dScore.toFixed(2),
+                crScore: crScore.toFixed(2),
+                cvScore: cvScore.toFixed(2),
+                totalScore: totalScore.toFixed(2),
+                timestamp: new Date().toISOString()
+            };
+            
+            // Puanı yerel depolamaya kaydet
+            savedScores.push(scoreData);
+            storeSavedScores();
+            
+            // Puanlar listesini güncelle
+            renderScoresGrid();
+            
+            // Google Sheets'e gönder
+            sendToGoogleSheets(scoreData);
+            
+            // Başarılı kayıt bildirimi
+            showNotification(`${routine} #${routineNumber} hareketi için D puanı başarıyla kaydedildi!`);
+            
+            // Formu sıfırla
+            resetForm();
+        }
+        
+        function saveEScore() {
+            // Değerlendirici bilgileri
+            const judgeName = document.getElementById('judgeName').value;
+            const judgeClass = document.getElementById('judgeClass').value;
+            const routine = document.getElementById('routine').value;
+            const routineNumber = document.getElementById('routineNumber').value;
+            
+            // Kaydedilecek veri
+            const scoreData = {
+                type: 'E',
+                judgeName: judgeName,
+                judgeClass: judgeClass,
+                routine: routine,
+                routineNumber: routineNumber,
+                deduction: deduction.toFixed(2),
+                eScore: eScore.toFixed(2),
+                timestamp: new Date().toISOString()
+            };
+            
+            // Puanı yerel depolamaya kaydet
+            savedScores.push(scoreData);
+            storeSavedScores();
+            
+            // Puanlar listesini güncelle
+            renderScoresGrid();
+            
+            // Google Sheets'e gönder
+            sendToGoogleSheets(scoreData);
+            
+            // Başarılı kayıt bildirimi
+            showNotification(`${routine} #${routineNumber} hareketi için E puanı başarıyla kaydedildi!`);
+            
+            // Formu sıfırla
+            resetForm();
+        }
+        
+        // Form doğrulama
+        function validateForm() {
+            const judgeName = document.getElementById('judgeName').value;
+            const judgeClass = document.getElementById('judgeClass').value;
+            const routine = document.getElementById('routine').value;
+            const routineNumber = document.getElementById('routineNumber').value;
+            
+            if (!judgeName) {
+                showNotification('Lütfen değerlendiren adını girin!', 'error');
+                document.getElementById('judgeName').focus();
+                return false;
+            }
+            
+            if (!judgeClass) {
+                showNotification('Lütfen sınıf numaranızı girin!', 'error');
+                document.getElementById('judgeClass').focus();
+                return false;
+            }
+            
+            if (!routine) {
+                showNotification('Lütfen değerlendirilen hareketi seçin!', 'error');
+                document.getElementById('routine').focus();
+                return false;
+            }
+            
+            if (!routineNumber) {
+                showNotification('Lütfen hareket numarasını girin!', 'error');
+                document.getElementById('routineNumber').focus();
+                return false;
+            }
+            
+            return true;
+        }
+        
+        // Formu sıfırla
+        function resetForm() {
+            document.getElementById('routineNumber').value = '';
+            document.getElementById('scoreType').value = '';
+            
+            // D puanlama değerlerini sıfırla
+            Object.keys(totalMoves).forEach(group => {
+                selectMove(group, 0);
+            });
+            
+            selectCR(0);
+            selectCV(0);
+            
+            // E puanlama değerlerini sıfırla
+            clearEInput();
+            eScore = 10;
+            deduction = 0;
+            document.getElementById('finalEScore').innerText = '10.00';
+            document.getElementById('deductionText').innerText = '0.00 puan kesinti uygulandı';
+            
+            // Puanlama bölümlerini gizle
+            document.getElementById('dScoring').classList.add('hidden');
+            document.getElementById('eScoring').classList.add('hidden');
+        }
+        
+        // Google Sheets'e veri gönderme
+// Google Sheets'e veri gönderme fonksiyonunu güncelleyelim
+function sendToGoogleSheetsJSONP(data) {
+    // Form verilerini temizleyelim
+    const cleanData = {
+        action: 'save',
+        judgeName: data.judgeName,
+        judgeClass: data.judgeClass,
+        routine: data.routine,
+        routineNumber: data.routineNumber,
+        type: data.type
+    };
+    
+    // Puan tipine göre ek verileri ekle
+    if (data.type === 'D') {
+        cleanData.dScore = data.dScore;
+        cleanData.crScore = data.crScore;
+        cleanData.cvScore = data.cvScore;
+        cleanData.totalScore = data.totalScore;
+    } else {
+        cleanData.eScore = data.eScore;
+        cleanData.deduction = data.deduction;
+    }
+
+    // Google Sheets'e verilerini gönder
+    // JSONP yöntemiyle
+    fetch(GOOGLE_SHEETS_API_URL + "?payload=" + encodeURIComponent(JSON.stringify(cleanData)), 
+    {
+        method: 'GET',
+        mode: 'no-cors' // CORS sorununu bypass etmek için
+    })
+    .then(response => {
+        // no-cors modunda içerik okunamaz, bu yüzden sadece gönderildiğini kabul ediyoruz
+        showNotification('Puan başarıyla kaydedildi!', 'success');
+    })
+    .catch(error => {
+        console.error('Google Sheets API hatası:', error);
+        showNotification('Puanlar yerel olarak kaydedildi, ancak Google Sheets\'e gönderilemedi!', 'warning');
+    });
+}
+
+// Yeni veri gönderme metodu - CORS sorununu çözmek için
+
+
+
+
+
+
+
+
+
+
+// Google Sheets'e veri gönderme
+function sendToGoogleSheets(data) {
+    console.log("Gönderilecek veri:", data);
+    
+    // Veri formatını kontrol et
+    if (!data.judgeName || !data.routine || !data.type) {
+        console.error("Eksik veri alanları");
+        showNotification("Eksik veri alanları nedeniyle gönderim başarısız", "error");
+        return;
+    }
+    
+    // Veriyi sadece POST metodu ile gönder
+    fetch(GOOGLE_SHEETS_API_URL, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(data),
+        mode: 'no-cors' // CORS hatalarını önlemek için
+    })
+    .then(response => {
+        console.log("Yanıt alındı:", response);
+        showNotification("Puan başarıyla kaydedildi!", "success");
+    })
+    .catch(error => {
+        console.error("Gönderim hatası:", error);
+        showNotification("Veri gönderilemedi: " + error.message, "error");
+    });
+}
+
+
+
+// D Puanlarını kaydetme fonksiyonu
+function saveScores() {
+    // Form doğrulaması
+    if (!validateForm()) return;
+    
+    // D puanını hesapla
+    let dScore = Object.entries(totalMoves).reduce((sum, [group, count]) => {
+        return sum + (count * points[group]);
+    }, 0);
+    
+    // Toplam D puanı
+    let totalScore = dScore + crScore + cvScore;
+    
+    // Değerlendirici bilgileri
+    const judgeName = document.getElementById('judgeName').value;
+    const judgeClass = document.getElementById('judgeClass').value;
+    const routine = document.getElementById('routine').value;
+    const routineNumber = document.getElementById('routineNumber').value;
+    
+    // Kaydedilecek veri
+    const scoreData = {
+        type: 'D',
+        judgeName: judgeName,
+        judgeClass: judgeClass,
+        routine: routine,
+        routineNumber: routineNumber,
+        dScore: dScore.toFixed(2),
+        crScore: crScore.toFixed(2),
+        cvScore: cvScore.toFixed(2),
+        totalScore: totalScore.toFixed(2)
+    };
+    
+    // Puanı yerel depolamaya kaydet
+    savedScores.push({...scoreData, timestamp: new Date().toISOString()});
+    storeSavedScores();
+    
+    // Puanlar listesini güncelle
+    renderScoresGrid();
+    
+    // Google Sheets'e gönder
+    sendToGoogleSheets(scoreData);
+    
+    // Formu sıfırla
+    resetForm();
+}
+
+// E Puanlarını kaydetme fonksiyonu
+function calculateAndSaveEScore() {
+    updateEScoreDisplay();
+    
+    if (!validateForm()) return;
+    
+    // Değerlendirici bilgileri
+    const judgeName = document.getElementById('judgeName').value;
+    const judgeClass = document.getElementById('judgeClass').value;
+    const routine = document.getElementById('routine').value;
+    const routineNumber = document.getElementById('routineNumber').value;
+    
+    // Kaydedilecek veri
+    const scoreData = {
+        type: 'E',
+        judgeName: judgeName,
+        judgeClass: judgeClass,
+        routine: routine,
+        routineNumber: routineNumber,
+        deduction: deduction.toFixed(2),
+        eScore: eScore.toFixed(2)
+    };
+    
+    // Puanı yerel depolamaya kaydet
+    savedScores.push({...scoreData, timestamp: new Date().toISOString()});
+    storeSavedScores();
+    
+    // Puanlar listesini güncelle
+    renderScoresGrid();
+    
+    // Google Sheets'e gönder
+    sendToGoogleSheets(scoreData);
+    
+    // Formu sıfırla
+    resetForm();
+}
+
+
+
+
+
+
+
+
+
+        // Puanları temizleme işlevi
+    document.getElementById('clearScoresBtn').addEventListener('click', function() {
+        if (confirm('Tüm kaydedilen puanlar silinecek. Emin misiniz?')) {
+            // Puan dizisini temizle
+            savedScores = [];
+            // Yerel depolamadan da temizle
+            localStorage.removeItem('gymnasticsScores');
+            // Tabloyu güncelle
+            renderScoresGrid();
+            // Bildirim göster
+            showNotification('Tüm puanlar başarıyla temizlendi!', 'success');
+        }
+    });
+    </script>
+</body>
+</html>

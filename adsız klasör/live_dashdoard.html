@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cimnastik - Canlı Sonuç Ekranı</title>
+    <script src="https://www.gstatic.com/firebasejs/9.6.7/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.6.7/firebase-database-compat.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Oswald:wght@500;700&family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --background-color: #0d1117;
+            --card-color: rgba(22, 27, 34, 0.7);
+            --text-color: #e6edf3;
+            --text-muted: #8b949e;
+            --border-color: rgba(139, 148, 158, 0.3);
+            --denge-color: #e91e63; --asimetrik-color: #00bcd4; --atlama-color: #4caf50;
+            --barfiks-color: #ff9800; --yer-color: #3f51b5; --success-color: #03dac6;
+            --gold-color: #ffd700; --silver-color: #c0c0c0; --bronze-color: #cd7f32;
+            --border-radius: 16px; --transition-speed: 0.6s;
+        }
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        html, body { height: 100vh; width: 100vw; font-family: 'Inter', sans-serif; background-color: var(--background-color); color: var(--text-color); overflow: hidden; }
+        
+        /* Arka Plan Animasyonu */
+        .background-aurora {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: -1;
+            background: radial-gradient(circle at 10% 20%, var(--yer-color), transparent 40%),
+                        radial-gradient(circle at 80% 90%, var(--denge-color), transparent 40%),
+                        radial-gradient(circle at 50% 50%, var(--barfiks-color), transparent 30%);
+            filter: blur(100px); opacity: 0.2; animation: moveAurora 30s infinite alternate;
+        }
+        @keyframes moveAurora {
+            0% { transform: scale(1) rotate(0deg); }
+            100% { transform: scale(1.2) rotate(360deg); }
+        }
+
+        /* Ekran Yönetimi */
+        .screen {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%; display: flex;
+            align-items: center; justify-content: center; transition: opacity 0.5s ease, visibility 0.5s ease;
+        }
+        .screen:not(.active) { opacity: 0; visibility: hidden; pointer-events: none; }
+        
+        /* Yarışma Seçim Ekranı */
+        #competition-selection-screen .competition-modal {
+            background: rgba(13, 17, 23, 0.9); backdrop-filter: blur(10px); border-radius: var(--border-radius); padding: 40px;
+            max-width: 600px; width: 90%; box-shadow: 0 20px 60px rgba(0,0,0,0.8); border: 1px solid var(--border-color);
+        }
+        #competition-selection-screen h2 {
+            font-family: 'Oswald', sans-serif; text-align: center; font-size: 3em;
+            margin-bottom: 30px; color: var(--success-color);
+        }
+        #competition-list { list-style: none; max-height: 400px; overflow-y: auto; }
+        #competition-list .competition-item {
+            background: rgba(255,255,255,0.05); margin-bottom: 15px; padding: 20px; border-radius: 12px;
+            cursor: pointer; transition: all 0.3s ease; border-left: 5px solid transparent; font-size: 1.2em; font-weight: 600;
+        }
+        #competition-list .competition-item:hover {
+            background: rgba(3, 218, 198, 0.1); border-left-color: var(--success-color); transform: translateX(10px);
+        }
+
+        /* Dashboard Ana Yapısı */
+        #dashboard-screen {
+            display: grid; grid-template-columns: 1fr 380px; grid-template-rows: auto 1fr;
+            height: 100%; width: 100%; padding: 25px; gap: 25px;
+        }
+        .dashboard-header { grid-column: 1 / -1; text-align: center; }
+        .dashboard-header h1 { font-family: 'Oswald', sans-serif; font-size: 3vw; text-transform: uppercase; }
+
+        #main-stage { position: relative; overflow: hidden; }
+        #sidebar { display: flex; flex-direction: column; gap: 15px; }
+
+        .view-card {
+            position: absolute; width: 100%; height: 100%; top: 0; left: 0; opacity: 0; visibility: hidden;
+            transform: scale(0.95); transition: all var(--transition-speed) ease-in-out;
+            background: var(--card-color); backdrop-filter: blur(15px);
+            border: 1px solid var(--border-color); border-radius: var(--border-radius);
+            padding: 30px;
+        }
+        .view-card.active { opacity: 1; visibility: visible; transform: scale(1); }
+
+        /* Ana Sahne - Canlı Skor Kartı */
+        #live-score-card { display: flex; flex-direction: column; justify-content: center; align-items: center; text-align: center; }
+        #live-score-card .apparatus-title { font-family: 'Oswald', sans-serif; font-size: 4em; text-transform: uppercase; margin-bottom: 10px; }
+        #live-score-card .athlete-name { font-size: 3.5em; font-weight: 800; }
+        #live-score-card .athlete-club { font-size: 2em; color: var(--text-muted); margin-bottom: 30px; }
+        #live-score-card .scores-breakdown { display: flex; gap: 25px; margin-bottom: 30px; }
+        #live-score-card .score-item { text-align: center; }
+        #live-score-card .score-label { font-size: 1.2em; font-weight: 600; color: var(--text-muted); }
+        #live-score-card .score-value { font-family: 'Oswald', sans-serif; font-size: 4em; font-weight: 500; }
+        #live-score-card .final-score-wrapper { border-top: 2px solid var(--border-color); padding-top: 25px; }
+        #live-score-card .final-label { font-family: 'Oswald', sans-serif; font-size: 2.5em; text-transform: uppercase; color: var(--text-muted); }
+        #live-score-card .final-value { font-family: 'Oswald', sans-serif; font-size: 8em; line-height: 1; color: var(--success-color); }
+
+        /* Ana Sahne - Sıralama Kartı */
+        #ranking-card { display: flex; flex-direction: column; }
+        #ranking-card h2 { font-family: 'Oswald', sans-serif; font-size: 2.5em; text-align: center; padding-bottom: 15px; margin-bottom: 15px; }
+        #allAroundTableBody tr { background: transparent; }
+        #allAroundTableBody td { padding: 15px 10px; }
+        .rank-cell { font-size: 2em; } .name-cell { font-size: 1.5em; }
+        .club-cell { font-size: 1.2em; } .total-score { font-size: 2.2em; }
+        .leaderboard-table { border-spacing: 0 10px; }
+        .leaderboard-table th { font-size: 1em; padding: 10px; }
+        
+        /* Kenar Panel */
+        .sidebar-panel {
+            background: var(--card-color); backdrop-filter: blur(15px); border: 1px solid var(--border-color);
+            border-radius: var(--border-radius); padding: 15px; flex-grow: 1; display: flex; flex-direction: column; justify-content: space-between;
+        }
+        .sidebar-header { display: flex; justify-content: space-between; align-items: center; }
+        .sidebar-apparatus-name { font-family: 'Oswald', sans-serif; font-size: 1.3em; font-weight: 700; text-transform: uppercase; }
+        .sidebar-status { font-size: 0.9em; font-weight: 600; padding: 3px 8px; border-radius: 6px; }
+        .sidebar-status.bekleniyor { background: #30363d; color: #c9d1d9; }
+        .sidebar-status.aktif { background: rgba(40, 167, 69, 0.3); color: #28a745; }
+        .sidebar-content { text-align: center; margin: 15px 0; }
+        .sidebar-athlete-name { font-size: 1.2em; font-weight: 600; }
+        .sidebar-final-score { font-family: 'Oswald', sans-serif; font-size: 2.5em; font-weight: 700; }
+
+        /* Renk Kodları */
+        .color-denge { color: var(--denge-color); }
+        .color-asimetrik_paralel { color: var(--asimetrik-color); }
+        .color-atlama { color: var(--atlama-color); }
+        .color-barfiks { color: var(--barfiks-color); }
+        .color-yer { color: var(--yer-color); }
+
+    </style>
+</head>
+<body>
+    <div class="background-aurora"></div>
+
+    <div id="competition-selection-screen" class="screen active">
+        </div>
+
+    <div id="dashboard-screen" class="screen">
+        <header class="dashboard-header">
+            <h1 id="competitionNameHeader">Yarışma Yükleniyor...</h1>
+        </header>
+
+        <main id="main-stage">
+            <div id="live-score-card" class="view-card"></div>
+            <div id="ranking-card" class="view-card">
+                 <h2 id="ranking-title">Genel Bireysel Sıralama</h2>
+                 <table class="leaderboard-table">
+                    <thead id="allAroundTableHead"></thead>
+                    <tbody id="allAroundTableBody"></tbody>
+                 </table>
+            </div>
+        </main>
+
+        <aside id="sidebar"></aside>
+    </div>
+
+    <script>
+        // ... (Tüm JavaScript kodu buraya gelecek) ...
+    </script>
+</body>
+</html>

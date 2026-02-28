@@ -1,0 +1,521 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cimnastik Yönetim Üssü</title>
+    <script src="https://www.gstatic.com/firebasejs/9.6.7/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.6.7/firebase-database-compat.js"></script>
+    <link href="https://fonts.googleapis.com/icon?family=Material+Icons+Round" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            /* Lüks Koyu Tema Renkleri */
+            --bg-body: #030712;
+            --surface-1: rgba(17, 24, 39, 0.7);
+            --surface-2: rgba(31, 41, 55, 0.7);
+            --surface-glass: rgba(255, 255, 255, 0.03);
+            --border-glass: rgba(255, 255, 255, 0.08);
+            
+            /* Neon Vurgular */
+            --primary: #6366f1;
+            --primary-glow: rgba(99, 102, 241, 0.4);
+            --secondary: #ec4899;
+            --accent: #06b6d4;
+            
+            /* Tipografi */
+            --text-main: #ffffff;
+            --text-muted: #9ca3af;
+            
+            --ease-out-back: cubic-bezier(0.34, 1.56, 0.64, 1);
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; outline: none; }
+        
+        body {
+            font-family: 'Plus Jakarta Sans', sans-serif;
+            background-color: var(--bg-body);
+            color: var(--text-main);
+            height: 100vh;
+            overflow: hidden;
+            display: flex;
+            /* Hareketli Arka Plan */
+            background-image: 
+                radial-gradient(circle at 0% 0%, rgba(99, 102, 241, 0.15), transparent 40%),
+                radial-gradient(circle at 100% 0%, rgba(236, 72, 153, 0.1), transparent 40%),
+                radial-gradient(circle at 100% 100%, rgba(6, 182, 212, 0.1), transparent 40%);
+        }
+
+        /* --- SOL KENAR ÇUBUĞU (SIDEBAR) --- */
+        .sidebar {
+            width: 340px;
+            height: 100%;
+            background: var(--surface-1);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border-right: 1px solid var(--border-glass);
+            display: flex;
+            flex-direction: column;
+            padding: 24px;
+            z-index: 100;
+            position: relative;
+        }
+
+        .brand {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            font-size: 1.25rem;
+            font-weight: 800;
+            letter-spacing: -0.5px;
+            margin-bottom: 40px;
+            color: white;
+            text-shadow: 0 0 20px rgba(99, 102, 241, 0.5);
+        }
+
+        .brand-icon {
+            width: 40px;
+            height: 40px;
+            background: linear-gradient(135deg, var(--primary), var(--secondary));
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 0 20px var(--primary-glow);
+        }
+
+        .sidebar-label {
+            font-size: 0.75rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 1.2px;
+            color: var(--text-muted);
+            margin-bottom: 16px;
+            padding-left: 8px;
+        }
+
+        .competition-list {
+            list-style: none;
+            flex: 1;
+            overflow-y: auto;
+            padding-right: 8px;
+        }
+
+        /* Özel Scrollbar */
+        .competition-list::-webkit-scrollbar { width: 4px; }
+        .competition-list::-webkit-scrollbar-track { background: transparent; }
+        .competition-list::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 10px; }
+
+        .comp-item {
+            position: relative;
+            padding: 16px;
+            margin-bottom: 12px;
+            background: var(--surface-glass);
+            border: 1px solid var(--border-glass);
+            border-radius: 16px;
+            cursor: pointer;
+            transition: all 0.3s var(--ease-out-back);
+            overflow: hidden;
+        }
+
+        .comp-item::before {
+            content: '';
+            position: absolute;
+            left: 0; top: 0; height: 100%; width: 4px;
+            background: var(--primary);
+            opacity: 0;
+            transition: 0.3s;
+        }
+
+        .comp-item:hover {
+            transform: translateX(4px);
+            background: rgba(255, 255, 255, 0.05);
+            border-color: rgba(255, 255, 255, 0.1);
+        }
+
+        .comp-item.active {
+            background: linear-gradient(90deg, rgba(99, 102, 241, 0.1), transparent);
+            border-color: rgba(99, 102, 241, 0.5);
+        }
+        
+        .comp-item.active::before { opacity: 1; }
+
+        .comp-name { font-weight: 600; margin-bottom: 4px; font-size: 0.95rem; }
+        .comp-date { font-size: 0.8rem; color: var(--text-muted); display: flex; align-items: center; gap: 6px; }
+
+        .create-btn {
+            margin-top: 20px;
+            width: 100%;
+            padding: 16px;
+            border: none;
+            border-radius: 16px;
+            background: linear-gradient(135deg, var(--surface-2), var(--bg-body));
+            color: var(--text-muted);
+            font-weight: 600;
+            border: 1px solid var(--border-glass);
+            cursor: pointer;
+            transition: 0.3s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+        }
+
+        .create-btn:hover {
+            background: var(--surface-2);
+            color: white;
+            border-color: rgba(255,255,255,0.2);
+        }
+
+        /* --- ANA İÇERİK (MAIN AREA) --- */
+        .main-content {
+            flex: 1;
+            position: relative;
+            overflow-y: auto;
+            padding: 40px 60px;
+            background: radial-gradient(circle at 50% -20%, rgba(99, 102, 241, 0.08), transparent 70%);
+        }
+
+        /* Boş Durum (Hero) */
+        .hero-state {
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+            animation: fadeIn 0.8s ease-out;
+        }
+
+        .hero-icon {
+            font-size: 8rem;
+            margin-bottom: 20px;
+            background: linear-gradient(135deg, var(--primary), var(--accent));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            filter: drop-shadow(0 0 30px rgba(99, 102, 241, 0.3));
+        }
+
+        .hero-title {
+            font-size: 3rem;
+            font-weight: 800;
+            margin-bottom: 10px;
+            letter-spacing: -1px;
+        }
+
+        .hero-subtitle {
+            font-size: 1.1rem;
+            color: var(--text-muted);
+            max-width: 500px;
+            line-height: 1.6;
+        }
+
+        /* Dashboard Grid (Aktif Durum) */
+        .dashboard-container {
+            display: none; /* JS ile açılacak */
+            max-width: 1200px;
+            margin: 0 auto;
+            animation: slideUp 0.6s var(--ease-out-back);
+        }
+
+        .dashboard-header {
+            margin-bottom: 40px;
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-end;
+        }
+
+        .comp-title-main {
+            font-size: 2.5rem;
+            font-weight: 800;
+            margin-bottom: 8px;
+            background: linear-gradient(to right, #fff, #94a3b8);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .comp-badges {
+            display: flex;
+            gap: 10px;
+        }
+
+        .badge {
+            padding: 6px 14px;
+            border-radius: 20px;
+            font-size: 0.85rem;
+            font-weight: 600;
+            backdrop-filter: blur(10px);
+        }
+        .badge-primary { background: rgba(99, 102, 241, 0.15); color: #818cf8; border: 1px solid rgba(99, 102, 241, 0.3); }
+        .badge-secondary { background: rgba(236, 72, 153, 0.15); color: #f472b6; border: 1px solid rgba(236, 72, 153, 0.3); }
+
+        /* BENTO GRID LAYOUT */
+        .bento-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            grid-auto-rows: minmax(160px, auto);
+            gap: 20px;
+        }
+
+        .bento-item {
+            background: rgba(30, 41, 59, 0.4);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            border-radius: 24px;
+            padding: 24px;
+            text-decoration: none;
+            color: white;
+            position: relative;
+            overflow: hidden;
+            transition: all 0.4s cubic-bezier(0.25, 0.8, 0.25, 1);
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+        }
+
+        /* Hover Efektleri */
+        .bento-item:hover {
+            transform: translateY(-6px) scale(1.01);
+            background: rgba(30, 41, 59, 0.7);
+            border-color: rgba(255, 255, 255, 0.15);
+            box-shadow: 0 20px 40px rgba(0,0,0,0.3);
+        }
+
+        .bento-item::after {
+            content: '';
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: radial-gradient(800px circle at var(--mouse-x) var(--mouse-y), rgba(255,255,255,0.06), transparent 40%);
+            z-index: 1;
+            opacity: 0;
+            transition: opacity 0.3s;
+        }
+        .bento-item:hover::after { opacity: 1; }
+
+        .bento-icon {
+            font-size: 32px;
+            width: 60px;
+            height: 60px;
+            border-radius: 16px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-bottom: 16px;
+            transition: 0.4s;
+            z-index: 2;
+        }
+
+        .bento-content { z-index: 2; }
+        .bento-title { font-size: 1.1rem; font-weight: 700; margin-bottom: 4px; }
+        .bento-desc { font-size: 0.85rem; color: var(--text-muted); font-weight: 500; }
+
+        /* Özel Kart Renkleri ve Boyutları */
+        .item-large { grid-column: span 2; grid-row: span 2; }
+        .item-wide { grid-column: span 2; }
+        
+        /* Renk Temaları */
+        .theme-blue .bento-icon { background: rgba(56, 189, 248, 0.1); color: #38bdf8; }
+        .theme-purple .bento-icon { background: rgba(168, 85, 247, 0.1); color: #a855f7; }
+        .theme-green .bento-icon { background: rgba(34, 197, 94, 0.1); color: #4ade80; }
+        .theme-orange .bento-icon { background: rgba(251, 146, 60, 0.1); color: #fb923c; }
+        .theme-red .bento-icon { background: rgba(248, 113, 113, 0.1); color: #f87171; }
+
+        .bento-item:hover .bento-icon { transform: scale(1.1) rotate(-5deg); }
+
+        /* Animasyonlar */
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+        @keyframes slideUp { from { opacity: 0; transform: translateY(40px); } to { opacity: 1; transform: translateY(0); } }
+
+    </style>
+</head>
+<body>
+
+    <aside class="sidebar">
+        <div class="brand">
+            <div class="brand-icon">
+                <i class="material-icons-round" style="color:white; font-size: 24px;">sports_gymnastics</i>
+            </div>
+            CİMNASTİK OS
+        </div>
+
+        <div class="sidebar-label">YARIŞMALAR</div>
+        <ul id="competition-list" class="competition-list">
+            <li style="text-align: center; padding: 20px; color: var(--text-muted);">
+                <div class="loading-spinner"></div> Yükleniyor...
+            </li>
+        </ul>
+
+        <button onclick="window.location.href='panel.html'" class="create-btn">
+            <i class="material-icons-round">add_circle</i>
+            Yönetim Paneli
+        </button>
+    </aside>
+
+    <main class="main-content">
+        
+        <div id="placeholder" class="hero-state">
+            <i class="material-icons-round hero-icon">analytics</i>
+            <h1 class="hero-title">Yönetim Merkezine Hoş Geldin</h1>
+            <p class="hero-subtitle">
+                Puanlama, sporcu yönetimi ve canlı sonuçlar için sol menüden bir yarışma seçerek başlayın.
+            </p>
+        </div>
+
+        <div id="dashboard-content" class="dashboard-container">
+            <div class="dashboard-header">
+                <div>
+                    <h1 id="selected-competition-name" class="comp-title-main"></h1>
+                    <div id="selected-competition-details" class="comp-badges"></div>
+                </div>
+            </div>
+
+            <div id="bentoGrid" class="bento-grid">
+                </div>
+        </div>
+
+    </main>
+
+    <script>
+        const firebaseConfig = { apiKey: "AIzaSyA5VNkBsZkZqaDr8YgOnhiGCDql9-lJ6Gk", authDomain: "analig2025.firebaseapp.com", databaseURL: "https://analig2025-default-rtdb.firebaseio.com" };
+        firebase.initializeApp(firebaseConfig);
+        const db = firebase.database();
+        
+        let allCompetitions = {};
+        let selectedCompetitionId = null;
+
+        // Dosya Yapılandırması
+        const PAGE_FILES = {
+            athletes: { file: 'sporcu.html', label: 'Sporcu Yönetimi', desc: 'Kayıt & Düzenleme', icon: 'groups', theme: 'theme-blue', size: 'item-wide' },
+            startOrder: { file: 'alet_sira.html', label: 'Çıkış Sırası', desc: 'Takım & Bireysel Sıralama', icon: 'format_list_numbered', theme: 'theme-purple' },
+            criteria: { file: 'criteria-settings.html', label: 'Kriter Ayarları', desc: 'Zorluk & Bonus', icon: 'tune', theme: 'theme-green' },
+            links: { file: 'link_yonetici.html', label: 'Hakem Linkleri', desc: 'Panel Bağlantıları', icon: 'link', theme: 'theme-orange' },
+            
+            // Puanlama
+            yer: { file: 'yer.html', label: 'Yer Puanlama', desc: 'Hakem Girişi', icon: 'grid_on', theme: 'theme-blue' },
+            atlama: { file: 'atlama.html', label: 'Atlama Puanlama', desc: 'Hakem Girişi', icon: 'sports_gymnastics', theme: 'theme-green' },
+            denge: { file: 'denge.html', label: 'Denge Puanlama', desc: 'Hakem Girişi', icon: 'balance', theme: 'theme-purple' },
+            barfiks: { file: 'barfiks.html', label: 'Barfiks Puanlama', desc: 'Hakem Girişi', icon: 'horizontal_rule', theme: 'theme-orange' },
+            asimetri: { file: 'asimetri.html', label: 'Asimetrik P.', desc: 'Hakem Girişi', icon: 'show_chart', theme: 'theme-red' },
+
+            // Sonuçlar
+            live: { file: 'canli_sonuc_yeni.html', label: 'Canlı Yayın', desc: 'TV Ekranı Modu', icon: 'live_tv', theme: 'theme-red', size: 'item-large' },
+            final: { file: 'genel_sonuclar_yeni.html', label: 'Final Raporu', desc: 'Excel & PDF', icon: 'emoji_events', theme: 'theme-blue', size: 'item-wide' },
+            analysis: { file: 'd_analiz.html', label: 'Analiz', desc: 'D Puanı İstatistikleri', icon: 'analytics', theme: 'theme-purple' },
+            logs: { file: 'logs.html', label: 'Log Kayıtları', desc: 'İşlem Geçmişi', icon: 'history', theme: 'theme-green' }
+        };
+
+        document.addEventListener('DOMContentLoaded', () => {
+            // Mouse hareketi efekti için
+            document.getElementById('bentoGrid').onmousemove = e => {
+                for(const card of document.getElementsByClassName("bento-item")) {
+                    const rect = card.getBoundingClientRect(),
+                          x = e.clientX - rect.left,
+                          y = e.clientY - rect.top;
+                    card.style.setProperty("--mouse-x", `${x}px`);
+                    card.style.setProperty("--mouse-y", `${y}px`);
+                };
+            };
+
+            db.ref('competitions').on('value', snapshot => {
+                allCompetitions = snapshot.val() || {};
+                renderCompetitionList();
+                const savedId = localStorage.getItem('activeCompetitionId');
+                if (savedId && allCompetitions[savedId]) selectCompetition(savedId);
+            });
+        });
+
+        function renderCompetitionList() {
+            const listEl = document.getElementById('competition-list');
+            listEl.innerHTML = '';
+            
+            const sorted = Object.entries(allCompetitions)
+                .filter(([, c]) => c.durum === 'aktif')
+                .sort(([,a],[,b]) => new Date(b.tarih) - new Date(a.tarih));
+            
+            if (sorted.length === 0) {
+                listEl.innerHTML = '<li style="text-align:center; padding:20px; color:var(--text-muted);">Aktif yarışma yok.</li>';
+                return;
+            }
+
+            sorted.forEach(([id, comp]) => {
+                const li = document.createElement('li');
+                li.className = `comp-item ${id === selectedCompetitionId ? 'active' : ''}`;
+                li.innerHTML = `
+                    <div class="comp-name">${comp.isim}</div>
+                    <div class="comp-date"><i class="material-icons-round" style="font-size:14px;">calendar_today</i> ${new Date(comp.tarih).toLocaleDateString('tr-TR')}</div>
+                `;
+                li.onclick = () => selectCompetition(id);
+                listEl.appendChild(li);
+            });
+        }
+
+        function selectCompetition(id) {
+            selectedCompetitionId = id;
+            localStorage.setItem('activeCompetitionId', id);
+            const compData = allCompetitions[id];
+            if (!compData) return;
+
+            renderCompetitionList(); // Active class güncelle
+
+            // Animasyonlu Geçiş
+            document.getElementById('placeholder').style.display = 'none';
+            const dashboard = document.getElementById('dashboard-content');
+            dashboard.style.display = 'none'; // Reset for animation
+            setTimeout(() => dashboard.style.display = 'block', 10);
+
+            // Header Bilgileri
+            document.getElementById('selected-competition-name').textContent = compData.isim;
+            document.getElementById('selected-competition-details').innerHTML = `
+                <span class="badge badge-primary">${compData.kategori || 'Genel'}</span>
+                <span class="badge badge-secondary">${Object.keys(compData.katilimcilar || {}).length} Sporcu</span>
+            `;
+
+            renderBentoGrid(compData.kategori || 'minikler');
+        }
+
+        function renderBentoGrid(category) {
+            const grid = document.getElementById('bentoGrid');
+            const q = `?competitionId=${selectedCompetitionId}`;
+            let html = '';
+
+            // Grid Öğelerini Oluşturma Helper
+            const createCard = (key, overrideTitle = null) => {
+                const item = PAGE_FILES[key];
+                if(!item) return '';
+                return `
+                    <a href="${item.file}${q}" class="bento-item ${item.theme} ${item.size || ''}">
+                        <div class="bento-icon"><i class="material-icons-round">${item.icon}</i></div>
+                        <div class="bento-content">
+                            <div class="bento-title">${overrideTitle || item.label}</div>
+                            <div class="bento-desc">${item.desc}</div>
+                        </div>
+                    </a>
+                `;
+            };
+
+            // 1. Yönetim & Ayarlar
+            html += createCard('athletes');
+            html += createCard('startOrder');
+            html += createCard('criteria');
+            html += createCard('links');
+
+            // 2. Puanlama (Kategoriye göre)
+            html += createCard('yer');
+            html += createCard('atlama');
+            html += createCard('denge');
+            html += createCard('barfiks');
+            if (category === 'kucukler') {
+                html += createCard('asimetri');
+            }
+
+            // 3. Sonuçlar & Büyük Kartlar
+            html += createCard('live');
+            html += createCard('final');
+            html += createCard('analysis');
+            html += createCard('logs'); // Loglar için parametre gerekmez genelde ama ekledik
+
+            grid.innerHTML = html;
+        }
+    </script>
+</body>
+</html>

@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Canlı Skor Panosu - Asimetrik Paralel</title>
+    <script src="https://www.gstatic.com/firebasejs/9.6.7/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.6.7/firebase-database-compat.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700;900&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --background-color: #101010;
+            --card-color: #1c1c1c;
+            --text-color: #f5f5f5;
+            --text-muted: #8e8e8e;
+            --border-color: #333;
+            --apparatus-color: #00bcd4; /* Asimetrik Paralel için Turkuaz */
+            --success-color: #03dac6;
+            --danger-color: #cf6679;
+        }
+        * { box-sizing: border-box; }
+        html, body {
+            height: 100%;
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+            font-family: 'Inter', sans-serif;
+            background-color: var(--background-color);
+            color: var(--text-color);
+        }
+        .container {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            height: 100%;
+            padding: 20px;
+        }
+        .scoreboard {
+            width: 100%;
+            max-width: 1200px;
+            background: var(--card-color);
+            border-radius: 20px;
+            border-top: 8px solid var(--apparatus-color);
+            padding: 40px 50px;
+            box-shadow: 0 20px 50px rgba(0,0,0,0.5);
+            transition: transform 0.5s ease-in-out, opacity 0.5s ease-in-out;
+            position: absolute;
+        }
+        .hidden {
+            transform: scale(0.95);
+            opacity: 0;
+            pointer-events: none;
+        }
+        
+        #competition-selection h2 { font-size: 3em; text-align: center; margin-bottom: 30px; }
+        #competition-list { list-style: none; padding: 0; max-height: 60vh; overflow-y: auto; }
+        #competition-list li { background-color: rgba(255,255,255,0.05); padding: 20px; margin-bottom: 10px; border-radius: 12px; font-size: 1.5em; cursor: pointer; transition: background-color 0.3s; }
+        #competition-list li:hover { background-color: var(--apparatus-color); color: #000; }
+
+        #score-display .header { text-align: center; margin-bottom: 30px; border-bottom: 2px solid var(--border-color); padding-bottom: 20px; }
+        #score-display #athlete-name { font-size: 4em; font-weight: 900; margin: 0; line-height: 1.1; }
+        #score-display #athlete-club { font-size: 2em; color: var(--text-muted); margin-top: 10px; }
+        #score-display .scores { display: grid; grid-template-columns: repeat(3, 1fr); gap: 25px; text-align: center; margin-bottom: 35px; }
+        #score-display .score-item { background-color: rgba(0,0,0,0.2); padding: 20px; border-radius: 12px; }
+        #score-display .score-item .label { font-size: 1.5em; font-weight: 700; color: var(--text-muted); }
+        #score-display .score-item .value { font-size: 3em; font-weight: 900; margin-top: 5px; }
+        #score-display .final-score { text-align: center; background: linear-gradient(45deg, var(--apparatus-color), var(--success-color)); padding: 25px; border-radius: 16px; }
+        #score-display .final-score .label { font-size: 2em; font-weight: 700; color: #000; }
+        #score-display .final-score .value { font-size: 6em; font-weight: 900; line-height: 1; color: #fff; text-shadow: 0 0 20px rgba(0,0,0,0.5); }
+        #waiting-display { text-align: center; }
+        #waiting-display h2 { font-size: 3em; color: var(--text-muted); }
+        #waiting-display #next-athlete-name { font-size: 5em; font-weight: 900; margin: 10px 0; color: var(--apparatus-color); }
+        #waiting-display #next-athlete-club { font-size: 2.5em; color: var(--text-muted); }
+        .progress-bar-container { position: fixed; bottom: 0; left: 0; width: 100%; height: 10px; background-color: rgba(0,0,0,0.3); }
+        .progress-bar { height: 100%; background-color: var(--apparatus-color); width: 100%; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="scoreboard" id="competition-selection">
+            <h2>Yarışma Seçin</h2>
+            <ul id="competition-list"><li>Yarışmalar yükleniyor...</li></ul>
+        </div>
+
+        <div class="scoreboard hidden" id="score-display">
+            <div class="header">
+                <h1 id="athlete-name">Sporcu Adı</h1>
+                <h2 id="athlete-club">Kulüp</h2>
+            </div>
+            <div class="scores">
+                <div class="score-item"><div class="label">D Puanı</div><div class="value" id="d-puan">0.000</div></div>
+                <div class="score-item"><div class="label">E Puanı</div><div class="value" id="e-puan">0.000</div></div>
+                <div class="score-item"><div class="label">Bonus</div><div class="value" id="bonus-puan">0.000</div></div>
+                <div class="score-item"><div class="label" style="color: var(--danger-color);">Tarafsız Kes.</div><div class="value" id="t-kesinti">0.000</div></div>
+                <div class="score-item"><div class="label" style="color: var(--danger-color);">Eksik Elem. Kes.</div><div class="value" id="e-kesinti">0.000</div></div>
+            </div>
+            <div class="final-score">
+                <div class="label">SON NOT</div>
+                <div class="value" id="final-score">0.000</div>
+            </div>
+        </div>
+
+        <div class="scoreboard hidden" id="waiting-display">
+            <h2>Sıradaki Sporcu</h2>
+            <h1 id="next-athlete-name">...</h1>
+            <h2 id="next-athlete-club">Yükleniyor</h2>
+        </div>
+    </div>
+    
+    <div class="progress-bar-container" id="progress-bar-container"></div>
+
+    <script>
+        const firebaseConfig = { apiKey: "AIzaSyA5VNkBsZkZqaDr8YgOnhiGCDql9-lJ6Gk", authDomain: "analig2025.firebaseapp.com", databaseURL: "https://analig2025-default-rtdb.firebaseio.com", projectId: "analig2025", storageBucket: "analig2025.appspot.com", messagingSenderId: "835759576581", appId: "1:835759576581:web:561d073115b02584ebee6c" };
+        firebase.initializeApp(firebaseConfig);
+        const db = firebase.database();
+        
+        const APPARATUS_NAME = 'asimetrik_paralel';
+        const APPARATUS_PATH = 'asimetrikParalelPuanlari';
+
+        let globalSporcular = [], activeAthleteId = null, lastShownAthleteId = null;
+        let activeCompetitionId = null;
+        let scoreDisplayTimer = null;
+
+        const DOM = {
+            competitionSelection: document.getElementById('competition-selection'),
+            competitionList: document.getElementById('competition-list'),
+            scoreDisplay: document.getElementById('score-display'),
+            waitingDisplay: document.getElementById('waiting-display'),
+            progressBarContainer: document.getElementById('progress-bar-container'),
+            athleteName: document.getElementById('athlete-name'),
+            athleteClub: document.getElementById('athlete-club'),
+            dScore: document.getElementById('d-puan'),
+            eScore: document.getElementById('e-puan'),
+            bonusScore: document.getElementById('bonus-puan'),
+            tDeduction: document.getElementById('t-kesinti'),
+            mDeduction: document.getElementById('e-kesinti'),
+            finalScore: document.getElementById('final-score'),
+            nextAthleteName: document.getElementById('next-athlete-name'),
+            nextAthleteClub: document.getElementById('next-athlete-club'),
+        };
+
+        document.addEventListener('DOMContentLoaded', async () => {
+            await loadCompetitions();
+            await loadGlobalSporcular();
+        });
+
+        async function loadGlobalSporcular() {
+            const snapshot = await db.ref('globalSporcular').once('value');
+            if (snapshot.exists()) globalSporcular = Object.values(snapshot.val());
+        }
+
+        async function loadCompetitions() {
+            db.ref('competitions').on('value', snapshot => {
+                DOM.competitionList.innerHTML = '';
+                if(snapshot.exists()){
+                    snapshot.forEach(childSnapshot => {
+                        const comp = childSnapshot.val();
+                        if (comp.durum === 'aktif') {
+                            const li = document.createElement('li');
+                            li.textContent = comp.isim;
+                            li.dataset.id = childSnapshot.key;
+                            li.addEventListener('click', () => selectCompetition(childSnapshot.key));
+                            DOM.competitionList.appendChild(li);
+                        }
+                    });
+                }
+            });
+        }
+
+        function selectCompetition(competitionId) {
+            activeCompetitionId = competitionId;
+            DOM.competitionSelection.classList.add('hidden');
+            showWaitingScreen();
+            listenToScores();
+            listenToActiveAthlete();
+        }
+
+        function listenToScores() {
+            db.ref(`competitions/${activeCompetitionId}/cimnastikVerileri/${APPARATUS_PATH}`).on('child_changed', snapshot => {
+                const sporcuPuan = snapshot.val();
+                if (sporcuPuan.timerState === 'finished' && sporcuPuan.durumNotu !== 'Yarışmadı') {
+                    showScore(snapshot.key, sporcuPuan);
+                }
+            });
+        }
+        
+        function listenToActiveAthlete() {
+            db.ref(`competitions/${activeCompetitionId}/aktifSporcu/${APPARATUS_NAME}`).on('value', snapshot => {
+                activeAthleteId = snapshot.val();
+                if (DOM.waitingDisplay.classList.contains('hidden') === false) {
+                    showWaitingScreen();
+                }
+            });
+        }
+        
+        function showScore(sporcuId, sporcuPuan) {
+            clearTimeout(scoreDisplayTimer);
+            lastShownAthleteId = sporcuId;
+            const sporcu = globalSporcular.find(s => s.id == sporcuId);
+            if (!sporcu) return;
+
+            const dToplami = sporcuPuan.dToplami || 0;
+            const ePuani = sporcuPuan.ePuani || 0;
+            const bonus = sporcuPuan.bonus || 0;
+            const tarafsizKesinti = sporcuPuan.TarafsizKesinti || 0;
+            const eksikElementKesintisi = sporcuPuan.eksikElementKesintisi || 0;
+            const sonPuan = sporcuPuan.sonPuan || 0;
+            
+            DOM.athleteName.textContent = sporcu.soyadAd;
+            DOM.athleteClub.textContent = sporcu.kulup || "Bireysel";
+            DOM.dScore.textContent = dToplami.toFixed(3);
+            DOM.eScore.textContent = ePuani.toFixed(3);
+            DOM.bonusScore.textContent = bonus.toFixed(3);
+            DOM.tDeduction.textContent = tarafsizKesinti.toFixed(3);
+            DOM.mDeduction.textContent = eksikElementKesintisi.toFixed(3);
+            DOM.finalScore.textContent = sonPuan.toFixed(3);
+
+            DOM.waitingDisplay.classList.add('hidden');
+            DOM.scoreDisplay.classList.remove('hidden');
+
+            startProgressBar(30000);
+            scoreDisplayTimer = setTimeout(() => showWaitingScreen(sporcuId), 30000);
+        }
+        
+        function showWaitingScreen(lastShownId = null) {
+            clearTimeout(scoreDisplayTimer);
+            DOM.progressBarContainer.innerHTML = '';
+            
+            if(lastShownId && lastShownId == activeAthleteId) {
+                 DOM.nextAthleteName.textContent = "Sıradaki sporcu";
+                 DOM.nextAthleteClub.textContent = "bekleniyor...";
+            } else {
+                const sporcu = globalSporcular.find(s => s.id == activeAthleteId);
+                if (sporcu) {
+                    DOM.nextAthleteName.textContent = sporcu.soyadAd;
+                    DOM.nextAthleteClub.textContent = sporcu.kulup || "Bireysel";
+                } else {
+                    DOM.nextAthleteName.textContent = "Sıradaki sporcu";
+                    DOM.nextAthleteClub.textContent = "bekleniyor...";
+                }
+            }
+            
+            DOM.scoreDisplay.classList.add('hidden');
+            DOM.waitingDisplay.classList.remove('hidden');
+        }
+        
+        function startProgressBar(duration) {
+            DOM.progressBarContainer.innerHTML = `<div class="progress-bar"></div>`;
+            const bar = DOM.progressBarContainer.querySelector('.progress-bar');
+            bar.style.transition = `width ${duration / 1000}s linear`;
+            setTimeout(() => bar.style.width = '0%', 50);
+        }
+    </script>
+</body>
+</html>

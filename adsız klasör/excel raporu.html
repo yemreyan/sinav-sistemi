@@ -1,0 +1,805 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8" />
+    <title>Yarışma Raporu Excel (Firebase • Yarışma Adı Seçimli)</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+
+    <!-- Firebase (Compat v9) -->
+    <script src="https://www.gstatic.com/firebasejs/9.6.7/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.6.7/firebase-database-compat.js"></script>
+
+    <!-- SheetJS: Excel oluşturma -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+
+    <style>
+        :root {
+            --bg: #f3f4f6;
+            --card: #ffffff;
+            --accent: #f97316;
+            --accent-soft: rgba(249, 115, 22, 0.08);
+            --text: #111827;
+            --muted: #6b7280;
+            --border: #e5e7eb;
+        }
+
+        * { box-sizing: border-box; }
+
+        body {
+            margin: 0;
+            padding: 16px;
+            font-family: system-ui, -apple-system, BlinkMacSystemFont, "Inter", sans-serif;
+            background: #e5e7eb;
+            color: var(--text);
+        }
+
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+        }
+
+        .card {
+            background: var(--card);
+            border-radius: 18px;
+            padding: 16px 20px;
+            margin-bottom: 16px;
+            border: 1px solid var(--border);
+            box-shadow:
+                0 8px 20px rgba(15, 23, 42, 0.08),
+                0 0 0 1px rgba(15, 23, 42, 0.02);
+        }
+
+        h1, h2, h3 { margin: 0; }
+
+        .pill {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 4px 10px;
+            border-radius: 999px;
+            font-size: 11px;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            background: var(--accent-soft);
+            color: var(--accent);
+            margin-bottom: 6px;
+        }
+        .pill::before {
+            content: "";
+            width: 6px;
+            height: 6px;
+            border-radius: 999px;
+            background: var(--accent);
+        }
+
+        .muted { color: var(--muted); font-size: 13px; }
+
+        .row {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+            align-items: center;
+            margin-top: 8px;
+        }
+
+        .select-compact {
+            padding: 6px 10px;
+            border-radius: 999px;
+            border: 1px solid var(--border);
+            font-size: 12px;
+            min-width: 260px;
+        }
+
+        .btn {
+            border-radius: 999px;
+            border: 1px solid rgba(148, 163, 184, 0.6);
+            background: linear-gradient(135deg, #fbbf24, #f97316);
+            color: #111827;
+            font-weight: 600;
+            font-size: 13px;
+            padding: 8px 16px;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            box-shadow:
+                0 10px 20px rgba(249, 115, 22, 0.35),
+                0 0 0 1px rgba(248, 250, 252, 0.5);
+        }
+
+        .btn:disabled {
+            opacity: 0.4;
+            cursor: not-allowed;
+            box-shadow: none;
+        }
+
+        .btn-ghost {
+            background: #ffffff;
+            color: var(--muted);
+            border-color: rgba(148, 163, 184, 0.6);
+            box-shadow: none;
+        }
+
+        .btn .icon { font-size: 16px; }
+
+        #previewTable {
+            margin-top: 12px;
+            border-collapse: collapse;
+            width: 100%;
+            font-size: 11px;
+        }
+
+        #previewTable th,
+        #previewTable td {
+            border: 1px solid var(--border);
+            padding: 3px 4px;
+            text-align: left;
+            white-space: nowrap;
+        }
+
+        #previewTable thead {
+            background: #f9fafb;
+        }
+
+        #previewTable tbody tr:nth-child(even) {
+            background: #f9fafb;
+        }
+    </style>
+</head>
+<body>
+<div class="container">
+    <div class="card">
+        <div class="pill">Yarışma Raporu • Excel</div>
+        <h1>Yarışma Bazlı Rapor (.xlsx)</h1>
+        <p class="muted">
+            Firebase Realtime DB'deki yarışmalardan birini <strong>isimle</strong> seçerek,
+            sana verdiğin <strong>yeni_rapor.xlsx</strong> formatına çok yakın bir Excel çıktısı üretir:
+            <br>
+            <strong>1-Bireysel Genel Tasnif, 2-Takım Sıralaması, 3-Yer / Atlama / Barfiks / Denge Final</strong>.<br>
+            Sayı formatı: <strong>0.000</strong>, kolon genişlikleri ayarlanmış, S.N. kolonlarında <strong>COUNTIF</strong> formülleri var.
+        </p>
+
+        <div class="row">
+            <button id="listBtn" class="btn btn-ghost">
+                <span class="icon">📋</span> Yarışmaları Listele
+            </button>
+
+            <select id="competitionSelect" class="select-compact">
+                <option value="">Önce "Yarışmaları Listele"ye bas</option>
+            </select>
+        </div>
+
+        <div class="row">
+            <button id="fetchBtn" class="btn">
+                <span class="icon">🔥</span> Seçili Yarışmadan Verileri Çek
+            </button>
+            <button id="excelBtn" class="btn btn-ghost" disabled>
+                <span class="icon">📊</span> Excel (.xlsx) İndir
+            </button>
+        </div>
+
+        <p id="status" class="muted" style="margin-top:8px;">
+            1) "Yarışmaları Listele" → 2) Listeden yarışma seç → 3) "Seçili Yarışmadan Verileri Çek" → 4) Excel indir.
+        </p>
+    </div>
+
+    <div class="card">
+        <h3>Örnek Önizleme (1-Bireysel Genel Tasnif, ilk satırlar)</h3>
+        <p class="muted">
+            Veriyi çektikten sonra, bireysel genel tasniften birkaç satır örnek burada gözükecek.
+            Excel dosyası ise tüm sheet'leri içerecek.
+        </p>
+        <div style="overflow:auto;">
+            <table id="previewTable"></table>
+        </div>
+    </div>
+</div>
+
+<script>
+    /****************************************************
+     * 1) Firebase Ayarları
+     ****************************************************/
+    const firebaseConfig = {
+        apiKey: "API_KEYIN",
+        authDomain: "PROJEN.firebaseapp.com",
+        databaseURL: "https://analig2025-default-rtdb.firebaseio.com",
+        projectId: "PROJE_ID",
+        storageBucket: "PROJE_ID.appspot.com",
+        messagingSenderId: "MESAJ_ID",
+        appId: "APP_ID"
+    };
+
+    if (!firebase.apps.length) {
+        firebase.initializeApp(firebaseConfig);
+    }
+
+    /****************************************************
+     * 2) DOM Elemanları & Genel Durum
+     ****************************************************/
+    const listBtn = document.getElementById("listBtn");
+    const fetchBtn = document.getElementById("fetchBtn");
+    const excelBtn = document.getElementById("excelBtn");
+    const statusEl = document.getElementById("status");
+    const competitionSelect = document.getElementById("competitionSelect");
+    const previewTable = document.getElementById("previewTable");
+
+    let workbookData = null;
+    let competitionsCache = [];
+
+    function isNumeric(v) {
+        return typeof v === "number" || (!isNaN(v) && v !== null && v !== "");
+    }
+
+    /****************************************************
+     * 3) Yarışma Listesini Çek & Dropdown
+     ****************************************************/
+    listBtn.addEventListener("click", async () => {
+        listBtn.disabled = true;
+        statusEl.textContent = "Yarışmalar Firebase'den çekiliyor...";
+        competitionSelect.innerHTML = '<option value="">Yükleniyor...</option>';
+
+        try {
+            const db = firebase.database();
+            const snap = await db.ref("competitions").once("value");
+            const comps = snap.val() || {};
+
+            competitionsCache = Object.entries(comps).map(([id, c]) => ({
+                id,
+                isim: c && c.isim ? c.isim : id,
+                tarih: c && c.tarih ? c.tarih : "",
+                durum: c && c.durum ? c.durum : ""
+            }));
+
+            competitionsCache.sort((a, b) => {
+                const da = a.tarih || "";
+                const dbt = b.tarih || "";
+                if (da !== dbt) return dbt.localeCompare(da);
+                return (a.isim || "").localeCompare(b.isim || "");
+            });
+
+            const aktifler = competitionsCache.filter(c => c.durum === "aktif");
+            const liste = aktifler.length ? aktifler : competitionsCache;
+
+            competitionSelect.innerHTML = "";
+            competitionSelect.appendChild(new Option("Yarışma seçiniz...", "", true, false));
+
+            liste.forEach(c => {
+                const text = `${c.isim}${c.tarih ? " - " + c.tarih : ""}${c.durum && c.durum !== "aktif" ? " (" + c.durum + ")" : ""}`;
+                const opt = new Option(text, c.id, false, false);
+                competitionSelect.appendChild(opt);
+            });
+
+            statusEl.textContent = "Yarışma listesinden birini seçip 'Seçili Yarışmadan Verileri Çek' butonuna bas.";
+        } catch (err) {
+            console.error(err);
+            alert("Yarışmalar listelenirken hata: " + err.message);
+            statusEl.textContent = "Hata: " + err.message;
+            competitionSelect.innerHTML = '<option value="">Hata oluştu</option>';
+        } finally {
+            listBtn.disabled = false;
+        }
+    });
+
+    /****************************************************
+     * 4) Seçili Yarışmadan Veriyi Çek
+     ****************************************************/
+    fetchBtn.addEventListener("click", async () => {
+        const compId = competitionSelect.value;
+        if (!compId) {
+            alert("Lütfen listeden bir yarışma seç.");
+            return;
+        }
+
+        fetchBtn.disabled = true;
+        excelBtn.disabled = true;
+        statusEl.textContent = "Seçili yarışmadan veriler çekiliyor...";
+        previewTable.innerHTML = "";
+
+        try {
+            const db = firebase.database();
+            const [compSnap, sporSnap] = await Promise.all([
+                db.ref("competitions/" + compId).once("value"),
+                db.ref("globalSporcular").once("value")
+            ]);
+
+            const comp = compSnap.val();
+            const globalSporcular = sporSnap.val();
+
+            if (!comp) {
+                throw new Error("Bu ID için competition kaydı bulunamadı: " + compId);
+            }
+
+            const athleteById = {};
+            if (globalSporcular) {
+                Object.values(globalSporcular).forEach(s => {
+                    if (s && typeof s.id !== "undefined") {
+                        athleteById[s.id] = s;
+                    }
+                });
+            }
+
+            workbookData = buildWorkbookData(comp, athleteById);
+
+            buildPreview(workbookData["1-Bireysel Genel Tasnif"]);
+
+            statusEl.textContent = "Veri hazır. Şimdi 'Excel (.xlsx) İndir' butonuna basabilirsin.";
+            excelBtn.disabled = false;
+        } catch (err) {
+            console.error(err);
+            alert("Veri çekilirken hata: " + err.message);
+            statusEl.textContent = "Hata: " + err.message;
+        } finally {
+            fetchBtn.disabled = false;
+        }
+    });
+
+    /****************************************************
+     * 5) Workbook Data: yeni_rapor.xlsx yapısına uygun
+     ****************************************************/
+    function buildWorkbookData(comp, athleteById) {
+        const cv = comp.cimnastikVerileri || {};
+        const kriterler = cv.kriterler || {};
+
+        const appConfigs = [
+            { name: "Yer",     scoreKey: "yerPuanlari",     critKey: "yer",     sheetName: "3-Yer Final" },
+            { name: "Atlama",  scoreKey: "atlamaPuanlari",  critKey: "atlama", sheetName: "3-Atlama Final" },
+            { name: "Barfiks", scoreKey: "barfiksPuanlari", critKey: "barfiks",sheetName: "3-Barfiks Final" },
+            { name: "Denge",   scoreKey: "dengePuanlari",   critKey: "denge",  sheetName: "3-Denge Final" }
+        ];
+
+        const finalByApp = {};
+        appConfigs.forEach(app => {
+            finalByApp[app.name] = makeFinalSheetForApp(cv, kriterler, athleteById, app);
+        });
+
+        const teamSheet = buildTeamSheet(finalByApp);
+        const bireyselSheet = buildBireyselGenel(finalByApp, athleteById);
+
+        const workbookData = {};
+        workbookData["1-Bireysel Genel Tasnif"] = bireyselSheet;
+        workbookData["2-Takım Sıralaması"] = teamSheet;
+
+        appConfigs.forEach(app => {
+            const key = app.name;
+            workbookData[app.sheetName] = finalByApp[key].rowsForSheet;
+        });
+
+        return workbookData;
+    }
+
+    /****************************************************
+     * 5.a Alet Bazlı Final Sheet
+     ****************************************************/
+    function makeFinalSheetForApp(cv, kriterler, athleteById, appCfg) {
+        const scores = cv[appCfg.scoreKey] || {};
+        const kriter = kriterler[appCfg.critKey] || {};
+        const hareketler = kriter.hareketler || [];
+        const hareketIds = hareketler.map(h => h.id);
+        const Hcols = hareketIds.map((_, i) => "H" + (i + 1));
+
+        const records = [];
+
+        Object.entries(scores).forEach(([athleteIdStr, s]) => {
+            if (!s || s.durumNotu !== "Yarıştı") return;
+
+            const athleteIdNum = Number(athleteIdStr);
+            const athlete = athleteById[athleteIdNum] || {};
+            const fullName = (athlete.soyadAd || ("ID " + athleteIdStr)).trim();
+            const parts = fullName.split(/\s+/);
+            const soyad = parts[0] ? parts[0].toUpperCase() : "";
+            const ad = parts.length > 1 ? parts.slice(1).join(" ").toUpperCase() : "";
+            const kulup = (athlete.kulup || "").toUpperCase();
+
+            const row = {
+                AthleteId: athleteIdNum,
+                "Soyadı": soyad,
+                "Adı": ad,
+                "Kulüp": kulup
+            };
+
+            const Dobj = (s.D && typeof s.D === "object") ? s.D : null;
+
+            Hcols.forEach((colName, index) => {
+                const hid = hareketIds[index];
+                let val;
+                if (Dobj) {
+                    val = Dobj[hid];
+                } else {
+                    val = s[hid];  // Atlama gibi durumlarda root'ta
+                }
+                row[colName] = isNumeric(val) ? Number(val) : (val ?? "");
+            });
+
+            row["D Puanı"] = isNumeric(s.dToplami) ? Number(s.dToplami) : "";
+            row["E Puanı"] = isNumeric(s.ePuani) ? Number(s.ePuani) : "";
+            row["Penaltı"] = isNumeric(s.TarafsizKesinti) ? Number(s.TarafsizKesinti) : 0;
+            row["FINAL PUAN"] = isNumeric(s.sonPuan) ? Number(s.sonPuan) : "";
+
+            records.push(row);
+        });
+
+        // FINAL PUAN'a göre sıralama (S.N.)
+        records.sort((a, b) => b["FINAL PUAN"] - a["FINAL PUAN"]);
+        let lastScore = null;
+        let lastSN = null;
+        records.forEach((r, i) => {
+            const score = r["FINAL PUAN"];
+            let SN;
+            if (lastScore === null) SN = 1;
+            else if (score === lastScore) SN = lastSN;
+            else SN = i + 1;
+            lastScore = score;
+            lastSN = SN;
+            r["S.N."] = SN;
+        });
+
+        const rowsForSheet = records.map(r => {
+            const out = {
+                "S.N.": r["S.N."],
+                "Soyadı": r["Soyadı"],
+                "Adı": r["Adı"],
+                "Kulüp": r["Kulüp"]
+            };
+            Hcols.forEach(c => { out[c] = r[c]; });
+            out["D Puanı"] = r["D Puanı"];
+            out["E Puanı"] = r["E Puanı"];
+            out["Penaltı"] = r["Penaltı"];
+            out["FINAL PUAN"] = r["FINAL PUAN"];
+            return out;
+        });
+
+        return { records, rowsForSheet, Hcols };
+    }
+
+    /****************************************************
+     * 5.b Takım Sıralaması
+     ****************************************************/
+    function buildTeamSheet(finalByApp) {
+        function teamScoresFromApp(appName) {
+            const rows = finalByApp[appName].records || [];
+            const clubScores = {};
+            rows.forEach(r => {
+                const club = r["Kulüp"] || "";
+                const score = r["FINAL PUAN"] || 0;
+                if (!clubScores[club]) clubScores[club] = [];
+                clubScores[club].push(score);
+            });
+
+            const result = {};
+            Object.entries(clubScores).forEach(([club, list]) => {
+                const top3 = list.sort((a, b) => b - a).slice(0, 3);
+                const sum = top3.reduce((acc, v) => acc + v, 0);
+                result[club] = Number(sum.toFixed(2));
+            });
+            return result;
+        }
+
+        const teamYer = teamScoresFromApp("Yer");
+        const teamAtl = teamScoresFromApp("Atlama");
+        const teamBar = teamScoresFromApp("Barfiks");
+        const teamDen = teamScoresFromApp("Denge");
+
+        const allClubs = new Set([
+            ...Object.keys(teamYer),
+            ...Object.keys(teamAtl),
+            ...Object.keys(teamBar),
+            ...Object.keys(teamDen)
+        ]);
+
+        const rows = [];
+        allClubs.forEach(club => {
+            const yer = teamYer[club] ?? 0;
+            const atlama = teamAtl[club] ?? 0;
+            const barfiks = teamBar[club] ?? 0;
+            const denge = teamDen[club] ?? 0;
+            const toplam = yer + atlama + barfiks + denge;
+
+            rows.push({
+                "Takım": club,
+                "Yer": yer,
+                "Atlama": atlama,
+                "Barfiks": barfiks,
+                "Denge": denge,
+                "Toplam": Number(toplam.toFixed(2)),
+                "Penaltı": 0,
+                "Son Skor": Number(toplam.toFixed(2))
+            });
+        });
+
+        rows.sort((a, b) => b["Son Skor"] - a["Son Skor"]);
+        let lastScore = null, lastSN = null;
+        rows.forEach((r, i) => {
+            const score = r["Son Skor"];
+            let SN;
+            if (lastScore === null) SN = 1;
+            else if (score === lastScore) SN = lastSN;
+            else SN = i + 1;
+            lastScore = score;
+            lastSN = SN;
+            r["S.N."] = SN;
+        });
+
+        const ordered = rows.map(r => ({
+            "S.N.": r["S.N."],
+            "Takım": r["Takım"],
+            "Yer": r["Yer"],
+            "Atlama": r["Atlama"],
+            "Barfiks": r["Barfiks"],
+            "Denge": r["Denge"],
+            "Toplam": r["Toplam"],
+            "Penaltı": r["Penaltı"],
+            "Son Skor": r["Son Skor"]
+        }));
+
+        return ordered;
+    }
+
+    /****************************************************
+     * 5.c Bireysel Genel Tasnif
+     ****************************************************/
+    function buildBireyselGenel(finalByApp, athleteById) {
+        function indexByAthlete(appName) {
+            const idx = {};
+            (finalByApp[appName].records || []).forEach(r => {
+                idx[r.AthleteId] = r;
+            });
+            return idx;
+        }
+
+        const idxYer = indexByAthlete("Yer");
+        const idxAtl = indexByAthlete("Atlama");
+        const idxBar = indexByAthlete("Barfiks");
+        const idxDen = indexByAthlete("Denge");
+
+        const allAthletes = new Set([
+            ...Object.keys(idxYer),
+            ...Object.keys(idxAtl),
+            ...Object.keys(idxBar),
+            ...Object.keys(idxDen)
+        ]);
+
+        const records = [];
+
+        allAthletes.forEach(aidStr => {
+            const aid = Number(aidStr);
+            const ath = athleteById[aid] || {};
+            const fullName = (ath.soyadAd || "").trim();
+            const parts = fullName.split(/\s+/);
+            const soyad = parts[0] ? parts[0].toUpperCase() : "";
+            const ad = parts.length > 1 ? parts.slice(1).join(" ").toUpperCase() : "";
+            const club = (ath.kulup || "").toUpperCase();
+
+            const rec = {
+                AthleteId: aid,
+                "Soyadı": soyad,
+                "Adı": ad,
+                "Takım": club
+            };
+
+            function appCell(appName, idx) {
+                const r = idx[aid];
+                if (!r) return "";
+                const final = r["FINAL PUAN"] || 0;
+                const dVal = r["D Puanı"] || 0;
+                const eVal = r["E Puanı"] || 0;
+                const pen = r["Penaltı"] || 0;
+                const rank = r["S.N."] || "";
+                return (
+                    "Final: " + final.toFixed(3) + " (" + rank + ")\n" +
+                    "D Puanı: " + dVal.toFixed(3) + "\n" +
+                    "E Puanı: " + eVal.toFixed(3) + "\n" +
+                    "Ceza: " + pen.toFixed(3)
+                );
+            }
+
+            rec["Yer"] = appCell("Yer", idxYer);
+            rec["Atlama"] = appCell("Atlama", idxAtl);
+            rec["Barfiks"] = appCell("Barfiks", idxBar);
+            rec["Denge"] = appCell("Denge", idxDen);
+
+            let gen = 0;
+            let hasAny = false;
+            ["Yer", "Atlama", "Barfiks", "Denge"].forEach(appName => {
+                const idx =
+                    appName === "Yer" ? idxYer :
+                    appName === "Atlama" ? idxAtl :
+                    appName === "Barfiks" ? idxBar :
+                    idxDen;
+                const r = idx[aid];
+                if (r && isNumeric(r["FINAL PUAN"])) {
+                    gen += r["FINAL PUAN"];
+                    hasAny = true;
+                }
+            });
+
+            rec["GENEL TOPLAM"] = hasAny ? Number(gen.toFixed(2)) : "";
+
+            records.push(rec);
+        });
+
+        const valid = records.filter(r => isNumeric(r["GENEL TOPLAM"]));
+        valid.sort((a, b) => b["GENEL TOPLAM"] - a["GENEL TOPLAM"]);
+
+        let lastScore = null;
+        let lastSN = null;
+        valid.forEach((r, i) => {
+            const score = r["GENEL TOPLAM"];
+            let SN;
+            if (lastScore === null) SN = 1;
+            else if (score === lastScore) SN = lastSN;
+            else SN = i + 1;
+            lastScore = score;
+            lastSN = SN;
+            r["S.N."] = SN;
+        });
+
+        const ordered = valid.map(r => ({
+            "S.N.": r["S.N."],
+            "Soyadı": r["Soyadı"],
+            "Adı": r["Adı"],
+            "Takım": r["Takım"],
+            "Yer": r["Yer"],
+            "Atlama": r["Atlama"],
+            "Barfiks": r["Barfiks"],
+            "Denge": r["Denge"],
+            "GENEL TOPLAM": r["GENEL TOPLAM"]
+        }));
+
+        return ordered;
+    }
+
+    /****************************************************
+     * 6) Önizleme
+     ****************************************************/
+    function buildPreview(bireyselRows) {
+        previewTable.innerHTML = "";
+        if (!bireyselRows || !bireyselRows.length) {
+            previewTable.innerHTML = "<tbody><tr><td>Veri bulunamadı.</td></tr></tbody>";
+            return;
+        }
+
+        const rows = bireyselRows.slice(0, 5);
+        const cols = Object.keys(rows[0]);
+
+        const thead = document.createElement("thead");
+        const headTr = document.createElement("tr");
+        cols.forEach(col => {
+            const th = document.createElement("th");
+            th.textContent = col;
+            headTr.appendChild(th);
+        });
+        thead.appendChild(headTr);
+
+        const tbody = document.createElement("tbody");
+        rows.forEach(r => {
+            const tr = document.createElement("tr");
+            cols.forEach(col => {
+                const td = document.createElement("td");
+                td.textContent = (r[col] === undefined || r[col] === null) ? "" : r[col];
+                tr.appendChild(td);
+            });
+            tbody.appendChild(tr);
+        });
+
+        previewTable.appendChild(thead);
+        previewTable.appendChild(tbody);
+    }
+
+    /****************************************************
+     * 7) Excel Formatlama Yardımcıları
+     ****************************************************/
+    function applyNumericFormat(ws, numericCols) {
+        if (!ws['!ref']) return;
+        const range = XLSX.utils.decode_range(ws['!ref']);
+        for (let r = 2; r <= range.e.r + 1; r++) {
+            numericCols.forEach(col => {
+                const addr = col + r;
+                const cell = ws[addr];
+                if (cell && (typeof cell.v === "number" || cell.t === "n")) {
+                    cell.z = "0.000"; // 3 ondalık
+                }
+            });
+        }
+    }
+
+    function setSNFormula(ws, totalColLetter, maxRowRange) {
+        if (!ws['!ref']) return;
+        const range = XLSX.utils.decode_range(ws['!ref']);
+        const lastRow = range.e.r + 1;
+        const limit = maxRowRange || 100;
+
+        for (let r = 2; r <= lastRow; r++) {
+            const addr = "A" + r;
+            if (!ws[addr]) ws[addr] = { t: "n" };
+            ws[addr].f = `COUNTIF($${totalColLetter}$2:$${totalColLetter}$${limit},">"&${totalColLetter}${r})+1`;
+        }
+    }
+
+    function setColumnWidths(ws, widths) {
+        ws['!cols'] = widths.map(w => ({ wch: w }));
+    }
+
+    function formatBireyselSheet(ws) {
+        // genişlikler yeni_rapor.xlsx'den:
+        // A: 7.16, B:22.33, C:20.16, D:24.33, E:16.66, F:13, G:13, H:13, I:26.33
+        setColumnWidths(ws, [7.16, 22.33, 20.16, 24.33, 16.66, 13, 13, 13, 26.33]);
+        // GENEL TOPLAM I kolonunda → S.N. formülü ve 0.000 format:
+        setSNFormula(ws, "I", 100);
+        applyNumericFormat(ws, ["I"]);
+    }
+
+    function formatTeamSheet(ws) {
+        // A:5.66, B:34, C:22.33, D-G:13, H:13, I:24.33
+        setColumnWidths(ws, [5.66, 34, 22.33, 13, 13, 13, 13, 13, 24.33]);
+        // Son Skor I kolonunda:
+        setSNFormula(ws, "I", 100);
+        applyNumericFormat(ws, ["C", "D", "E", "F", "G", "H", "I"]);
+    }
+
+    function formatFinalSheet(ws) {
+        // 3-Yer Final örneğine göre:
+        // A:5.66, B:15.33, C:17.83, D:24.83, E:6.83, F-K:13, L:15.33, M-O:13
+        setColumnWidths(ws, [
+            5.66, 15.33, 17.83, 24.83, 6.83,
+            13, 13, 13, 13, 13, 13,
+            15.33, 13, 13, 13
+        ]);
+        // Son kolon O varsayımı (FINAL PUAN) → COUNTIF
+        setSNFormula(ws, "O", 100);
+        // Numeric kolonlar E..O (hareketler + D/E/Penaltı/Final)
+        applyNumericFormat(ws, ["E","F","G","H","I","J","K","L","M","N","O"]);
+    }
+
+    /****************************************************
+     * 8) Excel Oluştur & İndir
+     ****************************************************/
+    excelBtn.addEventListener("click", () => {
+        if (!workbookData) return;
+
+        const wb = XLSX.utils.book_new();
+
+        // 1-Bireysel Genel Tasnif
+        {
+            const sheetName = "1-Bireysel Genel Tasnif";
+            const rows = workbookData[sheetName];
+            const header = ["S.N.", "Soyadı", "Adı", "Takım", "Yer", "Atlama", "Barfiks", "Denge", "GENEL TOPLAM"];
+            const ws = XLSX.utils.json_to_sheet(rows, { header });
+            XLSX.utils.book_append_sheet(wb, ws, sheetName);
+            formatBireyselSheet(ws);
+        }
+
+        // 2-Takım Sıralaması
+        {
+            const sheetName = "2-Takım Sıralaması";
+            const rows = workbookData[sheetName];
+            const header = ["S.N.", "Takım", "Yer", "Atlama", "Barfiks", "Denge", "Toplam", "Penaltı", "Son Skor"];
+            const ws = XLSX.utils.json_to_sheet(rows, { header });
+            XLSX.utils.book_append_sheet(wb, ws, sheetName);
+            formatTeamSheet(ws);
+        }
+
+        // 3-Yer / Atlama / Barfiks / Denge Final
+        [
+            "3-Yer Final",
+            "3-Atlama Final",
+            "3-Barfiks Final",
+            "3-Denge Final"
+        ].forEach(sheetName => {
+            const rows = workbookData[sheetName];
+            if (!rows || !rows.length) return;
+            const cols = Object.keys(rows[0]);
+            const ws = XLSX.utils.json_to_sheet(rows, { header: cols });
+            XLSX.utils.book_append_sheet(wb, ws, sheetName);
+            formatFinalSheet(ws);
+        });
+
+        const selectedOption = competitionSelect.options[competitionSelect.selectedIndex];
+        const compText = selectedOption ? selectedOption.text : "yarisma";
+        const safeName = compText.replace(/[^\w\-]+/g, "_");
+        const fileName = `yarisma_raporu_${safeName}.xlsx`;
+
+        XLSX.writeFile(wb, fileName);
+    });
+</script>
+</body>
+</html>

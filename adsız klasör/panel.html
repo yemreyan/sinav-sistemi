@@ -1,0 +1,628 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Yönetim Paneli - Cimnastik OS</title>
+    
+    <script src="https://www.gstatic.com/firebasejs/9.6.7/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.6.7/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.6.7/firebase-database-compat.js"></script>
+    
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    
+    <link href="https://fonts.googleapis.com/icon?family=Material+Icons+Round" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+
+    <style>
+        :root {
+            --bg-body: #020617;
+            --surface-1: rgba(17, 24, 39, 0.8);
+            --surface-glass: rgba(30, 41, 59, 0.4);
+            --border-glass: rgba(255, 255, 255, 0.08);
+            
+            --primary: #6366f1;
+            --primary-glow: rgba(99, 102, 241, 0.4);
+            --accent: #a855f7;
+            
+            --success: #22c55e;
+            --danger: #ef4444;
+            --warning: #f59e0b;
+            --info: #3b82f6;
+
+            --text-main: #ffffff;
+            --text-muted: #94a3b8;
+            
+            --transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            --shadow-card: 0 10px 30px -10px rgba(0, 0, 0, 0.5);
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; outline: none; }
+        
+        body {
+            font-family: 'Plus Jakarta Sans', sans-serif;
+            background-color: var(--bg-body);
+            color: var(--text-main);
+            height: 100vh;
+            overflow: hidden;
+            display: flex;
+            background-image: 
+                radial-gradient(circle at 0% 0%, rgba(99, 102, 241, 0.15), transparent 40%),
+                radial-gradient(circle at 100% 100%, rgba(168, 85, 247, 0.15), transparent 40%);
+        }
+
+        /* SIDEBAR */
+        .sidebar {
+            width: 280px;
+            background: var(--surface-1);
+            backdrop-filter: blur(20px);
+            border-right: 1px solid var(--border-glass);
+            display: flex;
+            flex-direction: column;
+            padding: 24px;
+            z-index: 100;
+        }
+
+        .app-brand {
+            display: flex; align-items: center; gap: 12px;
+            font-size: 1.1rem; font-weight: 800; color: white;
+            margin-bottom: 40px; text-decoration: none;
+        }
+        
+        .nav-item {
+            padding: 14px 16px; margin-bottom: 8px; border-radius: 12px;
+            color: var(--text-muted); text-decoration: none; font-weight: 600;
+            display: flex; align-items: center; gap: 12px; transition: var(--transition);
+            border: 1px solid transparent; cursor: pointer;
+        }
+        .nav-item:hover { background: rgba(255,255,255,0.05); color: white; }
+        .nav-item.active { 
+            background: rgba(99, 102, 241, 0.15); color: var(--primary); 
+            border-color: rgba(99, 102, 241, 0.2);
+        }
+
+        /* MAIN CONTENT */
+        .main-content { flex: 1; display: flex; flex-direction: column; position: relative; overflow: hidden; }
+
+        .top-bar {
+            padding: 20px 40px;
+            border-bottom: 1px solid var(--border-glass);
+            background: rgba(2, 6, 23, 0.8);
+            backdrop-filter: blur(10px);
+            display: flex; justify-content: space-between; align-items: center;
+        }
+
+        .page-title h1 { font-size: 1.5rem; font-weight: 700; margin: 0; }
+        .page-title p { font-size: 0.9rem; color: var(--text-muted); margin: 5px 0 0 0; }
+
+        .action-group { display: flex; gap: 10px; }
+        
+        .btn {
+            padding: 10px 20px; border-radius: 10px; font-weight: 600; font-size: 0.9rem;
+            border: none; cursor: pointer; display: flex; align-items: center; gap: 8px;
+            transition: var(--transition); text-decoration: none;
+        }
+        .btn-primary { background: var(--primary); color: white; box-shadow: 0 0 20px var(--primary-glow); }
+        .btn-primary:hover { transform: translateY(-2px); box-shadow: 0 5px 25px var(--primary-glow); }
+        
+        .btn-success { background: rgba(34, 197, 94, 0.2); color: #4ade80; border: 1px solid rgba(34, 197, 94, 0.3); }
+        .btn-success:hover { background: var(--success); color: black; }
+
+        .btn-danger { background: rgba(239, 68, 68, 0.2); color: #f87171; border: 1px solid rgba(239, 68, 68, 0.3); }
+        .btn-danger:hover { background: var(--danger); color: white; }
+        
+        .btn-warning { background: rgba(245, 158, 11, 0.2); color: #fbbf24; border: 1px solid rgba(245, 158, 11, 0.3); }
+        .btn-warning:hover { background: var(--warning); color: black; }
+
+        .btn-ghost { background: rgba(255,255,255,0.1); color: var(--text-muted); }
+        .btn-ghost:hover { background: rgba(255,255,255,0.2); color: white; }
+
+        /* CONTENT GRID */
+        .content-area { flex: 1; padding: 30px 40px; overflow-y: auto; }
+
+        .dashboard-grid {
+            display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 25px; margin-bottom: 30px;
+        }
+
+        .stat-card {
+            background: var(--surface-glass); border: 1px solid var(--border-glass);
+            border-radius: 20px; padding: 25px; position: relative; overflow: hidden;
+            transition: var(--transition);
+        }
+        .stat-card:hover { transform: translateY(-5px); border-color: rgba(255,255,255,0.2); }
+        
+        .stat-icon {
+            position: absolute; top: 20px; right: 20px; font-size: 3rem; opacity: 0.1;
+        }
+        .stat-label { font-size: 0.9rem; color: var(--text-muted); margin-bottom: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 1px; }
+        .stat-value { font-size: 2.5rem; font-weight: 800; color: white; line-height: 1; }
+        .stat-desc { font-size: 0.8rem; color: var(--text-muted); margin-top: 10px; }
+
+        /* COMPETITION LIST */
+        .section-title { font-size: 1.2rem; font-weight: 700; margin-bottom: 20px; display: flex; justify-content: space-between; align-items: center; }
+        
+        .comp-list-container {
+            display: grid; grid-template-columns: repeat(auto-fill, minmax(350px, 1fr)); gap: 20px;
+        }
+
+        .comp-card {
+            background: var(--surface-glass); border: 1px solid var(--border-glass);
+            border-radius: 16px; padding: 20px; transition: var(--transition);
+            display: flex; flex-direction: column; justify-content: space-between;
+            min-height: 180px; cursor: pointer; position: relative;
+        }
+        .comp-card:hover { background: rgba(255,255,255,0.05); border-color: var(--primary); }
+        .comp-card.archived { opacity: 0.7; border-color: var(--warning); }
+
+        .comp-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 15px; }
+        .comp-name { font-size: 1.2rem; font-weight: 700; color: white; }
+        .comp-date { font-size: 0.85rem; color: var(--text-muted); display: flex; align-items: center; gap: 5px; margin-top: 5px; }
+        
+        .status-badge {
+            padding: 4px 10px; border-radius: 6px; font-size: 0.75rem; font-weight: 700; text-transform: uppercase;
+        }
+        .status-active { background: rgba(34, 197, 94, 0.2); color: #4ade80; }
+        .status-archived { background: rgba(245, 158, 11, 0.2); color: #fbbf24; }
+
+        .comp-actions {
+            display: flex; gap: 8px; margin-top: auto; padding-top: 15px; border-top: 1px solid var(--border-glass); flex-wrap: wrap;
+        }
+
+        /* ANALYTICS SECTION */
+        .analytics-section {
+            display: grid; grid-template-columns: 2fr 1fr; gap: 25px; margin-top: 30px;
+        }
+        .chart-container {
+            background: var(--surface-glass); border: 1px solid var(--border-glass);
+            border-radius: 20px; padding: 25px; height: 400px;
+        }
+        
+        /* TOP SCORES */
+        .top-scores-list {
+            display: flex; flex-direction: column; gap: 15px;
+        }
+        .top-score-item {
+            display: flex; align-items: center; gap: 15px;
+            background: rgba(255,255,255,0.03); padding: 15px; border-radius: 12px;
+        }
+        .score-avatar {
+            width: 40px; height: 40px; border-radius: 50%; display: flex; align-items: center; justify-content: center;
+            font-weight: 700; color: black;
+        }
+        .ts-atlama { background: #22c55e; } .ts-barfiks { background: #f97316; } .ts-denge { background: #e91e63; } .ts-yer { background: #3b82f6; }
+
+        /* MODALS */
+        .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.8); backdrop-filter: blur(5px); display: none; align-items: center; justify-content: center; z-index: 2000; animation: fadeIn 0.3s ease; }
+        .modal-overlay.show { display: flex; }
+        .modal { background: #1e293b; border: 1px solid var(--border-glass); border-radius: 24px; padding: 30px; width: 90%; max-width: 500px; box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5); transform: scale(0.95); animation: popIn 0.3s forwards; }
+        .modal-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
+        .modal-header h3 { font-size: 1.4rem; color: white; margin: 0; }
+        .modal-close { background: none; border: none; color: var(--text-muted); font-size: 1.5rem; cursor: pointer; }
+        
+        .form-group { margin-bottom: 15px; }
+        .form-group label { display: block; margin-bottom: 8px; color: var(--text-muted); font-size: 0.9rem; }
+        .form-control { width: 100%; padding: 12px; background: rgba(0,0,0,0.3); border: 1px solid var(--border-glass); border-radius: 10px; color: white; font-family: inherit; }
+        
+        /* PIN Input */
+        .pin-container { display: flex; justify-content: center; gap: 10px; margin: 20px 0; }
+        .pin-digit { width: 50px; height: 60px; background: rgba(0,0,0,0.3); border: 1px solid var(--border-glass); border-radius: 10px; color: white; font-size: 24px; text-align: center; }
+
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+        @keyframes popIn { to { transform: scale(1); } }
+        
+        @media (max-width: 1024px) { .analytics-section { grid-template-columns: 1fr; } .sidebar { display: none; } }
+    </style>
+</head>
+<body>
+
+    <aside class="sidebar">
+        <a href="index.html" class="app-brand">
+            <i class="material-icons-round" style="color:var(--primary);">arrow_back</i> Ana Sayfa
+        </a>
+        
+        <div style="margin-top: 20px;">
+            <div style="font-size:0.75rem; color:var(--text-muted); margin-bottom:10px; font-weight:600; letter-spacing:1px;">NAVİGASYON</div>
+            <div class="nav-item active"><i class="material-icons-round">dashboard</i> Panel</div>
+            <div class="nav-item" onclick="window.location.href='sporcu.html'"><i class="material-icons-round">groups</i> Sporcular</div>
+            <div class="nav-item" onclick="window.location.href='criteria-settings.html'"><i class="material-icons-round">tune</i> Ayarlar</div>
+        </div>
+    </aside>
+
+    <main class="main-content">
+        <div class="top-bar">
+            <div class="page-title">
+                <h1>Yönetim Paneli</h1>
+                <p>Yarışma ve istatistik merkezi</p>
+            </div>
+            <div class="action-group">
+                <button onclick="openModal('competitionModal')" class="btn btn-primary"><i class="material-icons-round">add</i> Yeni Yarışma</button>
+            </div>
+        </div>
+
+        <div class="content-area">
+            
+            <div id="dashboard" style="display: none;">
+                <div class="section-title">
+                    <span id="active-comp-title">Aktif Yarışma İstatistikleri</span>
+                    <span class="status-badge status-active" style="font-size:0.9rem;">CANLI</span>
+                </div>
+                
+                <div class="dashboard-grid">
+                    <div class="stat-card" style="border-color: rgba(99, 102, 241, 0.3);">
+                        <i class="material-icons-round stat-icon" style="color:var(--primary);">groups</i>
+                        <div class="stat-label">Katılımcı Sayısı</div>
+                        <div class="stat-value" id="totalAthletes">0</div>
+                        <div class="stat-desc">Kayıtlı toplam sporcu</div>
+                    </div>
+                    <div class="stat-card" style="border-color: rgba(34, 197, 94, 0.3);">
+                        <i class="material-icons-round stat-icon" style="color:var(--success);">check_circle</i>
+                        <div class="stat-label">Tamamlanma</div>
+                        <div class="stat-value" id="progressValue">0%</div>
+                        <div class="stat-desc">Puanlanan hareket oranı</div>
+                    </div>
+                    <div class="stat-card" style="border-color: rgba(245, 158, 11, 0.3);">
+                        <i class="material-icons-round stat-icon" style="color:var(--warning);">emoji_events</i>
+                        <div class="stat-label">Lider</div>
+                        <div class="stat-value" style="font-size:1.5rem;" id="leaderName">-</div>
+                        <div class="stat-desc">Şu anki genel klasman lideri</div>
+                    </div>
+                </div>
+
+                <div class="analytics-section">
+                    <div class="chart-container">
+                        <canvas id="averageScoresChart"></canvas>
+                    </div>
+                    <div class="chart-container" style="overflow-y:auto;">
+                        <h3 style="margin-top:0; margin-bottom:20px; font-size:1.1rem;">En Yüksek Skorlar</h3>
+                        <div class="top-scores-list">
+                            <div class="top-score-item">
+                                <div class="score-avatar ts-atlama">A</div>
+                                <div style="flex:1;">
+                                    <div style="font-weight:700;">Atlama</div>
+                                    <div style="font-size:0.85rem; color:var(--text-muted);" id="topVaultAthlete">-</div>
+                                </div>
+                                <div style="font-weight:800; font-size:1.2rem;" id="topVaultScore">0.00</div>
+                            </div>
+                            <div class="top-score-item">
+                                <div class="score-avatar ts-barfiks">B</div>
+                                <div style="flex:1;">
+                                    <div style="font-weight:700;">Barfiks</div>
+                                    <div style="font-size:0.85rem; color:var(--text-muted);" id="topBarsAthlete">-</div>
+                                </div>
+                                <div style="font-weight:800; font-size:1.2rem;" id="topBarsScore">0.00</div>
+                            </div>
+                            <div class="top-score-item">
+                                <div class="score-avatar ts-denge">D</div>
+                                <div style="flex:1;">
+                                    <div style="font-weight:700;">Denge</div>
+                                    <div style="font-size:0.85rem; color:var(--text-muted);" id="topBeamAthlete">-</div>
+                                </div>
+                                <div style="font-weight:800; font-size:1.2rem;" id="topBeamScore">0.00</div>
+                            </div>
+                            <div class="top-score-item">
+                                <div class="score-avatar ts-yer">Y</div>
+                                <div style="flex:1;">
+                                    <div style="font-weight:700;">Yer</div>
+                                    <div style="font-size:0.85rem; color:var(--text-muted);" id="topFloorAthlete">-</div>
+                                </div>
+                                <div style="font-weight:800; font-size:1.2rem;" id="topFloorScore">0.00</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div style="margin: 40px 0; border-bottom: 1px solid var(--border-glass);"></div>
+            </div>
+
+            <div class="section-title">Tüm Yarışmalar</div>
+            <div id="competitionList" class="comp-list-container">
+                </div>
+
+        </div>
+    </main>
+
+    <div id="competitionModal" class="modal-overlay">
+        <div class="modal">
+            <div class="modal-header">
+                <h3>Yeni Yarışma Oluştur</h3>
+                <button class="modal-close" onclick="closeModal('competitionModal')"><i class="material-icons-round">close</i></button>
+            </div>
+            <form id="competitionForm">
+                <div class="form-group">
+                    <label>Yarışma Adı</label>
+                    <input type="text" class="form-control" id="competitionName" required>
+                </div>
+                <div class="form-group">
+                    <label>Tarih</label>
+                    <input type="date" class="form-control" id="competitionDate" required>
+                </div>
+                <div class="form-group">
+                    <label>Kategori</label>
+                    <select id="competitionCategory" class="form-control">
+                        <option value="minikler">Minikler (4 Alet)</option>
+                        <option value="kucukler">Küçükler/Yıldızlar (5 Alet)</option>
+                    </select>
+                </div>
+                <div class="modal-footer" style="margin-top:20px; display:flex; justify-content:flex-end;">
+                    <button type="submit" class="btn btn-primary">Oluştur</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div id="archivePinModal" class="modal-overlay">
+        <div class="modal">
+            <div class="modal-header"><h3>Arşivleme Onayı</h3></div>
+            <p style="color:var(--text-muted); margin-bottom:20px;">Bu yarışmayı arşivlemek için yönetici PIN kodunu giriniz.</p>
+            <div class="pin-container">
+                <input type="password" class="pin-digit archive-pin" readonly>
+                <input type="password" class="pin-digit archive-pin" readonly>
+                <input type="password" class="pin-digit archive-pin" readonly>
+                <input type="password" class="pin-digit archive-pin" readonly>
+            </div>
+            <div id="archivePinResult" style="height:20px; color:var(--danger); margin-bottom:10px; text-align:center;"></div>
+            <div class="modal-footer" style="display:flex; justify-content:center; gap:10px;">
+                <button onclick="closeModal('archivePinModal')" class="btn btn-ghost">İptal</button>
+                <button id="confirmArchiveBtn" class="btn btn-warning">Arşivle</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="deletePinModal" class="modal-overlay">
+        <div class="modal">
+            <div class="modal-header"><h3 style="color:var(--danger);">Silme Onayı</h3></div>
+            <p style="color:var(--text-muted); margin-bottom:20px;">DİKKAT: Bu işlem geri alınamaz! Silmek için PIN giriniz.</p>
+            <div class="pin-container">
+                <input type="password" class="pin-digit delete-pin" readonly>
+                <input type="password" class="pin-digit delete-pin" readonly>
+                <input type="password" class="pin-digit delete-pin" readonly>
+                <input type="password" class="pin-digit delete-pin" readonly>
+            </div>
+            <div id="deletePinResult" style="height:20px; color:var(--danger); margin-bottom:10px; text-align:center;"></div>
+            <div class="modal-footer" style="display:flex; justify-content:center; gap:10px;">
+                <button onclick="closeModal('deletePinModal')" class="btn btn-ghost">İptal</button>
+                <button id="confirmDeleteBtn" class="btn btn-danger">Kalıcı Olarak Sil</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const firebaseConfig = { apiKey: "AIzaSyA5VNkBsZkZqaDr8YgOnhiGCDql9-lJ6Gk", authDomain: "analig2025.firebaseapp.com", databaseURL: "https://analig2025-default-rtdb.firebaseio.com", projectId: "analig2025", storageBucket: "analig2025.appspot.com", messagingSenderId: "835759576581", appId: "1:835759576581:web:561d073115b02584ebee6c" };
+        firebase.initializeApp(firebaseConfig);
+        const db = firebase.database();
+        
+        const CORRECT_PIN = "6335";
+        let currentPin = "";
+        let competitionToModifyId = null;
+        let activeCompetitionId = null;
+        let globalSporcular = [];
+        let averageScoresChart;
+        let currentModalType = null; // 'archive' or 'delete'
+
+        document.addEventListener('DOMContentLoaded', () => {
+            loadCompetitions();
+            setupEventListeners();
+            initializeCharts();
+            
+            const savedId = localStorage.getItem('activeCompetitionId');
+            if(savedId) selectCompetition(savedId);
+        });
+
+        function setupEventListeners() {
+            document.getElementById('competitionForm').addEventListener('submit', saveCompetition);
+            document.getElementById('confirmArchiveBtn').addEventListener('click', verifyPinAndArchive);
+            document.getElementById('confirmDeleteBtn').addEventListener('click', verifyPinAndDelete);
+            document.addEventListener('keydown', handleKeypadInput);
+        }
+
+        function loadCompetitions() {
+            db.ref('competitions').on('value', (snapshot) => {
+                const listEl = document.getElementById('competitionList');
+                listEl.innerHTML = '';
+                if (!snapshot.exists()) { listEl.innerHTML = '<p style="color:var(--text-muted);">Henüz yarışma yok.</p>'; return; }
+                
+                const competitions = [];
+                snapshot.forEach(child => { competitions.push({ id: child.key, ...child.val() }); });
+                competitions.sort((a, b) => new Date(b.tarih) - new Date(a.tarih));
+
+                competitions.forEach(comp => {
+                    const item = document.createElement('div');
+                    item.className = `comp-card ${comp.durum === 'arsivlendi' ? 'archived' : ''}`;
+                    
+                    let statusBadge = comp.durum === 'aktif' 
+                        ? `<span class="status-badge status-active">Aktif</span>` 
+                        : `<span class="status-badge status-archived">Arşivlendi</span>`;
+
+                    let archiveBtn = comp.durum === 'aktif' 
+                        ? `<button class="btn btn-warning" style="font-size:0.8rem; padding:6px 12px;" onclick="event.stopPropagation(); promptArchive('${comp.id}')">Arşivle</button>`
+                        : '';
+                    
+                    let deleteBtn = `<button class="btn btn-danger" style="font-size:0.8rem; padding:6px 12px;" onclick="event.stopPropagation(); promptDelete('${comp.id}')"><i class="material-icons-round" style="font-size:16px;">delete</i> Sil</button>`;
+
+                    item.innerHTML = `
+                        <div class="comp-header">
+                            <div>
+                                <div class="comp-name">${comp.isim}</div>
+                                <div class="comp-date"><i class="material-icons-round" style="font-size:14px;">calendar_today</i> ${new Date(comp.tarih).toLocaleDateString('tr-TR')}</div>
+                            </div>
+                            ${statusBadge}
+                        </div>
+                        <div style="color:var(--text-muted); font-size:0.9rem; margin-bottom:10px;">
+                            ${comp.kategori || 'Genel'} • ${Object.keys(comp.katilimcilar||{}).length} Sporcu
+                        </div>
+                        <div class="comp-actions">
+                            <button class="btn btn-ghost" style="font-size:0.8rem; padding:6px 12px;" onclick="event.stopPropagation(); navigateTo('index.html', '${comp.id}')">Panele Git</button>
+                            <button class="btn btn-success" style="font-size:0.8rem; padding:6px 12px;" onclick="event.stopPropagation(); navigateTo('sporcu.html', '${comp.id}')">Katılımcılar</button>
+                            ${archiveBtn}
+                            ${deleteBtn}
+                        </div>
+                    `;
+                    item.onclick = () => selectCompetition(comp.id);
+                    listEl.appendChild(item);
+                });
+            });
+        }
+
+        function saveCompetition(e) {
+            e.preventDefault();
+            const name = document.getElementById('competitionName').value.trim();
+            const date = document.getElementById('competitionDate').value;
+            const category = document.getElementById('competitionCategory').value;
+            if (name && date) {
+                db.ref('competitions').push({ isim: name, tarih: date, durum: 'aktif', kategori: category });
+                closeModal('competitionModal');
+                document.getElementById('competitionForm').reset();
+            }
+        }
+
+        async function selectCompetition(compId) {
+            activeCompetitionId = compId;
+            localStorage.setItem('activeCompetitionId', compId);
+            document.getElementById('dashboard').style.display = 'block';
+            
+            const compRef = db.ref(`competitions/${compId}`);
+            const sporcularRef = db.ref('globalSporcular');
+            const [compSnapshot, sporcularSnapshot] = await Promise.all([compRef.once('value'), sporcularRef.once('value')]);
+            
+            const competition = compSnapshot.val();
+            globalSporcular = sporcularSnapshot.exists() ? Object.values(sporcularSnapshot.val()) : [];
+            
+            if (!competition) return;
+
+            document.getElementById('active-comp-title').textContent = competition.isim;
+            
+            const participants = competition.katilimcilar || {};
+            const participantCount = Object.keys(participants).length;
+            document.getElementById('totalAthletes').textContent = participantCount;
+
+            const scores = competition.cimnastikVerileri || {};
+            const scoreKeys = ['atlamaPuanlari', 'barfiksPuanlari', 'dengePuanlari', 'yerPuanlari'];
+            let totalPerformances = 0;
+            const avgScores = [];
+            const topScores = {};
+
+            scoreKeys.forEach(key => {
+                const apparatusScores = scores[key] || {};
+                const completed = Object.values(apparatusScores).filter(p => p && p.timerState === 'finished');
+                totalPerformances += completed.length;
+                
+                const avg = completed.length > 0 ? completed.reduce((sum, p) => sum + p.sonPuan, 0) / completed.length : 0;
+                avgScores.push(avg);
+                
+                const top = completed.sort((a,b) => b.sonPuan - a.sonPuan)[0];
+                topScores[key] = top;
+            });
+
+            const progress = (participantCount * 4 > 0) ? (totalPerformances / (participantCount * 4)) * 100 : 0;
+            document.getElementById('progressValue').textContent = `${Math.round(progress)}%`;
+
+            updateAverageScoresChart(avgScores);
+            updateTopScoresUI(topScores);
+        }
+
+        function updateTopScoresUI(topScores) {
+            const map = { atlamaPuanlari: {el: 'Vault'}, barfiksPuanlari: {el: 'Bars'}, dengePuanlari: {el: 'Beam'}, yerPuanlari: {el: 'Floor'} };
+            for(const key in map) {
+                const top = topScores[key];
+                const info = map[key];
+                if(top) {
+                    const athlete = globalSporcular.find(s => String(s.id) === String(top.sporcuId));
+                    document.getElementById(`top${info.el}Score`).textContent = top.sonPuan.toFixed(3);
+                    document.getElementById(`top${info.el}Athlete`).textContent = athlete ? athlete.soyadAd : 'Bilinmiyor';
+                }
+            }
+        }
+
+        function initializeCharts() {
+            const ctx = document.getElementById('averageScoresChart').getContext('2d');
+            averageScoresChart = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: ['Atlama', 'Barfiks', 'Denge', 'Yer'],
+                    datasets: [{
+                        label: 'Ortalama',
+                        data: [0, 0, 0, 0],
+                        backgroundColor: ['#22c55e', '#f97316', '#e91e63', '#3b82f6'],
+                        borderRadius: 6
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { display: false } },
+                    scales: { y: { beginAtZero: true, grid: { color: 'rgba(255,255,255,0.1)' } }, x: { grid: { display: false } } }
+                }
+            });
+        }
+        
+        function updateAverageScoresChart(data) {
+            averageScoresChart.data.datasets[0].data = data;
+            averageScoresChart.update();
+        }
+
+        function openModal(id) { document.getElementById(id).classList.add('show'); }
+        function closeModal(id) { document.getElementById(id).classList.remove('show'); }
+        function navigateTo(page, id) { window.location.href = `${page}?competitionId=${id}`; }
+
+        // --- PIN LOGIC ---
+        
+        function promptArchive(id) { 
+            competitionToModifyId = id; currentPin = ''; currentModalType = 'archive';
+            updatePinDisplay('archive'); openModal('archivePinModal'); 
+        }
+
+        function promptDelete(id) { 
+            competitionToModifyId = id; currentPin = ''; currentModalType = 'delete';
+            updatePinDisplay('delete'); openModal('deletePinModal'); 
+        }
+        
+        async function verifyPinAndArchive() { 
+            if (currentPin === CORRECT_PIN) { 
+                await db.ref(`competitions/${competitionToModifyId}`).update({ durum: 'arsivlendi' }); 
+                closeModal('archivePinModal'); 
+                competitionToModifyId = null; 
+            } else { showError('archivePinResult'); } 
+        }
+
+        async function verifyPinAndDelete() { 
+            if (currentPin === CORRECT_PIN) { 
+                await db.ref(`competitions/${competitionToModifyId}`).remove(); 
+                closeModal('deletePinModal'); 
+                competitionToModifyId = null; 
+                // Eğer silinen yarışma o anki aktif yarışmaysa ekranı temizle
+                if(activeCompetitionId === competitionToModifyId) {
+                    document.getElementById('dashboard').style.display = 'none';
+                    activeCompetitionId = null;
+                    localStorage.removeItem('activeCompetitionId');
+                }
+            } else { showError('deletePinResult'); } 
+        }
+
+        function showError(elementId) {
+            const el = document.getElementById(elementId);
+            el.textContent = "Yanlış PIN!";
+            setTimeout(() => el.textContent = '', 2000); 
+        }
+
+        function handleKeypadInput(e) { 
+            const isArchiveOpen = document.getElementById('archivePinModal').classList.contains('show');
+            const isDeleteOpen = document.getElementById('deletePinModal').classList.contains('show');
+            
+            if (!isArchiveOpen && !isDeleteOpen) return;
+            
+            if (e.key >= '0' && e.key <= '9') { if (currentPin.length < 4) currentPin += e.key; } 
+            else if (e.key === 'Backspace') { currentPin = currentPin.slice(0, -1); } 
+            else if (e.key === 'Enter') { 
+                if(isArchiveOpen) verifyPinAndArchive();
+                if(isDeleteOpen) verifyPinAndDelete();
+            }
+            updatePinDisplay(isArchiveOpen ? 'archive' : 'delete');
+        }
+
+        function updatePinDisplay(type) { 
+            const inputs = document.querySelectorAll(`.${type}-pin`); 
+            inputs.forEach((input, index) => { input.value = index < currentPin.length ? '•' : ''; }); 
+        }
+    </script>
+</body>
+</html>
