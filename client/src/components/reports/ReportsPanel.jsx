@@ -316,7 +316,7 @@ export default function ReportsPanel() {
                     <div className="flex gap-2 text-xs">
                         <div className="flex items-center gap-1"><span className="w-3 h-3 rounded-full bg-emerald-500/50"></span> 0.0 - 0.1</div>
                         <div className="flex items-center gap-1"><span className="w-3 h-3 rounded-full bg-amber-500/50"></span> 0.1 - 0.3</div>
-                        <div className="flex items-center gap-1"><span className="w-3 h-3 rounded-full bg-red-500/50"></span> > 0.3</div>
+                        <div className="flex items-center gap-1"><span className="w-3 h-3 rounded-full bg-red-500/50"></span> &gt; 0.3</div>
                     </div>
                 </div>
                 <div className="overflow-x-auto">
@@ -457,8 +457,8 @@ export default function ReportsPanel() {
                                 key={tab.id}
                                 onClick={() => setActiveTab(tab.id)}
                                 className={`px-6 py-2.5 rounded-lg text-sm font-semibold transition-all whitespace-nowrap ${activeTab === tab.id
-                                        ? 'bg-primary text-primary-foreground shadow-md'
-                                        : 'text-muted-foreground hover:text-white hover:bg-white/5'
+                                    ? 'bg-primary text-primary-foreground shadow-md'
+                                    : 'text-muted-foreground hover:text-white hover:bg-white/5'
                                     }`}
                             >
                                 {tab.label}
