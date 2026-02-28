@@ -9,6 +9,7 @@ export default function RefereeList() {
     const [showBulkForm, setShowBulkForm] = useState(false);
     const [bulkData, setBulkData] = useState('');
     const [isSubmittingBulk, setIsSubmittingBulk] = useState(false);
+    const [selectedIds, setSelectedIds] = useState([]);
 
     // Form state
     const [form, setForm] = useState({
@@ -99,6 +100,35 @@ export default function RefereeList() {
         setShowBulkForm(false);
         fetchData();
         alert(`${successCount} hakem başarıyla sisteme eklendi.`);
+    };
+
+    const handleSelectAll = (e) => {
+        if (e.target.checked) setSelectedIds(referees.map(r => r.id));
+        else setSelectedIds([]);
+    };
+
+    const handleSelect = (id) => {
+        setSelectedIds(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
+    };
+
+    const handleBulkDelete = () => {
+        setConfirmModal({ isOpen: true, targetId: 'BULK' });
+    };
+
+    const confirmDeletion = async () => {
+        const target = confirmModal.targetId;
+        setConfirmModal({ isOpen: false, targetId: null });
+
+        try {
+            if (target === 'BULK') {
+                for (const id of selectedIds) await refereeAPI.delete(id);
+                setSelectedIds([]);
+            } else {
+                await refereeAPI.delete(target);
+                setSelectedIds(prev => prev.filter(id => id !== target));
+            }
+            fetchData();
+        } catch (e) { console.error(e); }
     };
 
     if (loading) return <div className="text-white p-8">Yükleniyor...</div>;
@@ -207,10 +237,30 @@ export default function RefereeList() {
 
             {/* Referee Table */}
             <div className="glass-panel overflow-hidden shadow-2xl relative">
+
+                {/* Bulk Delete Ribbon */}
+                {selectedIds.length > 0 && (
+                    <div className="bg-red-500/10 border-b border-red-500/20 px-4 py-3 flex items-center justify-between animate-in slide-in-from-top-2 duration-300">
+                        <span className="text-red-400 font-semibold text-sm drop-shadow-md">
+                            {selectedIds.length} hakem seçildi
+                        </span>
+                        <button onClick={handleBulkDelete} className="bg-red-600 hover:bg-red-700 text-white text-xs font-bold py-1.5 px-4 rounded shadow-lg shadow-red-500/20 transition-all flex items-center gap-2">
+                            <span>🗑️</span> Seçilenleri Sil
+                        </button>
+                    </div>
+                )}
+
                 <div className="overflow-x-auto relative z-10">
                     <table className="w-full text-left border-collapse">
                         <thead>
                             <tr className="bg-black/40 border-b border-white/10 text-xs uppercase tracking-wider text-muted-foreground font-semibold">
+                                <th className="p-4 w-12 text-center">
+                                    <input type="checkbox"
+                                        checked={referees.length > 0 && selectedIds.length === referees.length}
+                                        onChange={handleSelectAll}
+                                        className="w-4 h-4 rounded border-white/20 bg-black/50 text-primary focus:ring-primary focus:ring-1"
+                                    />
+                                </th>
                                 <th className="p-4">Ad Soyad</th>
                                 <th className="p-4">TCKN</th>
                                 <th className="p-4">E-posta</th>
@@ -221,7 +271,14 @@ export default function RefereeList() {
                         </thead>
                         <tbody className="divide-y divide-white/5">
                             {referees.map((referee, i) => (
-                                <tr key={referee.id} className="hover:bg-white/[0.02] transition-colors group">
+                                <tr key={referee.id} className={`hover:bg-white/[0.02] transition-colors group ${selectedIds.includes(referee.id) ? 'bg-primary/5' : ''}`}>
+                                    <td className="p-4 text-center">
+                                        <input type="checkbox"
+                                            checked={selectedIds.includes(referee.id)}
+                                            onChange={() => handleSelect(referee.id)}
+                                            className="w-4 h-4 rounded border-white/20 bg-black/50 text-primary focus:ring-primary focus:ring-1"
+                                        />
+                                    </td>
                                     <td className="p-4">
                                         <div className="flex items-center gap-3">
                                             <div className="w-8 h-8 rounded-full bg-gradient-to-br from-blue-500/20 to-purple-500/20 border border-white/10 flex items-center justify-center text-xs font-bold text-white/80">
@@ -264,22 +321,20 @@ export default function RefereeList() {
 
             {/* ===== CONFIRM MODALI ===== */}
             {confirmModal.isOpen && (
-                <div className="fixed inset-0 bg-black/80 z-[100] flex items-center justify-center p-4" onClick={() => setConfirmModal({ isOpen: false })}>
+                <div className="fixed inset-0 bg-black/80 z-[100] flex items-center justify-center p-4" onClick={() => setConfirmModal({ isOpen: false, targetId: null })}>
                     <div className="glass-panel p-6 max-w-sm w-full text-center" onClick={(e) => e.stopPropagation()}>
                         <div className="w-16 h-16 rounded-full mx-auto flex flex-col items-center justify-center mb-4 bg-red-500/20 text-red-500">
                             <span className="text-3xl font-bold">!</span>
                         </div>
                         <h3 className="text-xl font-bold text-white mb-2">Emin misiniz?</h3>
-                        <p className="text-muted-foreground text-sm mb-6">Bu hakemi silmek istediğinize emin misiniz?</p>
+                        <p className="text-muted-foreground text-sm mb-6">
+                            {confirmModal.targetId === 'BULK'
+                                ? `Seçili olan ${selectedIds.length} hakemi kalıcı olarak silmek istediğinize emin misiniz?`
+                                : `Bu hakemi silmek istediğinize emin misiniz?`}
+                        </p>
                         <div className="flex gap-3">
-                            <button onClick={() => setConfirmModal({ isOpen: false })} className="flex-1 py-2 bg-white/10 hover:bg-white/20 text-white font-medium rounded-lg transition-colors">Vazgeç</button>
-                            <button onClick={async () => {
-                                setConfirmModal({ isOpen: false });
-                                try {
-                                    await refereeAPI.delete(confirmModal.targetId);
-                                    fetchData();
-                                } catch (e) { console.error(e); }
-                            }} className="flex-1 py-2 text-white font-bold rounded-lg transition-colors shadow-lg bg-red-500 hover:bg-red-600 shadow-red-500/20">
+                            <button onClick={() => setConfirmModal({ isOpen: false, targetId: null })} className="flex-1 py-2 bg-white/10 hover:bg-white/20 text-white font-medium rounded-lg transition-colors">Vazgeç</button>
+                            <button onClick={confirmDeletion} className="flex-1 py-2 text-white font-bold rounded-lg transition-colors shadow-lg bg-red-500 hover:bg-red-600 shadow-red-500/20">
                                 Sil
                             </button>
                         </div>
