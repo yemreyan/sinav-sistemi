@@ -79,127 +79,279 @@ export default function ReportsPanel() {
         setExporting(true);
         try {
             const wb = XLSX.utils.book_new();
-            const examName = exams.find(e => e.id === selectedExamId)?.name || 'Sınav_Raporu';
+            const examName = exams.find(e => e.id === selectedExamId)?.name || 'Sinav_Raporu';
 
-            // 1. Genel Sonuçlar
-            const generalData = [
-                ['SINAV GENEL SONUÇLARI', examName],
-                [],
-                ['Hakem Adı', 'Video/Seri', 'Alet', 'Tip', 'Uzman D', 'Uzman E', 'Hakem D', 'Hakem E', 'D Kesinti', 'Sapma', 'Puan %', 'Tarih']
-            ];
+            // Yardımcı sabitler (excel harf sütunları vs.)
+            const COL_LETTERS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+            const getColLetter = (index) => {
+                if (index < 26) return COL_LETTERS[index];
+                return COL_LETTERS[Math.floor(index / 26) - 1] + COL_LETTERS[index % 26];
+            };
 
-            examResults.forEach(r => {
-                const vid = getVideo(r.videoId);
-                const date = r.timestamp ? new Date(r.timestamp).toLocaleString('tr-TR') : 'N/A';
-                generalData.push([
-                    r.refereeName || getRefereeName(r.refereeId),
-                    r.videoTitle,
-                    getApparatusName(vid?.apparatus),
-                    vid?.type || 'D',
-                    vid?.expertD?.toFixed(2) || '-',
-                    vid?.expertE?.toFixed(2) || '-',
-                    r.d?.toFixed(2),
-                    r.e?.toFixed(2),
-                    r.deductions?.toFixed(2),
-                    r.dev?.toFixed(2),
-                    ((r.points || 0) * 100).toFixed(1) + '%',
-                    date
-                ]);
-            });
-
-            const wsGeneral = XLSX.utils.aoa_to_sheet(generalData);
-            wsGeneral['!cols'] = [{ wch: 25 }, { wch: 30 }, { wch: 15 }, { wch: 10 }, { wch: 10 }, { wch: 10 }, { wch: 10 }, { wch: 10 }, { wch: 10 }, { wch: 10 }, { wch: 10 }, { wch: 20 }];
-            XLSX.utils.book_append_sheet(wb, wsGeneral, 'Genel_Sonuclar');
-
-            // 2. Alet Bazlı Sekmeler (AtM, KP, D, Y)
-            ['AtM', 'KP', 'D', 'Y'].forEach(app => {
-                const appResults = examResults.filter(r => getVideo(r.videoId)?.apparatus === app);
-                if (appResults.length === 0) return;
-
-                const appData = [
-                    [`${APPARATUS_MAP[app]} DETAYLI SONUÇLAR`, examName],
-                    []
-                ];
-
-                // D ve E olarak ayıralım veya karışık listeleyip D hareketlerini ekleyelim
-                appData.push(['Hakem Adı', 'Video', 'Tip', 'Hakem D', 'Uzman D', 'Sapma', 'Hareket Detayları (D1, D2... vs. Uzman)']);
-
-                appResults.forEach(r => {
-                    const vid = getVideo(r.videoId);
-                    let movesStr = '-';
-                    if (r.zorunluDMoves && vid?.expertDMoves) {
-                        const moves = [];
-                        // En fazla 11 hareket olabilir
-                        for (let i = 1; i <= 15; i++) {
-                            const hVal = r.zorunluDMoves[`d${i}`];
-                            const extMove = vid.expertDMoves[`d${i}`];
-                            if (hVal !== undefined || extMove !== undefined) {
-                                const eVal = extMove ? parseFloat(extMove.expertBase || 0) + parseFloat(extMove.expertBonus || 0) : 0;
-                                moves.push(`D${i}:(Hakem:${hVal || 0}|Uzman:${eVal})`);
-                            }
-                        }
-                        if (moves.length > 0) movesStr = moves.join(', ');
-                    }
-
-                    appData.push([
-                        r.refereeName || getRefereeName(r.refereeId),
-                        r.videoTitle,
-                        vid?.type || 'D',
-                        r.d?.toFixed(2),
-                        vid?.expertD?.toFixed(2) || '-',
-                        r.dev?.toFixed(2),
-                        movesStr
-                    ]);
-                });
-
-                const wsApp = XLSX.utils.aoa_to_sheet(appData);
-                wsApp['!cols'] = [{ wch: 25 }, { wch: 30 }, { wch: 10 }, { wch: 10 }, { wch: 10 }, { wch: 10 }, { wch: 100 }];
-                XLSX.utils.book_append_sheet(wb, wsApp, APPARATUS_MAP[app]);
-            });
-
-            // 3. Sapma Matrisi
-            const matrixData = [
-                ['SAPMA MATRİSİ', examName],
-                []
-            ];
-
-            // Satırlar: Hakemler, Sütunlar: Videolar
+            // Eşsiz Objeler
             const refIds = [...new Set(examResults.map(r => r.refereeId))];
-            const vidIds = [...new Set(examResults.map(r => r.videoId))];
+            const activeVideos = examVideos;
 
-            const headerRow = ['Hakem Adı / Video'];
-            vidIds.forEach(vid => headerRow.push(getVideo(vid)?.title || vid));
-            headerRow.push('ORTALAMA SAPMA');
-            matrixData.push(headerRow);
+            // --- SHEET 3: UZMAN D SONUÇLARI ---
+            const dVideos = activeVideos.filter(v => v.type === 'D');
+            const uzmanDData = [['Uzman D Puanları (Cevap Anahtarı)', examName], [], ['Video Başlığı', 'Alet', 'Uzman (Total) D', 'D1', 'D2', 'D3', 'D4', 'D5', 'D6', 'D7', 'D8', 'D9', 'D10', 'D11', 'D12', 'D13', 'D14', 'D15']];
 
-            refIds.forEach(refId => {
+            dVideos.forEach(v => {
+                const row = [v.title, getApparatusName(v.apparatus), v.expertD || 0];
+                for (let i = 1; i <= 15; i++) {
+                    const move = v.expertDMoves?.[`d${i}`];
+                    row.push(move ? (parseFloat(move.expertBase || 0) + parseFloat(move.expertBonus || 0)) : '-');
+                }
+                uzmanDData.push(row);
+            });
+            const wsUzmanD = XLSX.utils.aoa_to_sheet(uzmanDData);
+            wsUzmanD['!cols'] = [{ wch: 30 }, { wch: 15 }, { wch: 15 }, ...Array(15).fill({ wch: 6 })];
+            XLSX.utils.book_append_sheet(wb, wsUzmanD, 'Uzman_D');
+
+            // --- SHEET 4: UZMAN E SONUÇLARI ---
+            const eVideos = activeVideos.filter(v => v.type === 'E');
+            const uzmanEData = [['Uzman E Puanları (Cevap Anahtarı)', examName], [], ['Video Başlığı', 'Alet', 'Uzman Toplam Kesintisi (Deductions)']];
+            eVideos.forEach(v => {
+                const kesinti = 10 - (v.expertE || 10);
+                uzmanEData.push([v.title, getApparatusName(v.apparatus), kesinti > 0 ? kesinti : 0]);
+            });
+            const wsUzmanE = XLSX.utils.aoa_to_sheet(uzmanEData);
+            wsUzmanE['!cols'] = [{ wch: 30 }, { wch: 15 }, { wch: 25 }];
+            XLSX.utils.book_append_sheet(wb, wsUzmanE, 'Uzman_E');
+
+            // --- SHEET 1: GENEL (YÜZDELİ KAPSAYICI) ---
+            const genelData = [['SINAV GENEL (BAŞARI YÜZDELERİ)', examName], []];
+            const genelHeaders = ['Hakem Adı / Video'];
+            activeVideos.forEach(v => genelHeaders.push(`${v.title} (${v.type}%)`));
+            genelHeaders.push('ORTALAMA BAŞARI %');
+            genelData.push(genelHeaders);
+
+            refIds.forEach((refId, rowIndex) => {
                 const row = [getRefereeName(refId)];
-                let totalDev = 0;
-                let devCount = 0;
-
-                vidIds.forEach(vidId => {
-                    const res = examResults.find(r => r.refereeId === refId && r.videoId === vidId);
+                let totalPoints = 0;
+                let vCount = 0;
+                activeVideos.forEach((v, vIndex) => {
+                    const res = examResults.find(r => r.refereeId === refId && r.videoId === v.id);
                     if (res) {
-                        row.push(res.dev?.toFixed(2));
-                        totalDev += res.dev || 0;
-                        devCount++;
+                        row.push({ t: 'n', v: res.points || 0, z: '0%' }); // Number as percentage
+                        totalPoints += res.points || 0;
+                        vCount++;
                     } else {
                         row.push('-');
                     }
                 });
 
-                row.push(devCount > 0 ? (totalDev / devCount).toFixed(2) : '-');
-                matrixData.push(row);
+                // Average Formula
+                const dataRow = rowIndex + 4; // Header offset
+                const startLetter = 'B';
+                const endLetter = getColLetter(activeVideos.length);
+                if (vCount > 0) {
+                    row.push({ t: 'n', f: `AVERAGE(${startLetter}${dataRow}:${endLetter}${dataRow})`, z: '0.0%' });
+                } else {
+                    row.push('-');
+                }
+                genelData.push(row);
+            });
+            const wsGenel = XLSX.utils.aoa_to_sheet(genelData);
+            const genelCols = [{ wch: 25 }];
+            activeVideos.forEach(() => genelCols.push({ wch: 15 }));
+            genelCols.push({ wch: 20 });
+            wsGenel['!cols'] = genelCols;
+            XLSX.utils.book_append_sheet(wb, wsGenel, 'Genel_Yuzdeler');
+
+            // --- SHEET 2: ALET DETAYLARI ---
+            ['AtM', 'KP', 'D', 'Y'].forEach(app => {
+                const appVideos = activeVideos.filter(v => v.apparatus === app);
+                if (appVideos.length === 0) return;
+
+                const appData = [[`${APPARATUS_MAP[app]} HAKEM HAREKET NOTLARI`, examName], []];
+
+                const appHeadersLevel1 = ['Hakem Adı'];
+                const appHeadersLevel2 = ['Hakem Adı']; // Sub headers
+
+                appVideos.forEach(v => {
+                    if (v.type === 'D') {
+                        appHeadersLevel1.push(v.title);
+                        for (let k = 0; k < 14; k++) appHeadersLevel1.push(''); // Span
+                        appHeadersLevel2.push('Toplam D');
+                        for (let i = 1; i <= 14; i++) appHeadersLevel2.push(`D${i}`);
+                    } else {
+                        appHeadersLevel1.push(v.title);
+                        appHeadersLevel1.push(''); // Span
+                        appHeadersLevel2.push('Hakem E Puanı');
+                        appHeadersLevel2.push('Hakem Toplam Kesintisi');
+                    }
+                });
+                appData.push(appHeadersLevel1);
+                appData.push(appHeadersLevel2);
+
+                refIds.forEach(refId => {
+                    const row = [getRefereeName(refId)];
+                    appVideos.forEach(v => {
+                        const res = examResults.find(r => r.refereeId === refId && r.videoId === v.id);
+                        if (v.type === 'D') {
+                            row.push(res ? (res.d || 0) : '-');
+                            for (let i = 1; i <= 14; i++) {
+                                row.push(res && res.zorunluDMoves && res.zorunluDMoves[`d${i}`] !== undefined ? res.zorunluDMoves[`d${i}`] : '');
+                            }
+                        } else {
+                            row.push(res ? (res.e || 10) : '-');
+                            row.push(res ? (res.deductions || 0) : '-');
+                        }
+                    });
+                    appData.push(row);
+                });
+
+                const wsApp = XLSX.utils.aoa_to_sheet(appData);
+                // Basic Merges (Header)
+                const merges = [];
+                let currentPos = 1;
+                appVideos.forEach(v => {
+                    if (v.type === 'D') {
+                        merges.push({ s: { r: 2, c: currentPos }, e: { r: 2, c: currentPos + 14 } });
+                        currentPos += 15;
+                    } else {
+                        merges.push({ s: { r: 2, c: currentPos }, e: { r: 2, c: currentPos + 1 } });
+                        currentPos += 2;
+                    }
+                });
+                wsApp['!merges'] = merges;
+                XLSX.utils.book_append_sheet(wb, wsApp, `${APPARATUS_MAP[app]}_Net`);
             });
 
-            const wsMatrix = XLSX.utils.aoa_to_sheet(matrixData);
-            const cols = [{ wch: 25 }];
-            vidIds.forEach(() => cols.push({ wch: 15 }));
-            cols.push({ wch: 20 });
-            wsMatrix['!cols'] = cols;
-            XLSX.utils.book_append_sheet(wb, wsMatrix, 'Sapma_Matrisi');
+            // --- SHEET 5: E SAPMA ANALİZİ (FORMÜLLÜ) ---
+            if (eVideos.length > 0) {
+                const eSapmaData = [['E SAPMA ANALİZİ', examName], []];
+                const headerLayer1 = ['Hakem Adı'];
+                const headerLayer2 = ['Kişi / Video'];
 
-            const filename = `Rapor_${examName.replace(/\s+/g, '_')}_${new Date().toISOString().split('T')[0]}.xlsx`;
+                eVideos.forEach(v => {
+                    headerLayer1.push(v.title);
+                    headerLayer1.push(''); headerLayer1.push(''); headerLayer1.push('');
+                    headerLayer2.push('Hakem Kesintisi'); headerLayer2.push('Uzman Kesintisi'); headerLayer2.push('Sapma Farkı'); headerLayer2.push('Formüllü Durum');
+                });
+                eSapmaData.push(headerLayer1);
+                eSapmaData.push(headerLayer2);
+
+                // Uzman E sayfasındaki Satır numaraları (Videonun nerede olduğunu bulmak için)
+                const eVideoMap = {};
+                eVideos.forEach((v, index) => {
+                    eVideoMap[v.id] = index + 4; // Uzman E sheetinde 4. satırdan başlar (başlıklar vs.)
+                });
+
+                refIds.forEach((refId, rowIndex) => {
+                    const row = [getRefereeName(refId)];
+                    let colIndex = 1; // start from Column B (index 1)
+
+                    eVideos.forEach(v => {
+                        const res = examResults.find(r => r.refereeId === refId && r.videoId === v.id);
+
+                        const hakemLetter = getColLetter(colIndex);
+                        const uzmanLetter = getColLetter(colIndex + 1);
+                        const sapmaLetter = getColLetter(colIndex + 2);
+
+                        // 1. Hakem Kesintisi
+                        row.push(res ? (res.deductions || 0) : 0);
+
+                        // 2. Uzman Kesintisi (Referans from Uzman_E Sheet)
+                        const uzmanRowIndex = eVideoMap[v.id];
+                        row.push({ t: 'n', f: `Uzman_E!C${uzmanRowIndex}` });
+
+                        // 3. Sapma Farkı Formülü (Hakem - Uzman Mutlak Değer)
+                        const currentRow = rowIndex + 5; // offset 4 header rows
+                        row.push({ t: 'n', f: `ABS(${hakemLetter}${currentRow} - ${uzmanLetter}${currentRow})` });
+
+                        // 4. Formüllü Durum (IF)
+                        row.push({ t: 's', f: `IF(${sapmaLetter}${currentRow}<=0.1, "Mükemmel", IF(${sapmaLetter}${currentRow}<=0.3, "İyi", IF(${sapmaLetter}${currentRow}<=0.5, "Kabul Edilebilir", "Kötü")))` });
+
+                        colIndex += 4;
+                    });
+                    eSapmaData.push(row);
+                });
+
+                const wsESapma = XLSX.utils.aoa_to_sheet(eSapmaData);
+                const sMerges = [];
+                let sPos = 1;
+                eVideos.forEach(v => {
+                    sMerges.push({ s: { r: 2, c: sPos }, e: { r: 2, c: sPos + 3 } });
+                    sPos += 4;
+                });
+                wsESapma['!merges'] = sMerges;
+                XLSX.utils.book_append_sheet(wb, wsESapma, 'E_Sapmalari');
+            }
+
+
+            // --- SHEET 6: D SAPMA VE HAREKET BİLMESİ (FORMÜLLÜ) ---
+            if (dVideos.length > 0) {
+                const dSapmaData = [['D HAREKET SAPMA BAŞARILARI', examName], []];
+                const headerLayer1 = ['Hakem Adı'];
+                const headerLayer2 = ['Hakem Adı'];
+
+                dVideos.forEach(v => {
+                    headerLayer1.push(v.title);
+                    headerLayer1.push(''); headerLayer1.push('');
+                    headerLayer2.push('Bildiği Hareket'); headerLayer2.push('Toplam Hareket'); headerLayer2.push('Bilinme (%)');
+                });
+                dSapmaData.push(headerLayer1);
+                dSapmaData.push(headerLayer2);
+
+                const dVideoMap = {};
+                dVideos.forEach((v, index) => { dVideoMap[v.id] = index + 4; }); // Uzman D satır eşleşmesi
+
+                refIds.forEach((refId, rowIndex) => {
+                    const row = [getRefereeName(refId)];
+                    let colIndex = 1;
+
+                    dVideos.forEach(v => {
+                        const res = examResults.find(r => r.refereeId === refId && r.videoId === v.id);
+
+                        const uzmanRow = dVideoMap[v.id];
+                        let totalMoves = 0;
+                        for (let m = 1; m <= 15; m++) {
+                            if (v.expertDMoves?.[`d${m}`]) totalMoves++;
+                        }
+
+                        if (!res || !res.zorunluDMoves) {
+                            row.push(0); row.push(totalMoves); row.push('-');
+                        } else {
+                            // Basit doğrula, zor olanı Excel içine formül olarak kasmak. 
+                            // Burada arka planda JS ile bulup basmak ya da alet sayfasından referans almak var. 
+                            // Uzun formüller dosya bütünlüğünü bozmasın diye ön işlemli oran yazacağız.
+                            let dogruBildi = 0;
+                            for (let m = 1; m <= 15; m++) {
+                                const expBase = v.expertDMoves?.[`d${m}`]?.expertBase || 0;
+                                const expBonus = v.expertDMoves?.[`d${m}`]?.expertBonus || 0;
+                                const uzmanPuan = parseFloat(expBase) + parseFloat(expBonus);
+                                const hakemPuan = res.zorunluDMoves[`d${m}`];
+                                if (uzmanPuan > 0 && Math.abs(parseFloat(hakemPuan || 0) - uzmanPuan) <= 0.01) {
+                                    dogruBildi++;
+                                }
+                            }
+                            row.push(dogruBildi);
+                            row.push(totalMoves);
+
+                            const curR = rowIndex + 5;
+                            const h1 = getColLetter(colIndex);
+                            const h2 = getColLetter(colIndex + 1);
+                            row.push({ t: 'n', f: `IF(${h2}${curR}>0, ${h1}${curR}/${h2}${curR}, 0)`, z: '0%' });
+                        }
+                        colIndex += 3;
+                    });
+                    dSapmaData.push(row);
+                });
+
+                const wsDSapma = XLSX.utils.aoa_to_sheet(dSapmaData);
+                const dMerges = [];
+                let dPos = 1;
+                dVideos.forEach(v => {
+                    dMerges.push({ s: { r: 2, c: dPos }, e: { r: 2, c: dPos + 2 } });
+                    dPos += 3;
+                });
+                wsDSapma['!merges'] = dMerges;
+                XLSX.utils.book_append_sheet(wb, wsDSapma, 'D_Sapmalari');
+            }
+
+            const filename = `CimnastikRapor_${examName.replace(/\s+/g, '_')}_${new Date().toISOString().split('T')[0]}.xlsx`;
             XLSX.writeFile(wb, filename);
         } catch (err) {
             console.error('Excel export error:', err);
