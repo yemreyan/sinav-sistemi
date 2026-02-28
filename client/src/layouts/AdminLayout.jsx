@@ -10,16 +10,16 @@ export default function AdminLayout() {
     };
 
     const navLinks = [
-        { to: "/", icon: <LayoutDashboard className="w-5 h-5" />, label: "Dashboard" },
-        { to: "/exams", icon: <FileText className="w-5 h-5" />, label: "Sınav Yönetimi" },
-        { to: "/live", icon: <Tv className="w-5 h-5" />, label: "Canlı Kontrol" },
-        { to: "/videos", icon: <Video className="w-5 h-5" />, label: "Seriler (Videolar)" },
-        { to: "/referees", icon: <Users className="w-5 h-5" />, label: "Hakem Listesi" },
-        { to: "/bulk-scores", icon: <PenSquare className="w-5 h-5" />, label: "Toplu Puan Girişi" },
-        { to: "/results-matrix", icon: <Grid3X3 className="w-5 h-5" />, label: "Sonuçlar Matrisi" },
-        { to: "/stats", icon: <BarChart3 className="w-5 h-5" />, label: "İstatistikler" },
-        { to: "/reports", icon: <FileText className="w-5 h-5" />, label: "Raporlar" },
-        { to: "/settings", icon: <Settings className="w-5 h-5" />, label: "Sistem Ayarları" },
+        { to: "/emre", icon: <LayoutDashboard className="w-5 h-5" />, label: "Dashboard" },
+        { to: "/emre/exams", icon: <FileText className="w-5 h-5" />, label: "Sınav Yönetimi" },
+        { to: "/emre/live", icon: <Tv className="w-5 h-5" />, label: "Canlı Kontrol" },
+        { to: "/emre/videos", icon: <Video className="w-5 h-5" />, label: "Seriler (Videolar)" },
+        { to: "/emre/referees", icon: <Users className="w-5 h-5" />, label: "Hakem Listesi" },
+        { to: "/emre/bulk-scores", icon: <PenSquare className="w-5 h-5" />, label: "Toplu Puan Girişi" },
+        { to: "/emre/results-matrix", icon: <Grid3X3 className="w-5 h-5" />, label: "Sonuçlar Matrisi" },
+        { to: "/emre/stats", icon: <BarChart3 className="w-5 h-5" />, label: "İstatistikler" },
+        { to: "/emre/reports", icon: <FileText className="w-5 h-5" />, label: "Raporlar" },
+        { to: "/emre/settings", icon: <Settings className="w-5 h-5" />, label: "Sistem Ayarları" },
     ];
 
     return (
@@ -40,7 +40,7 @@ export default function AdminLayout() {
                         <NavLink
                             key={link.to}
                             to={link.to}
-                            end={link.to === '/'}
+                            end={link.to === '/emre'}
                             className={({ isActive }) =>
                                 `flex items-center gap-3 px-4 py-2.5 rounded-xl transition-all font-medium text-sm ${isActive
                                     ? 'bg-primary/20 text-blue-400 border border-primary/20 shadow-[0_0_15px_rgba(59,130,246,0.1)]'
