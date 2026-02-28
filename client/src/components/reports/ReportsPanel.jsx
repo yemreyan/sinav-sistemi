@@ -60,11 +60,12 @@ export default function ReportsPanel() {
     const getVideo = (id) => videos.find(v => v.id === id);
     const getApparatusName = (code) => APPARATUS_MAP[code] || code;
 
-    // Filter results by selected exam's videos (fixes multi-exam compatibility and archiving)
+    // Filter results by selected exam's explicitly scored results, excluding archived videos
     const examResults = results.filter(r => {
+        if (r.examId !== selectedExamId) return false;
         const vid = getVideo(r.videoId);
         if (!vid || vid.isArchived) return false;
-        return (vid.examIds && vid.examIds.includes(selectedExamId)) || vid.examId === selectedExamId;
+        return true;
     });
 
     const calcPointColor = (points) => {
