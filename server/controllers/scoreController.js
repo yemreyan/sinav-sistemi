@@ -118,14 +118,23 @@ exports.submitScore = async (req, res) => {
         const refereeId = Object.keys(refData)[0];
         const referee = refData[refereeId];
 
-        // 2. Video bilgisini çek
+        // 2. Hakemin bulunduğu podyumdan aktif Sınav (examId) bilgisini çek
+        let currentExamId = '';
+        if (referee.podiumId) {
+            const podiumSnap = await db.ref(`podiums/${referee.podiumId}`).once('value');
+            if (podiumSnap.val() && podiumSnap.val().examId) {
+                currentExamId = podiumSnap.val().examId;
+            }
+        }
+
+        // 3. Video bilgisini çek
         const videoSnap = await db.ref(`videos/${videoId}`).once('value');
         const video = videoSnap.val();
         if (!video) {
             return res.status(404).json({ success: false, message: 'Video bulunamadı' });
         }
 
-        // 3. Sapma ve puan hesapla
+        // 4. Sapma ve puan hesapla
         const dValue = parseFloat(d) || 0;
         const eValue = parseFloat(e) || 10;
         const deductionsValue = parseFloat(deductions) || 0;
@@ -160,7 +169,7 @@ exports.submitScore = async (req, res) => {
             refereeName: referee.name,
             videoId,
             videoTitle: video.title,
-            examId: video.examId || '',
+            examId: currentExamId || video.examId || '',
             d: dValue,
             e: eValue,
             deductions: deductionsValue,

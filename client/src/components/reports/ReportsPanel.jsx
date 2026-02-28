@@ -49,18 +49,23 @@ export default function ReportsPanel() {
         fetchData();
     }, []);
 
-    // Filter results by selected exam
-    const examResults = results.filter(r => r.examId === selectedExamId);
-    // Filter videos by selected exam (new structure supports multiple exams via examIds array)
+    // Filter videos by selected exam and exclude archived
     const examVideos = videos.filter(v =>
-        (v.examIds && v.examIds.includes(selectedExamId)) ||
-        v.examId === selectedExamId
+        !v.isArchived &&
+        ((v.examIds && v.examIds.includes(selectedExamId)) || v.examId === selectedExamId)
     );
 
     // Helpers
     const getRefereeName = (id) => referees.find(r => r.id === id)?.name || id;
     const getVideo = (id) => videos.find(v => v.id === id);
     const getApparatusName = (code) => APPARATUS_MAP[code] || code;
+
+    // Filter results by selected exam's videos (fixes multi-exam compatibility and archiving)
+    const examResults = results.filter(r => {
+        const vid = getVideo(r.videoId);
+        if (!vid || vid.isArchived) return false;
+        return (vid.examIds && vid.examIds.includes(selectedExamId)) || vid.examId === selectedExamId;
+    });
 
     const calcPointColor = (points) => {
         const p = points * 100;
