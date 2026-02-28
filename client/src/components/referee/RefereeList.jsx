@@ -12,6 +12,8 @@ export default function RefereeList() {
         name: '', surname: '', tckn: '', phone: '', email: '', discipline: 'WAG', podiumId: ''
     });
 
+    const [confirmModal, setConfirmModal] = useState({ isOpen: false, targetId: null });
+
     const fetchData = async () => {
         try {
             const [refRes, podRes] = await Promise.all([refereeAPI.getAll(), podiumAPI.getAll()]);
@@ -44,15 +46,8 @@ export default function RefereeList() {
         }
     };
 
-    const handleDelete = async (id) => {
-        if (confirm("Bu hakemi silmek istediğinize emin misiniz?")) {
-            try {
-                await refereeAPI.delete(id);
-                fetchData();
-            } catch (error) {
-                console.error("Failed to delete referee", error);
-            }
-        }
+    const handleDelete = (id) => {
+        setConfirmModal({ isOpen: true, targetId: id });
     };
 
     const handleUpdatePodium = async (refId, newPodiumId) => {
@@ -190,6 +185,31 @@ export default function RefereeList() {
                     </table>
                 </div>
             </div>
+
+            {/* ===== CONFIRM MODALI ===== */}
+            {confirmModal.isOpen && (
+                <div className="fixed inset-0 bg-black/80 z-[100] flex items-center justify-center p-4" onClick={() => setConfirmModal({ isOpen: false })}>
+                    <div className="glass-panel p-6 max-w-sm w-full text-center" onClick={(e) => e.stopPropagation()}>
+                        <div className="w-16 h-16 rounded-full mx-auto flex flex-col items-center justify-center mb-4 bg-red-500/20 text-red-500">
+                            <span className="text-3xl font-bold">!</span>
+                        </div>
+                        <h3 className="text-xl font-bold text-white mb-2">Emin misiniz?</h3>
+                        <p className="text-muted-foreground text-sm mb-6">Bu hakemi silmek istediğinize emin misiniz?</p>
+                        <div className="flex gap-3">
+                            <button onClick={() => setConfirmModal({ isOpen: false })} className="flex-1 py-2 bg-white/10 hover:bg-white/20 text-white font-medium rounded-lg transition-colors">Vazgeç</button>
+                            <button onClick={async () => {
+                                setConfirmModal({ isOpen: false });
+                                try {
+                                    await refereeAPI.delete(confirmModal.targetId);
+                                    fetchData();
+                                } catch (e) { console.error(e); }
+                            }} className="flex-1 py-2 text-white font-bold rounded-lg transition-colors shadow-lg bg-red-500 hover:bg-red-600 shadow-red-500/20">
+                                Sil
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 }

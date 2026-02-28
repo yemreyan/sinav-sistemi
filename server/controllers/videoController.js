@@ -20,16 +20,17 @@ exports.getAllVideos = async (req, res) => {
 
 exports.createVideo = async (req, res) => {
     try {
-        const { title, examId, discipline, apparatus, type, isZorunlu, expertD, expertE, expertDMoves } = req.body;
+        const { title, examIds, discipline, apparatus, type, isZorunlu, expertD, expertE, expertDMoves, isArchived } = req.body;
 
         const newRef = db.ref('videos').push();
         await newRef.set({
             title,
-            examId: examId || '',
+            examIds: Array.isArray(examIds) ? examIds : [],
             discipline: discipline || 'WAG',
             apparatus: apparatus || 'Atlama Masası',
             type: type || 'D',
             isZorunlu: !!isZorunlu,
+            isArchived: !!isArchived,
             expertD: expertD || 0,
             expertE: expertE || 0,
             expertDMoves: expertDMoves || {}, // Should contain d1...d11 if isZorunlu is true

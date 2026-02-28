@@ -13,6 +13,10 @@ export default function LiveControl() {
     const [editingName, setEditingName] = useState(null);
     const [nameInput, setNameInput] = useState('');
 
+    // Modal states
+    const [confirmModal, setConfirmModal] = useState({ isOpen: false, type: '', message: '', targetId: null, isPrompt: false });
+    const [promptValue, setPromptValue] = useState('');
+
     const fetchData = async () => {
         try {
             const [podRes, examRes, vidRes] = await Promise.all([
@@ -38,26 +42,24 @@ export default function LiveControl() {
         return () => clearInterval(interval);
     }, []);
 
-    const handleCreatePodium = async () => {
-        const name = prompt("Podyum Adı (Örn: Podyum 1):");
-        if (!name) return;
-        try {
-            await podiumAPI.create({ name });
-            fetchData();
-        } catch (error) {
-            console.error("Failed to create podium", error);
-        }
+    const handleCreatePodium = () => {
+        setPromptValue('');
+        setConfirmModal({
+            isOpen: true,
+            type: 'create',
+            message: 'Yeni podyum için ad giriniz (Örn: Podyum 1):',
+            isPrompt: true
+        });
     };
 
-    const handleDeletePodium = async (id) => {
-        if (confirm("Bu podyumu silmek istediğinize emin misiniz?")) {
-            try {
-                await podiumAPI.delete(id);
-                fetchData();
-            } catch (error) {
-                console.error("Failed to delete podium", error);
-            }
-        }
+    const handleDeletePodium = (id) => {
+        setConfirmModal({
+            isOpen: true,
+            type: 'delete',
+            message: 'Bu podyumu silmek istediğinize emin misiniz?',
+            targetId: id,
+            isPrompt: false
+        });
     };
 
     const handleUpdateName = async (id) => {
@@ -137,7 +139,10 @@ export default function LiveControl() {
 
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
                 {podiums.map((podium) => {
-                    const podiumVideos = videos.filter(v => v.examId === podium.examId);
+                    const podiumVideos = videos.filter(v =>
+                        (v.examIds && v.examIds.includes(podium.examId)) ||
+                        v.examId === podium.examId
+                    );
                     const selectedVideo = podiumVideos.find(v => v.id === podium.state?.activeVideoId);
                     const statusColor = {
                         'SCORING': 'emerald', 'PAUSED': 'amber', 'PREPARATION': 'blue'
@@ -259,6 +264,58 @@ export default function LiveControl() {
                     <p className="text-muted-foreground pt-4 col-span-2 text-center">Sistemde kayıtlı podyum bulunmuyor.</p>
                 )}
             </div>
+
+            {/* ===== CONFIRM & PROMPT MODALI ===== */}
+            {confirmModal.isOpen && (
+                <div className="fixed inset-0 bg-black/80 z-[100] flex items-center justify-center p-4" onClick={() => setConfirmModal({ isOpen: false })}>
+                    <div className="glass-panel p-6 max-w-sm w-full text-center" onClick={(e) => e.stopPropagation()}>
+                        <div className={`w-16 h-16 rounded-full mx-auto flex flex-col items-center justify-center mb-4 ${confirmModal.type === 'delete' ? 'bg-red-500/20 text-red-500' : 'bg-primary/20 text-primary'
+                            }`}>
+                            <span className="text-3xl font-bold">{confirmModal.type === 'delete' ? '!' : '+'}</span>
+                        </div>
+                        <h3 className="text-xl font-bold text-white mb-2">
+                            {confirmModal.type === 'delete' ? 'Emin misiniz?' : 'Yeni Podyum'}
+                        </h3>
+                        <p className="text-muted-foreground text-sm mb-4">{confirmModal.message}</p>
+
+                        {confirmModal.isPrompt && (
+                            <input
+                                type="text"
+                                autoFocus
+                                value={promptValue}
+                                onChange={(e) => setPromptValue(e.target.value)}
+                                onKeyDown={async (e) => {
+                                    if (e.key === 'Enter' && promptValue.trim()) {
+                                        setConfirmModal({ isOpen: false });
+                                        try {
+                                            await podiumAPI.create({ name: promptValue.trim() });
+                                            fetchData();
+                                        } catch (error) { console.error(error); }
+                                    }
+                                }}
+                                className="w-full bg-black/40 border border-white/10 rounded-lg px-4 py-3 text-white focus:ring-1 focus:ring-primary/50 outline-none mb-6"
+                                placeholder="Podyum Adı"
+                            />
+                        )}
+
+                        <div className={`flex gap-3 ${!confirmModal.isPrompt ? 'mt-6' : ''}`}>
+                            <button onClick={() => setConfirmModal({ isOpen: false })} className="flex-1 py-2 bg-white/10 hover:bg-white/20 text-white font-medium rounded-lg transition-colors">Vazgeç</button>
+                            <button onClick={async () => {
+                                setConfirmModal({ isOpen: false });
+                                try {
+                                    if (confirmModal.type === 'delete') {
+                                        await podiumAPI.delete(confirmModal.targetId);
+                                    } else if (confirmModal.type === 'create' && promptValue.trim()) {
+                                        await podiumAPI.create({ name: promptValue.trim() });
+                                    }
+                                    fetchData();
+                                } catch (e) { console.error(e); }
+                            }} className={`flex-1 py-2 text-white font-bold rounded-lg transition-colors shadow-lg ${confirmModal.type === 'delete' ? 'bg-red-500 hover:bg-red-600 shadow-red-500/20' : 'bg-primary hover:bg-primary/90 shadow-primary/20'
+                                }`}>Onayla</button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 }

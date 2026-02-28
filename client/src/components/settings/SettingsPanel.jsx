@@ -4,6 +4,7 @@ import { settingsAPI } from '../../services/api';
 
 export default function SettingsPanel() {
     const [loading, setLoading] = useState(true);
+    const [confirmModal, setConfirmModal] = useState(false);
 
     const [diffPoints, setDiffPoints] = useState({
         A: 0.1, B: 0.2, C: 0.3, D: 0.4, E: 0.5, F: 0.6, G: 0.7, H: 0.8, I: 0.9, J: 1.0
@@ -64,8 +65,12 @@ export default function SettingsPanel() {
         return row[devStr] !== undefined ? row[devStr] : 0;
     };
 
-    const saveFullMatrix = async () => {
-        if (!confirm('Tüm tablodaki değişiklikler Firebase ortamına kaydedilsin mi?')) return;
+    const saveFullMatrix = () => {
+        setConfirmModal(true);
+    };
+
+    const confirmSaveMatrix = async () => {
+        setConfirmModal(false);
         try {
             await settingsAPI.updateMatrix(matrixOverrides);
             alert('Tablo değişiklikleri başarıyla kaydedildi.');
@@ -187,6 +192,25 @@ export default function SettingsPanel() {
                     </button>
                 </div>
             </div>
+
+            {/* ===== CONFIRM MODALI ===== */}
+            {confirmModal && (
+                <div className="fixed inset-0 bg-black/80 z-[100] flex items-center justify-center p-4" onClick={() => setConfirmModal(false)}>
+                    <div className="glass-panel p-6 max-w-sm w-full text-center" onClick={(e) => e.stopPropagation()}>
+                        <div className="w-16 h-16 rounded-full mx-auto flex flex-col items-center justify-center mb-4 bg-primary/20 text-primary">
+                            <span className="text-3xl font-bold">?</span>
+                        </div>
+                        <h3 className="text-xl font-bold text-white mb-2">Emin misiniz?</h3>
+                        <p className="text-muted-foreground text-sm mb-6">Tüm tablodaki değişiklikler Firebase ortamına kaydedilsin mi?</p>
+                        <div className="flex gap-3">
+                            <button onClick={() => setConfirmModal(false)} className="flex-1 py-2 bg-white/10 hover:bg-white/20 text-white font-medium rounded-lg transition-colors">Vazgeç</button>
+                            <button onClick={confirmSaveMatrix} className="flex-1 py-2 text-white font-bold rounded-lg transition-colors shadow-lg bg-primary hover:bg-primary/90 shadow-primary/20">
+                                Kaydet
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 }

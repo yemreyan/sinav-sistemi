@@ -10,6 +10,7 @@ export default function BulkScores() {
     const [saving, setSaving] = useState(false);
     const [filterApparatus, setFilterApparatus] = useState('all');
     const [changes, setChanges] = useState({}); // {videoId: {expertD, expertE}}
+    const [confirmModal, setConfirmModal] = useState({ isOpen: false, count: 0 });
 
     useEffect(() => {
         const fetchData = async () => {
@@ -44,16 +45,20 @@ export default function BulkScores() {
         return !!changes[videoId];
     };
 
-    const saveBulkScores = async () => {
+    const saveBulkScores = () => {
         const changeKeys = Object.keys(changes);
         if (changeKeys.length === 0) {
             alert('Değişiklik yapılmadı.');
             return;
         }
 
-        if (!confirm(`${changeKeys.length} seri güncellenecek. Devam etmek istiyor musunuz?\n\nDİKKAT: Bu işlem hakem puanlarını etkileyebilir.`)) return;
+        setConfirmModal({ isOpen: true, count: changeKeys.length });
+    };
 
+    const confirmSaveBulkScores = async () => {
+        setConfirmModal({ isOpen: false, count: 0 });
         setSaving(true);
+        const changeKeys = Object.keys(changes);
         try {
             for (const videoId of changeKeys) {
                 const updateData = changes[videoId];
@@ -182,6 +187,26 @@ export default function BulkScores() {
                     </button>
                 </div>
             </div>
+
+            {/* ===== CONFIRM MODALI ===== */}
+            {confirmModal.isOpen && (
+                <div className="fixed inset-0 bg-black/80 z-[100] flex items-center justify-center p-4" onClick={() => setConfirmModal({ isOpen: false, count: 0 })}>
+                    <div className="glass-panel p-6 max-w-sm w-full text-center" onClick={(e) => e.stopPropagation()}>
+                        <div className="w-16 h-16 rounded-full mx-auto flex flex-col items-center justify-center mb-4 bg-amber-500/20 text-amber-500">
+                            <span className="text-3xl font-bold">!</span>
+                        </div>
+                        <h3 className="text-xl font-bold text-white mb-2">Emin misiniz?</h3>
+                        <p className="text-muted-foreground text-sm mb-2">{confirmModal.count} seri güncellenecek. Devam etmek istiyor musunuz?</p>
+                        <p className="text-amber-400/80 text-xs mb-6 font-semibold border-t border-amber-500/20 pt-2 px-2">DİKKAT: Bu işlem hakem puanlarını etkileyebilir.</p>
+                        <div className="flex gap-3">
+                            <button onClick={() => setConfirmModal({ isOpen: false, count: 0 })} className="flex-1 py-2 bg-white/10 hover:bg-white/20 text-white font-medium rounded-lg transition-colors">Vazgeç</button>
+                            <button onClick={confirmSaveBulkScores} className="flex-1 py-2 text-white font-bold rounded-lg transition-colors shadow-lg bg-amber-500 hover:bg-amber-600 shadow-amber-500/20">
+                                Kaydet
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 }

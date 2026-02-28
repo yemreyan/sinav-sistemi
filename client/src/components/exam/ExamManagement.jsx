@@ -5,6 +5,10 @@ export default function ExamManagement() {
     const [exams, setExams] = useState([]);
     const [loading, setLoading] = useState(true);
 
+    // Modal states
+    const [confirmModal, setConfirmModal] = useState({ isOpen: false, type: '', message: '', targetId: null, isPrompt: false });
+    const [promptValues, setPromptValues] = useState({ name: '', discipline: 'WAG' });
+
     const fetchExams = async () => {
         try {
             const { data } = await examAPI.getAll();
@@ -22,29 +26,24 @@ export default function ExamManagement() {
         fetchExams();
     }, []);
 
-    const handleCreateExam = async () => {
-        const name = prompt("Sınav Adı:");
-        if (!name) return;
-        const discipline = prompt("Disiplin (Örn: WAG):", "WAG");
-        if (!discipline) return;
-
-        try {
-            await examAPI.create({ name, discipline });
-            fetchExams();
-        } catch (error) {
-            console.error("Failed to create exam", error);
-        }
+    const handleCreateExam = () => {
+        setPromptValues({ name: '', discipline: 'WAG' });
+        setConfirmModal({
+            isOpen: true,
+            type: 'create',
+            message: 'Yeni sınav için bilgileri giriniz:',
+            isPrompt: true
+        });
     };
 
-    const handleArchive = async (id) => {
-        if (confirm("Bu sınavı arşivlemek istediğinize emin misiniz?")) {
-            try {
-                await examAPI.archive(id);
-                fetchExams();
-            } catch (error) {
-                console.error("Failed to archive exam", error);
-            }
-        }
+    const handleArchive = (id) => {
+        setConfirmModal({
+            isOpen: true,
+            type: 'archive',
+            message: 'Bu sınavı arşivlemek istediğinize emin misiniz?',
+            targetId: id,
+            isPrompt: false
+        });
     };
 
     const handleRestore = async (id) => {
@@ -56,15 +55,14 @@ export default function ExamManagement() {
         }
     };
 
-    const handleDelete = async (id) => {
-        if (confirm("DİKKAT! Sınavı kalıcı olarak silmek istediğinize emin misiniz?")) {
-            try {
-                await examAPI.delete(id);
-                fetchExams();
-            } catch (error) {
-                console.error("Failed to delete exam", error);
-            }
-        }
+    const handleDelete = (id) => {
+        setConfirmModal({
+            isOpen: true,
+            type: 'delete',
+            message: 'DİKKAT! Sınavı kalıcı olarak silmek istediğinize emin misiniz?',
+            targetId: id,
+            isPrompt: false
+        });
     };
 
     if (loading) return <div className="text-white p-8">Yükleniyor...</div>;
@@ -131,6 +129,64 @@ export default function ExamManagement() {
                     </div>
                 </div>
             </div>
+
+            {/* ===== CONFIRM & PROMPT MODALI ===== */}
+            {confirmModal.isOpen && (
+                <div className="fixed inset-0 bg-black/80 z-[100] flex items-center justify-center p-4" onClick={() => setConfirmModal({ isOpen: false })}>
+                    <div className="glass-panel p-6 max-w-sm w-full text-center" onClick={(e) => e.stopPropagation()}>
+                        <div className={`w-16 h-16 rounded-full mx-auto flex flex-col items-center justify-center mb-4 ${confirmModal.type === 'delete' ? 'bg-red-500/20 text-red-500' :
+                                confirmModal.type === 'archive' ? 'bg-amber-500/20 text-amber-500' :
+                                    'bg-primary/20 text-primary'
+                            }`}>
+                            <span className="text-3xl font-bold">{confirmModal.type === 'delete' ? '!' : confirmModal.type === 'archive' ? '📦' : '+'}</span>
+                        </div>
+                        <h3 className="text-xl font-bold text-white mb-2">
+                            {confirmModal.type === 'create' ? 'Yeni Sınav' : 'Emin misiniz?'}
+                        </h3>
+                        <p className="text-muted-foreground text-sm mb-4">{confirmModal.message}</p>
+
+                        {confirmModal.isPrompt && (
+                            <div className="space-y-3 mb-6">
+                                <input
+                                    type="text"
+                                    autoFocus
+                                    value={promptValues.name}
+                                    onChange={(e) => setPromptValues({ ...promptValues, name: e.target.value })}
+                                    className="w-full bg-black/40 border border-white/10 rounded-lg px-4 py-2 text-white focus:ring-1 focus:ring-primary/50 outline-none"
+                                    placeholder="Sınav Adı"
+                                />
+                                <input
+                                    type="text"
+                                    value={promptValues.discipline}
+                                    onChange={(e) => setPromptValues({ ...promptValues, discipline: e.target.value })}
+                                    className="w-full bg-black/40 border border-white/10 rounded-lg px-4 py-2 text-white focus:ring-1 focus:ring-primary/50 outline-none"
+                                    placeholder="Disiplin (Örn: WAG)"
+                                />
+                            </div>
+                        )}
+
+                        <div className={`flex gap-3 ${!confirmModal.isPrompt ? 'mt-6' : ''}`}>
+                            <button onClick={() => setConfirmModal({ isOpen: false })} className="flex-1 py-2 bg-white/10 hover:bg-white/20 text-white font-medium rounded-lg transition-colors">Vazgeç</button>
+                            <button onClick={async () => {
+                                setConfirmModal({ isOpen: false });
+                                try {
+                                    if (confirmModal.type === 'delete') {
+                                        await examAPI.delete(confirmModal.targetId);
+                                    } else if (confirmModal.type === 'archive') {
+                                        await examAPI.archive(confirmModal.targetId);
+                                    } else if (confirmModal.type === 'create' && promptValues.name.trim() && promptValues.discipline.trim()) {
+                                        await examAPI.create({ name: promptValues.name.trim(), discipline: promptValues.discipline.trim() });
+                                    }
+                                    fetchExams();
+                                } catch (e) { console.error(e); }
+                            }} className={`flex-1 py-2 text-white font-bold rounded-lg transition-colors shadow-lg ${confirmModal.type === 'delete' ? 'bg-red-500 hover:bg-red-600 shadow-red-500/20' :
+                                    confirmModal.type === 'archive' ? 'bg-amber-500 hover:bg-amber-600 shadow-amber-500/20' :
+                                        'bg-primary hover:bg-primary/90 shadow-primary/20'
+                                }`}>Onayla</button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 }

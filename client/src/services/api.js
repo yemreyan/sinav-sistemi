@@ -35,6 +35,8 @@ export const videoAPI = {
     getAll: () => api.get('/videos'),
     create: (data) => api.post('/videos', data),
     update: (id, data) => api.put(`/videos/${id}`, data),
+    archive: (id) => api.put(`/videos/${id}`, { isArchived: true }),
+    restore: (id) => api.put(`/videos/${id}`, { isArchived: false }),
     delete: (id) => api.delete(`/videos/${id}`)
 };
 

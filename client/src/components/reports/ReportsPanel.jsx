@@ -51,8 +51,11 @@ export default function ReportsPanel() {
 
     // Filter results by selected exam
     const examResults = results.filter(r => r.examId === selectedExamId);
-    // Filter videos by selected exam
-    const examVideos = videos.filter(v => v.examId === selectedExamId);
+    // Filter videos by selected exam (new structure supports multiple exams via examIds array)
+    const examVideos = videos.filter(v =>
+        (v.examIds && v.examIds.includes(selectedExamId)) ||
+        v.examId === selectedExamId
+    );
 
     // Helpers
     const getRefereeName = (id) => referees.find(r => r.id === id)?.name || id;

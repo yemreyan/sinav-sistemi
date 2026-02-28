@@ -143,13 +143,15 @@ export default function VideoManagement() {
     const [isZorunlu, setIsZorunlu] = useState(false);
     const [moveCount, setMoveCount] = useState(0);
     const [form, setForm] = useState({
-        title: '', examId: '', apparatus: 'AtM', type: 'D',
+        title: '', examIds: [], apparatus: 'AtM', type: 'D',
         expertD: '', expertE: '', expertDMoves: {}
     });
 
     const [editModal, setEditModal] = useState(null);
     const [editForm, setEditForm] = useState({});
     const [editMoveCount, setEditMoveCount] = useState(0);
+
+    const [confirmModal, setConfirmModal] = useState({ isOpen: false, type: '', message: '', targetId: null });
 
     const fetchVideos = async () => {
         try {
@@ -166,6 +168,24 @@ export default function VideoManagement() {
         if (field === 'apparatus') {
             setMoveCount(0);
             setForm(prev => ({ ...prev, [field]: value, expertDMoves: {} }));
+        }
+    };
+
+    const handleExamCheckboxChange = (examId, isChecked, isEdit = false) => {
+        if (isEdit) {
+            setEditForm(prev => ({
+                ...prev,
+                examIds: isChecked
+                    ? [...(prev.examIds || []), examId]
+                    : (prev.examIds || []).filter(id => id !== examId)
+            }));
+        } else {
+            setForm(prev => ({
+                ...prev,
+                examIds: isChecked
+                    ? [...(prev.examIds || []), examId]
+                    : (prev.examIds || []).filter(id => id !== examId)
+            }));
         }
     };
 
@@ -191,9 +211,10 @@ export default function VideoManagement() {
                 isZorunlu,
                 expertD: parseFloat(form.expertD) || 0,
                 expertE: isZorunlu ? 0 : (parseFloat(form.expertE) || 0),
-                expertDMoves: moves
+                expertDMoves: moves,
+                isArchived: false
             });
-            setForm({ title: '', examId: '', apparatus: 'AtM', type: 'D', expertD: '', expertE: '', expertDMoves: {} });
+            setForm({ title: '', examIds: [], apparatus: 'AtM', type: 'D', expertD: '', expertE: '', expertDMoves: {} });
             setIsZorunlu(false);
             setMoveCount(0);
             fetchVideos();
@@ -204,11 +225,31 @@ export default function VideoManagement() {
         }
     };
 
-    const handleDelete = async (id) => {
-        if (confirm('Bu seriyi silmek istediğinize emin misiniz?')) {
-            await videoAPI.delete(id);
-            fetchVideos();
-        }
+    const handleDelete = (id) => {
+        setConfirmModal({
+            isOpen: true,
+            type: 'delete',
+            message: 'Bu seriyi tamamen silmek istediğinize emin misiniz? (Silinen seriler geri getirilemez)',
+            targetId: id
+        });
+    };
+
+    const handleArchive = (id) => {
+        setConfirmModal({
+            isOpen: true,
+            type: 'archive',
+            message: 'Bu seriyi arşivlemek istediğinize emin misiniz?',
+            targetId: id
+        });
+    };
+
+    const handleRestore = (id) => {
+        setConfirmModal({
+            isOpen: true,
+            type: 'restore',
+            message: 'Bu seriyi arşivden çıkarmak istediğinize emin misiniz?',
+            targetId: id
+        });
     };
 
     // Edit Modal — load existing data
@@ -232,6 +273,7 @@ export default function VideoManagement() {
             expertD: video.expertD || 0,
             expertE: video.expertE || 0,
             isZorunlu: !!video.isZorunlu,
+            examIds: Array.isArray(video.examIds) ? video.examIds : (video.examId ? [video.examId] : []),
             expertDMoves: formMoves
         });
         setEditMoveCount(isVault(video.apparatus) ? 1 : detectedCount);
@@ -276,6 +318,10 @@ export default function VideoManagement() {
     };
 
     const filteredVideos = videos.filter(v => {
+        // Tab Filtering (List vs Archive)
+        if (activeTab === 'list' && v.isArchived) return false;
+        if (activeTab === 'archive' && !v.isArchived) return false;
+
         if (filterApparatus !== 'all' && v.apparatus !== filterApparatus) return false;
         if (filterType !== 'all' && v.type !== filterType) return false;
         if (filterSearch && !v.title?.toLowerCase().includes(filterSearch.toLowerCase())) return false;
@@ -292,12 +338,13 @@ export default function VideoManagement() {
             </div>
 
             <div className="flex gap-4 border-b border-white/5 pb-4">
-                <button onClick={() => setActiveTab('list')} className={`px-4 py-2 rounded-lg font-medium transition-all ${activeTab === 'list' ? 'bg-primary text-primary-foreground shadow-[0_0_15px_rgba(59,130,246,0.2)]' : 'bg-white/5 text-muted-foreground'}`}>Seri Listesi</button>
-                <button onClick={() => setActiveTab('add')} className={`px-4 py-2 rounded-lg font-medium transition-all ${activeTab === 'add' ? 'bg-primary text-primary-foreground shadow-[0_0_15px_rgba(59,130,246,0.2)]' : 'bg-white/5 text-muted-foreground'}`}>Yeni Seri Ekle</button>
+                <button onClick={() => setActiveTab('list')} className={`px-4 py-2 rounded-lg font-medium transition-all ${activeTab === 'list' ? 'bg-primary text-primary-foreground shadow-[0_0_15px_rgba(59,130,246,0.2)]' : 'bg-white/5 text-muted-foreground'}`}>Aktif Seriler</button>
+                <button onClick={() => setActiveTab('archive')} className={`px-4 py-2 rounded-lg font-medium transition-all ${activeTab === 'archive' ? 'bg-primary text-primary-foreground shadow-[0_0_15px_rgba(59,130,246,0.2)]' : 'bg-white/5 text-muted-foreground'}`}>Arşivlenenler</button>
+                <button onClick={() => setActiveTab('add')} className={`px-4 py-2 rounded-lg font-medium transition-all ${activeTab === 'add' ? 'bg-primary text-primary-foreground shadow-[0_0_15px_rgba(59,130,246,0.2)]' : 'bg-white/5 text-muted-foreground'}`}>+ Yeni Seri Ekle</button>
             </div>
 
-            {/* ===== SERI LISTESI ===== */}
-            {activeTab === 'list' && (
+            {/* ===== SERI LISTESI ve ARSIV BOLUMU ===== */}
+            {(activeTab === 'list' || activeTab === 'archive') && (
                 <>
                     <div className="glass-panel p-4">
                         <h4 className="text-sm font-bold text-white mb-3">Seri Filtrele</h4>
@@ -324,10 +371,18 @@ export default function VideoManagement() {
                             const displayCount = isVault(video.apparatus) ? 1 : mc;
 
                             return (
-                                <div key={video.id} className="glass-panel overflow-hidden group hover:scale-[1.02] transition-transform duration-300 relative">
+                                <div key={video.id} className={`glass-panel overflow-hidden group hover:scale-[1.02] transition-transform duration-300 relative ${video.isArchived ? 'opacity-60 saturate-50 hover:opacity-100 hover:saturate-100' : ''}`}>
                                     <div className="absolute top-2 right-2 z-10 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                                        <button onClick={() => openEditModal(video)} className="bg-blue-500/80 text-white w-6 h-6 rounded flex items-center justify-center text-xs">✏</button>
-                                        <button onClick={() => handleDelete(video.id)} className="bg-red-500/80 text-white w-6 h-6 rounded flex items-center justify-center">×</button>
+                                        {!video.isArchived && (
+                                            <>
+                                                <button title="Düzenle" onClick={() => openEditModal(video)} className="bg-blue-500/80 text-white w-7 h-7 rounded flex items-center justify-center text-xs">✏</button>
+                                                <button title="Arşive Kaldır" onClick={() => handleArchive(video.id)} className="bg-amber-500/80 text-white w-7 h-7 rounded flex items-center justify-center text-xs">📦</button>
+                                            </>
+                                        )}
+                                        {video.isArchived && (
+                                            <button title="Arşivden Çıkar" onClick={() => handleRestore(video.id)} className="bg-emerald-500/80 text-white w-7 h-7 rounded flex items-center justify-center text-xs">♻</button>
+                                        )}
+                                        <button title="Kalıcı Olarak Sil" onClick={() => handleDelete(video.id)} className="bg-red-500/80 text-white w-7 h-7 rounded flex items-center justify-center">×</button>
                                     </div>
                                     <div className="h-16 bg-black/40 relative flex items-center justify-center border-b border-white/10">
                                         <div className="absolute top-2 left-2 flex gap-1">
@@ -348,6 +403,12 @@ export default function VideoManagement() {
                                                     ? `Zorunlu (${displayCount} hareket)`
                                                     : video.type === 'E' ? `E: ${video.expertE}` : `D: ${video.expertD}`}
                                             </span>
+                                        </div>
+                                        <div className="mt-2 text-[10px] text-muted-foreground bg-black/20 p-2 rounded-md">
+                                            {(video.examIds && video.examIds.length > 0)
+                                                ? <span className="text-emerald-400/80">{video.examIds.length} sınava bağlı</span>
+                                                : <span>Hiçbir sınava bağlı değil</span>
+                                            }
                                         </div>
                                         {/* Zorunlu move detail grid */}
                                         {video.isZorunlu && video.expertDMoves && displayCount > 0 && (
@@ -393,14 +454,23 @@ export default function VideoManagement() {
                                     className="w-full bg-black/20 border border-white/10 rounded-lg px-4 py-2.5 text-white focus:ring-1 focus:ring-primary/50 outline-none" placeholder="Örn: Ayşe Yılmaz" />
                             </div>
                             <div className="space-y-2">
-                                <label className="text-xs font-semibold text-muted-foreground uppercase tracking-widest">Sınav</label>
-                                <select required value={form.examId} onChange={(e) => handleFormChange('examId', e.target.value)}
-                                    className="w-full bg-black/20 border border-white/10 rounded-lg px-4 py-2.5 text-white">
-                                    <option value="">-- Sınav Seçin --</option>
+                                <label className="text-xs font-semibold text-muted-foreground uppercase tracking-widest block mb-2">Sınavlar</label>
+                                <div className="max-h-40 overflow-y-auto bg-black/20 border border-white/10 rounded-lg p-3 space-y-2 custom-scrollbar">
+                                    {exams.filter(e => e.status === 'active').length === 0 && (
+                                        <p className="text-xs text-muted-foreground">Aktif sınav bulunmuyor.</p>
+                                    )}
                                     {exams.filter(e => e.status === 'active').map(e => (
-                                        <option key={e.id} value={e.id}>{e.name}</option>
+                                        <label key={e.id} className="flex items-center gap-3 cursor-pointer p-2 hover:bg-white/5 rounded-md transition-colors">
+                                            <input
+                                                type="checkbox"
+                                                checked={(form.examIds || []).includes(e.id)}
+                                                onChange={(ev) => handleExamCheckboxChange(e.id, ev.target.checked)}
+                                                className="w-4 h-4 rounded border-white/20 bg-black/40 text-primary focus:ring-primary/50"
+                                            />
+                                            <span className="text-sm text-white/90">{e.name}</span>
+                                        </label>
                                     ))}
-                                </select>
+                                </div>
                             </div>
                             <div className="space-y-2">
                                 <label className="text-xs font-semibold text-muted-foreground uppercase tracking-widest">Alet</label>
@@ -478,6 +548,22 @@ export default function VideoManagement() {
                                 <input type="text" value={editForm.title} onChange={(e) => handleEditChange('title', e.target.value)}
                                     className="w-full bg-black/20 border border-white/10 rounded-lg px-4 py-2.5 text-white outline-none" />
                             </div>
+                            <div className="space-y-2">
+                                <label className="text-xs font-semibold text-muted-foreground uppercase block mb-1">Bağlı Olduğu Sınavlar</label>
+                                <div className="max-h-32 overflow-y-auto bg-black/20 border border-white/10 rounded-lg p-2 space-y-1 custom-scrollbar">
+                                    {exams.map(e => (
+                                        <label key={e.id} className="flex items-center gap-3 cursor-pointer p-1.5 hover:bg-white/5 rounded transition-colors">
+                                            <input
+                                                type="checkbox"
+                                                checked={(editForm.examIds || []).includes(e.id)}
+                                                onChange={(ev) => handleExamCheckboxChange(e.id, ev.target.checked, true)}
+                                                className="w-4 h-4 rounded border-white/20 bg-black/40 text-primary focus:ring-primary/50"
+                                            />
+                                            <span className="text-sm text-white/90">{e.name} {e.status !== 'active' && '(Arşivlenmiş)'}</span>
+                                        </label>
+                                    ))}
+                                </div>
+                            </div>
                             <div className="grid grid-cols-2 gap-4">
                                 <div className="space-y-1">
                                     <label className="text-xs font-semibold text-muted-foreground uppercase">Alet</label>
@@ -539,6 +625,38 @@ export default function VideoManagement() {
                                 <button onClick={handleEditSave} className="flex-1 py-2 bg-primary hover:bg-primary/90 text-white font-bold rounded-lg">Kaydet</button>
                                 <button onClick={() => setEditModal(null)} className="flex-1 py-2 bg-white/10 hover:bg-white/20 text-white rounded-lg">İptal</button>
                             </div>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* ===== CONFIRM MODALI ===== */}
+            {confirmModal.isOpen && (
+                <div className="fixed inset-0 bg-black/80 z-[100] flex items-center justify-center p-4" onClick={() => setConfirmModal({ isOpen: false })}>
+                    <div className="glass-panel p-6 max-w-sm w-full text-center" onClick={(e) => e.stopPropagation()}>
+                        <div className={`w-16 h-16 rounded-full mx-auto flex flex-col items-center justify-center mb-4 ${confirmModal.type === 'delete' ? 'bg-red-500/20 text-red-500' :
+                                confirmModal.type === 'archive' ? 'bg-amber-500/20 text-amber-500' :
+                                    'bg-emerald-500/20 text-emerald-500'
+                            }`}>
+                            <span className="text-3xl font-bold">!</span>
+                        </div>
+                        <h3 className="text-xl font-bold text-white mb-2">Emin misiniz?</h3>
+                        <p className="text-muted-foreground text-sm mb-6">{confirmModal.message}</p>
+                        <div className="flex gap-3">
+                            <button onClick={() => setConfirmModal({ isOpen: false })} className="flex-1 py-2 bg-white/10 hover:bg-white/20 text-white font-medium rounded-lg transition-colors">Vazgeç</button>
+                            <button onClick={async () => {
+                                const id = confirmModal.targetId;
+                                setConfirmModal({ isOpen: false });
+                                try {
+                                    if (confirmModal.type === 'delete') await videoAPI.delete(id);
+                                    else if (confirmModal.type === 'archive') await videoAPI.archive(id);
+                                    else if (confirmModal.type === 'restore') await videoAPI.restore(id);
+                                    fetchVideos();
+                                } catch (e) { console.error(e); }
+                            }} className={`flex-1 py-2 text-white font-bold rounded-lg transition-colors shadow-lg ${confirmModal.type === 'delete' ? 'bg-red-500 hover:bg-red-600 shadow-red-500/20' :
+                                    confirmModal.type === 'archive' ? 'bg-amber-500 hover:bg-amber-600 shadow-amber-500/20' :
+                                        'bg-emerald-500 hover:bg-emerald-600 shadow-emerald-500/20'
+                                }`}>Onayla</button>
                         </div>
                     </div>
                 </div>
