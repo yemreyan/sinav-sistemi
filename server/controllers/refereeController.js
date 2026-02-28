@@ -30,7 +30,7 @@ exports.createReferee = async (req, res) => {
             name: `${name} ${surname}`,
             tckn: tckn || '',
             phone: phone || '',
-            email: email || '',
+            email: email ? email.toLowerCase() : '',
             discipline: discipline || 'WAG',
             podiumId: podiumId || '',
             token,

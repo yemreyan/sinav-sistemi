@@ -61,7 +61,7 @@ export const resultsAPI = {
 };
 
 export const scoreAPI = {
-    auth: (token) => api.post('/scores/auth', { token }),
+    auth: (email) => api.post('/scores/auth', { email }),
     submit: (data) => api.post('/scores/submit', data),
     getPodiumState: (podiumId) => api.get(`/scores/podium-state/${podiumId}`)
 };

@@ -5,7 +5,7 @@ const APPARATUS_MAP = { 'AtM': 'Atlama Masası', 'KP': 'Kız Paraleli', 'D': 'De
 
 export default function RefereeScoringPage() {
     // --- Auth ---
-    const [token, setToken] = useState('');
+    const [email, setEmail] = useState('');
     const [referee, setReferee] = useState(null);
     const [authError, setAuthError] = useState('');
     const [authLoading, setAuthLoading] = useState(false);
@@ -38,14 +38,14 @@ export default function RefereeScoringPage() {
 
     // --- Auth ---
     const handleAuth = async () => {
-        if (!token.trim()) return;
+        if (!email.trim()) return;
         setAuthLoading(true);
         setAuthError('');
         try {
-            const res = await scoreAPI.auth(token.trim());
+            const res = await scoreAPI.auth(email.trim());
             if (res.data.success) {
                 const ref = res.data.data;
-                ref.token = token.trim().toUpperCase();
+                ref.email = email.trim().toLowerCase();
                 setReferee(ref);
                 localStorage.setItem('refereeSession', JSON.stringify(ref));
             } else {
@@ -61,7 +61,7 @@ export default function RefereeScoringPage() {
     const handleLogout = () => {
         setReferee(null);
         setPodiumData(null);
-        setToken('');
+        setEmail('');
         localStorage.removeItem('refereeSession');
         if (pollRef.current) clearInterval(pollRef.current);
     };
@@ -107,8 +107,8 @@ export default function RefereeScoringPage() {
         setSubmitLoading(true);
 
         const video = podiumData.activeVideo;
-        const refToken = referee?.token || token.trim();
-        const payload = { token: refToken, videoId: video.id, d: 0, e: 10, deductions: 0, zorunluDMoves: null };
+        const refEmail = referee?.email || email.trim();
+        const payload = { email: refEmail, videoId: video.id, d: 0, e: 10, deductions: 0, zorunluDMoves: null };
 
         let submittedD = 0;
         let submittedE = 10;
@@ -163,18 +163,17 @@ export default function RefereeScoringPage() {
                             <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
                         </div>
                         <h1 className="text-2xl font-bold text-white">Hakem Girişi</h1>
-                        <p className="text-muted-foreground text-sm mt-1">Token ile oturum açın</p>
+                        <p className="text-muted-foreground text-sm mt-1">E-posta adresinizle oturum açın</p>
                     </div>
 
                     <div className="glass-panel p-5 space-y-4">
                         <input
-                            type="text"
-                            value={token}
-                            onChange={(e) => setToken(e.target.value.toUpperCase())}
+                            type="email"
+                            value={email}
+                            onChange={(e) => setEmail(e.target.value)}
                             onKeyDown={(e) => e.key === 'Enter' && handleAuth()}
-                            className="w-full bg-black/40 border border-white/10 rounded-xl px-4 py-4 text-white font-mono text-xl text-center tracking-[0.3em] outline-none focus:ring-2 focus:ring-indigo-500/50 placeholder:text-white/15 placeholder:tracking-normal placeholder:text-base"
-                            placeholder="TOKEN"
-                            maxLength={12}
+                            className="w-full bg-black/40 border border-white/10 rounded-xl px-4 py-4 text-white font-mono text-lg text-center outline-none focus:ring-2 focus:ring-indigo-500/50 placeholder:text-white/15 placeholder:text-base"
+                            placeholder="E-posta Adresi"
                             autoFocus
                         />
 
@@ -186,7 +185,7 @@ export default function RefereeScoringPage() {
 
                         <button
                             onClick={handleAuth}
-                            disabled={authLoading || !token.trim()}
+                            disabled={authLoading || !email.trim()}
                             className="w-full py-3.5 bg-gradient-to-r from-indigo-500 to-blue-600 hover:from-indigo-600 hover:to-blue-700 text-white font-bold rounded-xl shadow-lg shadow-indigo-500/20 disabled:opacity-40 transition-all active:scale-[0.98]"
                         >
                             {authLoading ? '...' : 'Giriş Yap'}
@@ -377,8 +376,8 @@ export default function RefereeScoringPage() {
                                                                 }));
                                                             }}
                                                             className={`min-w-[56px] py-2.5 px-3 rounded-lg font-mono text-sm font-bold transition-all active:scale-95 ${selected === opt
-                                                                    ? 'bg-indigo-500 text-white shadow-lg shadow-indigo-500/30 ring-1 ring-indigo-400/50'
-                                                                    : 'bg-white/5 text-white/60 hover:bg-white/10 border border-white/8'
+                                                                ? 'bg-indigo-500 text-white shadow-lg shadow-indigo-500/30 ring-1 ring-indigo-400/50'
+                                                                : 'bg-white/5 text-white/60 hover:bg-white/10 border border-white/8'
                                                                 }`}
                                                         >
                                                             {opt}

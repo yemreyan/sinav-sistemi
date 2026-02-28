@@ -8,16 +8,16 @@ const { db } = require('../config/firebase');
  */
 exports.authenticate = async (req, res) => {
     try {
-        const { token } = req.body;
-        if (!token || typeof token !== 'string') {
-            return res.status(400).json({ success: false, message: 'Token gerekli' });
+        const { email } = req.body;
+        if (!email || typeof email !== 'string') {
+            return res.status(400).json({ success: false, message: 'Email gerekli' });
         }
 
-        const snapshot = await db.ref('referees').orderByChild('token').equalTo(token.trim().toUpperCase()).once('value');
+        const snapshot = await db.ref('referees').orderByChild('email').equalTo(email.trim().toLowerCase()).once('value');
         const data = snapshot.val();
 
         if (!data) {
-            return res.status(401).json({ success: false, message: 'Geçersiz token' });
+            return res.status(401).json({ success: false, message: 'Bu e-posta adresine ait hakem bulunamadı' });
         }
 
         const refereeId = Object.keys(data)[0];
@@ -103,17 +103,17 @@ exports.getPodiumState = async (req, res) => {
  */
 exports.submitScore = async (req, res) => {
     try {
-        const { token, videoId, d, e, deductions, zorunluDMoves } = req.body;
+        const { email, videoId, d, e, deductions, zorunluDMoves } = req.body;
 
-        if (!token || !videoId) {
-            return res.status(400).json({ success: false, message: 'Token ve videoId gerekli' });
+        if (!email || !videoId) {
+            return res.status(400).json({ success: false, message: 'Email ve videoId gerekli' });
         }
 
-        // 1. Token ile referee bul
-        const refSnap = await db.ref('referees').orderByChild('token').equalTo(token.trim().toUpperCase()).once('value');
+        // 1. Email ile referee bul
+        const refSnap = await db.ref('referees').orderByChild('email').equalTo(email.trim().toLowerCase()).once('value');
         const refData = refSnap.val();
         if (!refData) {
-            return res.status(401).json({ success: false, message: 'Geçersiz token' });
+            return res.status(401).json({ success: false, message: 'Yetkisiz erişim: Email bulunamadı' });
         }
         const refereeId = Object.keys(refData)[0];
         const referee = refData[refereeId];

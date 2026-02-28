@@ -145,7 +145,6 @@ export default function RefereeList() {
                                 <th className="p-4">E-posta</th>
                                 <th className="p-4">Telefon</th>
                                 <th className="p-4">Podyum</th>
-                                <th className="p-4">Token</th>
                                 <th className="p-4 text-right">İşlemler</th>
                             </tr>
                         </thead>
@@ -174,11 +173,6 @@ export default function RefereeList() {
                                                 <option key={p.id} value={p.id}>{p.name}</option>
                                             ))}
                                         </select>
-                                    </td>
-                                    <td className="p-4">
-                                        <span className="font-mono bg-black/40 px-2 py-1 rounded text-primary text-sm tracking-widest border border-white/5">
-                                            {referee.token}
-                                        </span>
                                     </td>
                                     <td className="p-4 text-right">
                                         <button onClick={() => handleDelete(referee.id)} className="text-xs font-semibold text-red-400 hover:text-red-300 transition-colors opacity-0 group-hover:opacity-100 px-3 py-1 bg-red-400/10 rounded-md">
