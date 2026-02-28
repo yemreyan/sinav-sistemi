@@ -20,7 +20,7 @@ function App() {
     <BrowserRouter>
       <Routes>
         {/* Hakem Puanlama — Auth gerektirmez, AdminLayout dışında */}
-        <Route path="/referee" element={<RefereeScoringPage />} />
+        <Route path="/hakem" element={<RefereeScoringPage />} />
 
         <Route
           path="/login"
