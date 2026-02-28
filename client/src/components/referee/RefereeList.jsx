@@ -6,6 +6,9 @@ export default function RefereeList() {
     const [podiums, setPodiums] = useState([]);
     const [loading, setLoading] = useState(true);
     const [showForm, setShowForm] = useState(false);
+    const [showBulkForm, setShowBulkForm] = useState(false);
+    const [bulkData, setBulkData] = useState('');
+    const [isSubmittingBulk, setIsSubmittingBulk] = useState(false);
 
     // Form state
     const [form, setForm] = useState({
@@ -59,6 +62,45 @@ export default function RefereeList() {
         }
     };
 
+    const handleBulkSubmit = async (e) => {
+        e.preventDefault();
+        if (!bulkData.trim()) return alert('Lütfen excel verisini yapıştırın.');
+
+        setIsSubmittingBulk(true);
+        const rows = bulkData.split('\n').map(r => r.trim()).filter(r => r);
+        let successCount = 0;
+
+        for (const row of rows) {
+            const cols = row.split('\t');
+            const fullName = cols[0] ? cols[0].trim() : '';
+            const email = cols[1] ? cols[1].trim() : '';
+
+            if (!fullName) continue;
+
+            const parts = fullName.split(' ');
+            const surname = parts.length > 1 ? parts.pop() : '';
+            const name = parts.join(' ') || fullName;
+
+            try {
+                await refereeAPI.create({
+                    name,
+                    surname,
+                    email,
+                    tckn: '', phone: '', discipline: 'WAG', podiumId: ''
+                });
+                successCount++;
+            } catch (err) {
+                console.error("Bulk add error row:", row, err);
+            }
+        }
+
+        setIsSubmittingBulk(false);
+        setBulkData('');
+        setShowBulkForm(false);
+        fetchData();
+        alert(`${successCount} hakem başarıyla sisteme eklendi.`);
+    };
+
     if (loading) return <div className="text-white p-8">Yükleniyor...</div>;
 
     return (
@@ -68,15 +110,49 @@ export default function RefereeList() {
                     <h1 className="text-3xl font-bold tracking-tight text-white mb-2">Hakem Yönetimi</h1>
                     <p className="text-muted-foreground">Sistemdeki hakemleri görüntüleyin ve yönetin</p>
                 </div>
-                <div className="flex gap-4">
+                <div className="flex gap-3">
                     <button
-                        onClick={() => setShowForm(!showForm)}
+                        onClick={() => { setShowBulkForm(!showBulkForm); setShowForm(false); }}
+                        className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold py-2 px-4 rounded-lg transition-all shadow-[0_0_15px_rgba(16,185,129,0.2)] flex items-center gap-2"
+                    >
+                        {showBulkForm ? 'İptal' : '📥 Toplu Ekle (Excel)'}
+                    </button>
+                    <button
+                        onClick={() => { setShowForm(!showForm); setShowBulkForm(false); }}
                         className="bg-primary hover:bg-primary/90 text-primary-foreground font-semibold py-2 px-4 rounded-lg transition-all shadow-[0_0_15px_rgba(59,130,246,0.2)]"
                     >
-                        {showForm ? 'Formu Kapat' : '+ Yeni Hakem Ekle'}
+                        {showForm ? 'Kapat' : '+ Tekil Hakem Ekle'}
                     </button>
                 </div>
             </div>
+
+            {/* Bulk Add Referee Form */}
+            {showBulkForm && (
+                <div className="glass-panel p-6 shadow-2xl animate-in fade-in slide-in-from-top-4 duration-300 border border-emerald-500/30">
+                    <h3 className="text-lg font-bold text-white mb-2 flex items-center gap-2">
+                        <span className="text-emerald-400">📊</span> Toplu Hakem Ekleme (Excel)
+                    </h3>
+                    <p className="text-sm text-muted-foreground mb-4">
+                        Aşağıdaki alana Excel'den sütunları kopyalayıp yapıştırın. İlk sütun <strong>Ad Soyad</strong>, ikinci sütun <strong>E-posta</strong> olmalıdır.
+                    </p>
+                    <form onSubmit={handleBulkSubmit} className="space-y-4">
+                        <textarea
+                            value={bulkData}
+                            onChange={(e) => setBulkData(e.target.value)}
+                            className="w-full h-48 bg-black/40 border border-emerald-500/20 rounded-lg p-4 text-white text-sm focus:ring-1 focus:ring-emerald-500/50 outline-none font-mono placeholder:text-white/20"
+                            placeholder={"ALİ RIZA BUZCU\taliriza@gmail.com\nALİYE BALTA\taliyebalta@gmail.com\n..."}
+                        />
+                        <div className="flex justify-end gap-3 pt-2">
+                            <button type="button" onClick={() => setShowBulkForm(false)} className="px-6 py-2 bg-white/10 hover:bg-white/20 text-white rounded-lg transition-colors">
+                                İptal
+                            </button>
+                            <button type="submit" disabled={isSubmittingBulk || !bulkData.trim()} className="bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white font-semibold py-2 px-6 rounded-lg transition-all shadow-lg flex items-center gap-2">
+                                {isSubmittingBulk ? <span className="animate-pulse">Kaydediliyor...</span> : 'Hakemleri Sisteme Aktar'}
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            )}
 
             {/* Add Referee Form */}
             {showForm && (
