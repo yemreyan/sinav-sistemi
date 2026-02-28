@@ -19,17 +19,19 @@ function App() {
   return (
     <BrowserRouter>
       <Routes>
-        {/* Hakem Puanlama — Auth gerektirmez, AdminLayout dışında */}
-        <Route path="/hakem" element={<RefereeScoringPage />} />
+        {/* Hakem Puanlama — Artık Ana Sayfa (/) */}
+        <Route path="/" element={<RefereeScoringPage />} />
 
+        {/* Admin Login — Artık /emre/login altında */}
         <Route
-          path="/login"
-          element={!isAuthenticated ? <AdminLogin /> : <Navigate to="/" replace />}
+          path="/emre/login"
+          element={!isAuthenticated ? <AdminLogin /> : <Navigate to="/emre" replace />}
         />
 
+        {/* Admin Layout (Tüm Panel) — Artık /emre altında */}
         <Route
-          path="/"
-          element={isAuthenticated ? <AdminLayout /> : <Navigate to="/login" replace />}
+          path="/emre"
+          element={isAuthenticated ? <AdminLayout /> : <Navigate to="/emre/login" replace />}
         >
           <Route index element={<Dashboard />} />
           <Route path="exams" element={<ExamManagement />} />
@@ -42,6 +44,9 @@ function App() {
           <Route path="bulk-scores" element={<BulkScores />} />
           <Route path="stats" element={<StatsView />} />
         </Route>
+
+        {/* Catch-all for undefined routes — Redirect to main page */}
+        <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </BrowserRouter>
   );
