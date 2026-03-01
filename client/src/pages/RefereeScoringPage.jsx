@@ -116,10 +116,9 @@ export default function RefereeScoringPage() {
         setShowEditMode(false);
     };
 
-    // --- Submit ---
+    // --- Submit (Optimistic UI — anında başarılı göster, API arka planda çalışsın) ---
     const handleSubmit = async () => {
         if (!podiumData?.activeVideo) return;
-        setSubmitLoading(true);
 
         const video = podiumData.activeVideo;
         const refEmail = referee?.email || email.trim();
@@ -143,27 +142,39 @@ export default function RefereeScoringPage() {
             payload.d = submittedD;
         }
 
-        try {
-            const res = await scoreAPI.submit(payload);
+        // OPTIMISTIC UI: Anında başarılı göster — ekran donmaz
+        setScored(true);
+        setShowEditMode(false);
+        setSubmitLoading(false);
+        setScoredData({
+            d: submittedD,
+            e: submittedE,
+            deductions: submittedDed,
+            message: 'Puan kaydediliyor...',
+            id: null,
+            isZorunlu: video.isZorunlu,
+            type: video.type,
+            selections: { ...zorunluSelections }
+        });
+
+        // ASYNC: API arka planda çalışır
+        scoreAPI.submit(payload).then(res => {
             if (res.data.success) {
-                setScored(true);
-                setShowEditMode(false);
-                setScoredData({
-                    d: submittedD,
-                    e: submittedE,
-                    deductions: submittedDed,
-                    message: res.data.updated ? 'Puan güncellendi' : 'Puan kaydedildi',
-                    id: res.data.id,
-                    isZorunlu: video.isZorunlu,
-                    type: video.type,
-                    selections: { ...zorunluSelections }
-                });
+                setScoredData(prev => ({
+                    ...prev,
+                    message: res.data.updated ? 'Puan güncellendi ✓' : 'Puan kaydedildi ✓',
+                    id: res.data.id
+                }));
             }
-        } catch (err) {
-            alert(err.response?.data?.message || 'Gönderim hatası');
-        } finally {
-            setSubmitLoading(false);
-        }
+        }).catch(err => {
+            // Hata durumunda kullanıcıya bildir ama UI'ı bozmadan
+            setScoredData(prev => ({
+                ...prev,
+                message: '⚠ Gönderim hatası — tekrar deneyin'
+            }));
+            setShowEditMode(true);
+            console.error('Submit error:', err);
+        });
     };
 
     // ===================== R E N D E R =====================
