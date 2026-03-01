@@ -267,3 +267,53 @@ exports.submitScore = async (req, res) => {
         res.status(500).json({ success: false, message: 'Sunucu hatası' });
     }
 };
+
+/**
+ * GET /api/scores/existing?email=X&videoId=Y
+ * Hakemin daha önce bu video için gönderdiği puanı getir
+ * Video tekrar açıldığında önceki seçimlerini göstermek için kullanılır
+ */
+exports.getExistingScore = async (req, res) => {
+    try {
+        const { email, videoId } = req.query;
+        if (!email || !videoId) {
+            return res.json({ success: true, data: null });
+        }
+
+        const referee = await findRefereeByEmail(email);
+        if (!referee) {
+            return res.json({ success: true, data: null });
+        }
+
+        // Composite key ile O(1) lookup
+        const compositeKey = `${referee.id}_${videoId}`;
+        const indexSnap = await db.ref(`scoreIndex/${compositeKey}`).once('value');
+        const resultKey = indexSnap.val();
+
+        if (!resultKey) {
+            return res.json({ success: true, data: null });
+        }
+
+        const resultSnap = await db.ref(`results/${resultKey}`).once('value');
+        const resultData = resultSnap.val();
+
+        if (!resultData) {
+            return res.json({ success: true, data: null });
+        }
+
+        res.json({
+            success: true,
+            data: {
+                id: resultKey,
+                d: resultData.d,
+                e: resultData.e,
+                deductions: resultData.deductions,
+                zorunluDMoves: resultData.zorunluDMoves || null,
+                timestamp: resultData.timestamp
+            }
+        });
+    } catch (error) {
+        console.error('Get Existing Score Error:', error);
+        res.json({ success: true, data: null }); // Hata olsa bile formu engellemiyoruz
+    }
+};

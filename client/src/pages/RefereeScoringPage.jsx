@@ -75,12 +75,48 @@ export default function RefereeScoringPage() {
             if (res.data.success) {
                 const newData = res.data.data;
                 if (newData.activeVideo?.id !== lastVideoRef.current) {
-                    lastVideoRef.current = newData.activeVideo?.id || null;
+                    const newVideoId = newData.activeVideo?.id || null;
+                    lastVideoRef.current = newVideoId;
                     resetForm();
+
+                    // Video değiştiğinde mevcut skoru kontrol et ve pre-fill yap
+                    if (newVideoId && referee) {
+                        const refEmail = referee.email || email.trim();
+                        scoreAPI.getExisting(refEmail, newVideoId).then(existRes => {
+                            if (existRes.data.success && existRes.data.data) {
+                                const existing = existRes.data.data;
+                                // Zorunlu D moves
+                                if (existing.zorunluDMoves && typeof existing.zorunluDMoves === 'object') {
+                                    setZorunluSelections(existing.zorunluDMoves);
+                                }
+                                // Serbest D
+                                if (existing.d && existing.d > 0) {
+                                    setDValue(String(existing.d));
+                                }
+                                // E deductions
+                                if (existing.deductions && existing.deductions > 0) {
+                                    setDeductions(String(existing.deductions));
+                                }
+                                // Daha önce puanlanmış olarak göster
+                                setScored(true);
+                                setScoredData({
+                                    d: existing.d || 0,
+                                    e: existing.e || 10,
+                                    deductions: existing.deductions || 0,
+                                    message: 'Önceki puanınız yüklendi',
+                                    id: existing.id,
+                                    isZorunlu: !!(existing.zorunluDMoves && typeof existing.zorunluDMoves === 'object'),
+                                    type: newData.activeVideo?.type || 'D',
+                                    selections: existing.zorunluDMoves || {}
+                                });
+                                setShowEditMode(true); // Düzenleme modunda aç
+                            }
+                        }).catch(() => { /* sessizce devam et */ });
+                    }
                 }
                 setPodiumData(newData);
                 setPollError('');
-                errorCountRef.current = 0; // Reset error count on success
+                errorCountRef.current = 0;
             }
         } catch {
             errorCountRef.current = Math.min(errorCountRef.current + 1, 5);
@@ -511,12 +547,12 @@ export default function RefereeScoringPage() {
                                                     }
                                                 }}
                                                 className={`py-4 rounded-xl font-bold text-lg transition-all active:scale-95 ${key === 'C'
-                                                        ? 'bg-red-500/15 text-red-400 border border-red-500/20 hover:bg-red-500/25'
-                                                        : key === '⌫'
-                                                            ? 'bg-white/5 text-white/60 border border-white/10 hover:bg-white/10'
-                                                            : isPreset
-                                                                ? 'bg-amber-500/15 text-amber-400 border border-amber-500/20 hover:bg-amber-500/25 text-sm'
-                                                                : 'bg-white/5 text-white border border-white/8 hover:bg-white/10'
+                                                    ? 'bg-red-500/15 text-red-400 border border-red-500/20 hover:bg-red-500/25'
+                                                    : key === '⌫'
+                                                        ? 'bg-white/5 text-white/60 border border-white/10 hover:bg-white/10'
+                                                        : isPreset
+                                                            ? 'bg-amber-500/15 text-amber-400 border border-amber-500/20 hover:bg-amber-500/25 text-sm'
+                                                            : 'bg-white/5 text-white border border-white/8 hover:bg-white/10'
                                                     }`}
                                             >
                                                 {key}

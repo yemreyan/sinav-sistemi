@@ -53,5 +53,6 @@ router.get('/stats', resultsController.getStats);
 router.post('/scores/auth', scoreController.authenticate);
 router.get('/scores/podium-state/:podiumId', scoreController.getPodiumState);
 router.post('/scores/submit', scoreController.submitScore);
+router.get('/scores/existing', scoreController.getExistingScore);
 
 module.exports = router;
