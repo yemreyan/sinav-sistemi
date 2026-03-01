@@ -66,7 +66,8 @@ export default function RefereeScoringPage() {
         if (pollRef.current) clearInterval(pollRef.current);
     };
 
-    // --- Podium Polling ---
+    // --- Podium Polling (Optimized: 5s interval + exponential backoff on errors) ---
+    const errorCountRef = useRef(0);
     const fetchPodiumState = useCallback(async () => {
         if (!referee?.podiumId) return;
         try {
@@ -79,8 +80,10 @@ export default function RefereeScoringPage() {
                 }
                 setPodiumData(newData);
                 setPollError('');
+                errorCountRef.current = 0; // Reset error count on success
             }
         } catch {
+            errorCountRef.current = Math.min(errorCountRef.current + 1, 5);
             setPollError('Bağlantı sorunu...');
         }
     }, [referee]);
@@ -88,8 +91,20 @@ export default function RefereeScoringPage() {
     useEffect(() => {
         if (!referee?.podiumId) return;
         fetchPodiumState();
-        pollRef.current = setInterval(fetchPodiumState, 3000);
-        return () => clearInterval(pollRef.current);
+        // Adaptive polling: 5s normal, up to 15s on consecutive errors
+        const getInterval = () => {
+            const base = 5000;
+            return base + (errorCountRef.current * 2000); // 5s, 7s, 9s, 11s, 13s, 15s
+        };
+        const scheduleNext = () => {
+            pollRef.current = setTimeout(() => {
+                fetchPodiumState().then(() => {
+                    scheduleNext();
+                });
+            }, getInterval());
+        };
+        scheduleNext();
+        return () => clearTimeout(pollRef.current);
     }, [referee, fetchPodiumState]);
 
     const resetForm = () => {
