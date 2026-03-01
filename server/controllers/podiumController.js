@@ -1,5 +1,6 @@
-// podiumController.js
+// podiumController.js — Cache invalidation ile optimize edilmiş
 const { db } = require('../config/firebase');
+const { invalidatePodium } = require('./sharedCache');
 
 exports.getAllPodiums = async (req, res) => {
     try {
@@ -43,6 +44,10 @@ exports.updatePodiumState = async (req, res) => {
         const { state } = req.body;
 
         await db.ref(`podiums/${id}/state`).update(state);
+
+        // Cache invalidation — hakemler yeni video'yu anında görsün
+        invalidatePodium(id);
+
         res.json({ success: true, message: 'Podium state updated' });
     } catch (error) {
         console.error('Update Podium State Error:', error);
@@ -55,6 +60,10 @@ exports.updatePodium = async (req, res) => {
         const { id } = req.params;
         const updates = req.body;
         await db.ref(`podiums/${id}`).update(updates);
+
+        // Cache invalidation
+        invalidatePodium(id);
+
         res.json({ success: true, message: 'Podium updated' });
     } catch (error) {
         console.error('Update Podium Error:', error);
@@ -66,6 +75,10 @@ exports.deletePodium = async (req, res) => {
     try {
         const { id } = req.params;
         await db.ref(`podiums/${id}`).remove();
+
+        // Cache invalidation
+        invalidatePodium(id);
+
         res.json({ success: true, message: 'Podium deleted' });
     } catch (error) {
         console.error('Delete Podium Error:', error);

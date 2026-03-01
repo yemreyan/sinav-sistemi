@@ -1,41 +1,7 @@
-// scoreController.js — Hakem Puanlama Endpointleri (Optimized)
-// 100+ hakemin eşzamanlı puan göndermesini destekler
-// Optimizasyonlar: Paralel sorgular, composite key, in-memory cache
+// scoreController.js — Hakem Puanlama Endpointleri (v3 — Full Optimization)
+// Shared cache + composite scoreIndex + paralel sorgular
 const { db } = require('../config/firebase');
-
-// ===================== IN-MEMORY CACHE =====================
-const cache = {
-    podiums: {},      // podiumId -> { data, ts }
-    videos: {},       // videoId -> { data, ts }
-    referees: {},     // email -> { data, ts }
-};
-
-const CACHE_TTL = {
-    podium: 10000,    // 10 sn (polling tarafından sık çağrılır)
-    video: 30000,     // 30 sn (video verisi nadiren değişir)
-    referee: 60000,   // 60 sn (hakem bilgileri oturum boyunca sabit)
-};
-
-function getCached(type, key) {
-    const entry = cache[type]?.[key];
-    if (!entry) return null;
-    const ttl = CACHE_TTL[type.replace('s', '').replace('ee', 'ee')] || 30000;
-    if (Date.now() - entry.ts > ttl) {
-        delete cache[type][key];
-        return null;
-    }
-    return entry.data;
-}
-
-function setCache(type, key, data) {
-    if (!cache[type]) cache[type] = {};
-    cache[type][key] = { data, ts: Date.now() };
-}
-
-// Invalidate specific cache entry
-function invalidateCache(type, key) {
-    if (cache[type]?.[key]) delete cache[type][key];
-}
+const { getCached, setCache } = require('./sharedCache');
 
 // ===================== HELPERS =====================
 
@@ -80,7 +46,6 @@ async function getVideoById(videoId) {
 
 /**
  * POST /api/scores/auth
- * Token ile hakem doğrulama
  */
 exports.authenticate = async (req, res) => {
     try {
@@ -114,21 +79,25 @@ exports.authenticate = async (req, res) => {
 
 /**
  * GET /api/scores/podium-state/:podiumId
- * Podium durumu + aktif video detayları
- * Optimized: Paralel sorgular + cache
+ * Full response cache — 100 hakem aynı podium'u sorarsa 1 kez Firebase'e gider
  */
 exports.getPodiumState = async (req, res) => {
     try {
         const { podiumId } = req.params;
-        const podium = await getPodiumById(podiumId);
 
+        // Full response cache
+        const cachedResponse = getCached('podiumState', podiumId);
+        if (cachedResponse) {
+            return res.json(cachedResponse);
+        }
+
+        const podium = await getPodiumById(podiumId);
         if (!podium) {
             return res.status(404).json({ success: false, message: 'Podyum bulunamadı' });
         }
 
-        // Paralel: Video + Exam sorgularını aynı anda çalıştır
+        // Paralel: Video + Exam
         const [activeVideo, examName] = await Promise.all([
-            // Video bilgisi
             (async () => {
                 if (!podium.state?.activeVideoId) return null;
                 const vData = await getVideoById(podium.state.activeVideoId);
@@ -144,21 +113,18 @@ exports.getPodiumState = async (req, res) => {
                     expertDMoves: vData.expertDMoves || null
                 };
             })(),
-            // Exam adı
             (async () => {
                 if (!podium.examId) return '';
-                // Exam da cache'lenebilir
                 const cached = getCached('videos', `exam_${podium.examId}`);
                 if (cached) return cached;
                 const examSnap = await db.ref(`exams/${podium.examId}`).once('value');
-                const examData = examSnap.val();
-                const name = examData?.name || '';
+                const name = examSnap.val()?.name || '';
                 setCache('videos', `exam_${podium.examId}`, name);
                 return name;
             })()
         ]);
 
-        res.json({
+        const responseData = {
             success: true,
             data: {
                 podiumName: podium.name,
@@ -167,7 +133,10 @@ exports.getPodiumState = async (req, res) => {
                 status: podium.state?.status || 'IDLE',
                 activeVideo
             }
-        });
+        };
+
+        setCache('podiumState', podiumId, responseData);
+        res.json(responseData);
     } catch (error) {
         console.error('Podium State Error:', error);
         res.status(500).json({ success: false, message: 'Sunucu hatası' });
@@ -176,8 +145,7 @@ exports.getPodiumState = async (req, res) => {
 
 /**
  * POST /api/scores/submit
- * Hakem puanını kaydet/güncelle
- * Optimized: Paralel sorgular + composite key lookup
+ * v3: scoreIndex composite key ile O(1) mevcut skor kontrolü
  */
 exports.submitScore = async (req, res) => {
     const startTime = Date.now();
@@ -188,7 +156,7 @@ exports.submitScore = async (req, res) => {
             return res.status(400).json({ success: false, message: 'Email ve videoId gerekli' });
         }
 
-        // ===== STEP 1: Paralel sorgular (3 sorguyu aynı anda çalıştır) =====
+        // STEP 1: Paralel — referee + video (cache hit = 0ms)
         const [referee, video] = await Promise.all([
             findRefereeByEmail(email),
             getVideoById(videoId)
@@ -201,14 +169,14 @@ exports.submitScore = async (req, res) => {
             return res.status(404).json({ success: false, message: 'Video bulunamadı' });
         }
 
-        // Podium bilgisini paralelde veya cache'den çek
+        // Podium — cache'den gelir
         let currentExamId = '';
         if (referee.podiumId) {
             const podium = await getPodiumById(referee.podiumId);
             if (podium?.examId) currentExamId = podium.examId;
         }
 
-        // ===== STEP 2: Sapma ve puan hesapla =====
+        // STEP 2: Puan hesapla
         const dValue = parseFloat(d) || 0;
         const eValue = parseFloat(e) || 10;
         const deductionsValue = parseFloat(deductions) || 0;
@@ -254,49 +222,44 @@ exports.submitScore = async (req, res) => {
             zorunluDMoves: zorunluDMoves || false
         };
 
-        // ===== STEP 3: Composite key ile mevcut sonuç kontrolü (O(1)) =====
-        // results tablosunun tamamını çekmek yerine, compound sorgu kullan
-        const existingSnap = await db.ref('results')
-            .orderByChild('refereeId')
-            .equalTo(referee.id)
-            .once('value');
+        // STEP 3: Composite key ile O(1) mevcut skor kontrolü
+        const compositeKey = `${referee.id}_${videoId}`;
+        const indexSnap = await db.ref(`scoreIndex/${compositeKey}`).once('value');
+        const existingResultKey = indexSnap.val();
 
-        let existingKey = null;
-        let existingData = null;
+        if (existingResultKey) {
+            const existingSnap = await db.ref(`results/${existingResultKey}`).once('value');
+            const existingData = existingSnap.val();
 
-        if (existingSnap.val()) {
-            for (const [key, val] of Object.entries(existingSnap.val())) {
-                if (val.videoId === videoId) {
-                    existingKey = key;
-                    existingData = val;
-                    break;
-                }
+            if (existingData) {
+                const history = existingData.history || [];
+                history.push({
+                    d: existingData.d,
+                    e: existingData.e,
+                    deductions: existingData.deductions,
+                    points: existingData.points,
+                    timestamp: existingData.timestamp
+                });
+                await db.ref(`results/${existingResultKey}`).update({
+                    ...scoreData,
+                    history
+                });
+                const elapsed = Date.now() - startTime;
+                console.log(`[PERF] submitScore UPDATE: ${elapsed}ms (referee: ${referee.id})`);
+                return res.json({ success: true, message: 'Puan güncellendi', updated: true, id: existingResultKey });
             }
         }
 
-        if (existingKey) {
-            const history = existingData.history || [];
-            history.push({
-                d: existingData.d,
-                e: existingData.e,
-                deductions: existingData.deductions,
-                points: existingData.points,
-                timestamp: existingData.timestamp
-            });
-            await db.ref(`results/${existingKey}`).update({
-                ...scoreData,
-                history
-            });
-            const elapsed = Date.now() - startTime;
-            console.log(`[PERF] submitScore UPDATE: ${elapsed}ms (referee: ${referee.id})`);
-            res.json({ success: true, message: 'Puan güncellendi', updated: true, id: existingKey });
-        } else {
-            const newRef = db.ref('results').push();
-            await newRef.set(scoreData);
-            const elapsed = Date.now() - startTime;
-            console.log(`[PERF] submitScore CREATE: ${elapsed}ms (referee: ${referee.id})`);
-            res.json({ success: true, message: 'Puan kaydedildi', updated: false, id: newRef.key });
-        }
+        // Yeni kayıt — atomic multi-path update
+        const newRef = db.ref('results').push();
+        const updates = {};
+        updates[`results/${newRef.key}`] = scoreData;
+        updates[`scoreIndex/${compositeKey}`] = newRef.key;
+        await db.ref().update(updates);
+
+        const elapsed = Date.now() - startTime;
+        console.log(`[PERF] submitScore CREATE: ${elapsed}ms (referee: ${referee.id})`);
+        res.json({ success: true, message: 'Puan kaydedildi', updated: false, id: newRef.key });
 
     } catch (error) {
         const elapsed = Date.now() - startTime;
