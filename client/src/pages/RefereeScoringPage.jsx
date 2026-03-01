@@ -453,33 +453,76 @@ export default function RefereeScoringPage() {
                             </div>
                         )}
 
-                        {/* ===== SERBEST E — Wide Input ===== */}
+                        {/* ===== SERBEST E — Numpad ile Giriş ===== */}
                         {!video.isZorunlu && video.type === 'E' && (
                             <div className="glass-panel p-5">
-                                <div className="flex items-center gap-6">
-                                    <div className="flex-shrink-0">
+                                <div className="flex items-center justify-between mb-3">
+                                    <div>
                                         <p className="text-xs font-bold text-amber-400 uppercase tracking-widest mb-1">Düşürmeler</p>
                                         <p className="text-[10px] text-muted-foreground">10 üzerinden toplam düşürme</p>
                                     </div>
-                                    <div className="flex-1 flex items-center gap-4">
-                                        <input
-                                            type="number"
-                                            step="0.05"
-                                            min="0"
-                                            max="10"
-                                            value={deductions}
-                                            onChange={(e) => setDeductions(e.target.value)}
-                                            className="flex-1 bg-black/40 border-2 border-amber-500/25 rounded-xl px-4 py-4 text-amber-400 font-mono text-3xl text-center outline-none focus:ring-2 focus:ring-amber-500/30 placeholder:text-white/10"
-                                            placeholder="0.00"
-                                            inputMode="decimal"
-                                        />
-                                        {deductions && (
-                                            <div className="bg-amber-500/10 rounded-xl px-4 py-3 text-center border border-amber-500/15 flex-shrink-0">
-                                                <p className="text-[9px] text-amber-300 uppercase mb-0.5">E Puanı</p>
-                                                <p className="text-xl font-bold font-mono text-amber-400">{(10 - (parseFloat(deductions) || 0)).toFixed(2)}</p>
-                                            </div>
-                                        )}
-                                    </div>
+                                    {deductions && (
+                                        <div className="bg-amber-500/10 rounded-xl px-4 py-2 text-center border border-amber-500/15">
+                                            <p className="text-[9px] text-amber-300 uppercase mb-0.5">E Puanı</p>
+                                            <p className="text-xl font-bold font-mono text-amber-400">{(10 - (parseFloat(deductions) || 0)).toFixed(2)}</p>
+                                        </div>
+                                    )}
+                                </div>
+
+                                {/* Değer Gösterimi */}
+                                <div className="bg-black/40 border-2 border-amber-500/25 rounded-xl px-4 py-4 mb-4 text-center">
+                                    <span className="text-amber-400 font-mono text-4xl font-bold">
+                                        {deductions || '0.00'}
+                                    </span>
+                                </div>
+
+                                {/* Numpad */}
+                                <div className="grid grid-cols-4 gap-2">
+                                    {['1', '2', '3', '⌫', '4', '5', '6', 'C', '7', '8', '9', '.', '0', '0.1', '0.5', ''].map((key) => {
+                                        if (key === '') return <div key="empty" />;
+
+                                        const isAction = key === '⌫' || key === 'C';
+                                        const isDot = key === '.';
+                                        const isPreset = key === '0.1' || key === '0.5';
+
+                                        return (
+                                            <button
+                                                key={key}
+                                                onClick={() => {
+                                                    if (key === '⌫') {
+                                                        setDeductions(prev => prev.slice(0, -1) || '');
+                                                    } else if (key === 'C') {
+                                                        setDeductions('');
+                                                    } else if (isPreset) {
+                                                        // Preset: mevcut değere ekle
+                                                        const current = parseFloat(deductions) || 0;
+                                                        const added = current + parseFloat(key);
+                                                        if (added <= 10) setDeductions(added.toFixed(2));
+                                                    } else if (isDot) {
+                                                        if (!deductions.includes('.')) {
+                                                            setDeductions(prev => (prev || '0') + '.');
+                                                        }
+                                                    } else {
+                                                        // Digit
+                                                        const newVal = (deductions || '') + key;
+                                                        if (parseFloat(newVal) <= 10) {
+                                                            setDeductions(newVal);
+                                                        }
+                                                    }
+                                                }}
+                                                className={`py-4 rounded-xl font-bold text-lg transition-all active:scale-95 ${key === 'C'
+                                                        ? 'bg-red-500/15 text-red-400 border border-red-500/20 hover:bg-red-500/25'
+                                                        : key === '⌫'
+                                                            ? 'bg-white/5 text-white/60 border border-white/10 hover:bg-white/10'
+                                                            : isPreset
+                                                                ? 'bg-amber-500/15 text-amber-400 border border-amber-500/20 hover:bg-amber-500/25 text-sm'
+                                                                : 'bg-white/5 text-white border border-white/8 hover:bg-white/10'
+                                                    }`}
+                                            >
+                                                {key}
+                                            </button>
+                                        );
+                                    })}
                                 </div>
                             </div>
                         )}
