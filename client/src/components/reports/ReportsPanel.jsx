@@ -9,7 +9,8 @@ const TABS = [
     { id: 'KP', label: 'Kız Paraleli' },
     { id: 'D', label: 'Denge' },
     { id: 'Y', label: 'Yer' },
-    { id: 'deviation', label: 'Sapma Analizi' }
+    { id: 'deviation', label: 'Sapma Analizi' },
+    { id: 'missing', label: 'Eksik Giriş Raporu' }
 ];
 
 export default function ReportsPanel() {
@@ -546,6 +547,101 @@ export default function ReportsPanel() {
         );
     };
 
+    const renderMissingScoresReport = () => {
+        // 1. Bu sınavdaki videoları alet bazında grupla
+        const apparatusVideos = { 'AtM': [], 'KP': [], 'D': [], 'Y': [] };
+        examVideos.forEach(v => {
+            if (apparatusVideos[v.apparatus]) {
+                apparatusVideos[v.apparatus].push(v);
+            }
+        });
+
+        // 2. Her hakem için alet bazında durum hesapla
+        const missingData = referees.map(ref => {
+            const refResults = examResults.filter(r => r.refereeId === ref.id);
+
+            const stats = {};
+            Object.keys(apparatusVideos).forEach(app => {
+                const totalVids = apparatusVideos[app].length;
+                if (totalVids === 0) return;
+
+                const scoredVids = new Set(refResults.filter(r => {
+                    const vid = getVideo(r.videoId);
+                    return vid && vid.apparatus === app;
+                }).map(r => r.videoId)).size;
+
+                if (scoredVids < totalVids) {
+                    stats[app] = {
+                        scored: scoredVids,
+                        total: totalVids,
+                        missing: totalVids - scoredVids
+                    };
+                }
+            });
+
+            return Object.keys(stats).length > 0 ? { ref, stats } : null;
+        }).filter(Boolean);
+
+        if (missingData.length === 0) {
+            return (
+                <div className="glass-panel p-12 text-center text-emerald-400 border border-emerald-500/20 bg-emerald-500/5">
+                    Tüm hakemler tüm videoları puanlamış. Eksik giriş bulunamadı.
+                </div>
+            );
+        }
+
+        return (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                {Object.keys(apparatusVideos).map(app => {
+                    const appMissing = missingData.filter(d => d.stats[app]);
+                    if (apparatusVideos[app].length === 0) return null;
+
+                    return (
+                        <div key={app} className="glass-panel overflow-hidden border border-white/5 h-full">
+                            <div className="bg-white/5 p-4 border-b border-white/5 flex items-center justify-between">
+                                <h3 className="font-bold text-white text-sm">{getApparatusName(app)}</h3>
+                                <span className="text-[10px] bg-white/10 px-2 py-0.5 rounded text-muted-foreground">
+                                    {apparatusVideos[app].length} Video
+                                </span>
+                            </div>
+                            <div className="p-4 space-y-3 max-h-[400px] overflow-y-auto custom-scrollbar">
+                                {appMissing.length > 0 ? (
+                                    appMissing.sort((a, b) => b.stats[app].missing - a.stats[app].missing).map(d => (
+                                        <div key={d.ref.id} className="flex flex-col gap-1 p-3 rounded-lg bg-black/20 border border-white/5">
+                                            <div className="flex justify-between items-start">
+                                                <span className="text-sm font-medium text-white/90 truncate mr-2" title={d.ref.name}>
+                                                    {d.ref.name}
+                                                </span>
+                                                <span className="text-[11px] font-bold text-red-400 whitespace-nowrap">
+                                                    -{d.stats[app].missing}
+                                                </span>
+                                            </div>
+                                            <div className="flex items-center gap-2 mt-1">
+                                                <div className="flex-1 h-1 bg-white/5 rounded-full overflow-hidden">
+                                                    <div
+                                                        className="h-full bg-red-500/50"
+                                                        style={{ width: `${(d.stats[app].scored / d.stats[app].total) * 100}%` }}
+                                                    />
+                                                </div>
+                                                <span className="text-[10px] text-muted-foreground font-mono">
+                                                    {d.stats[app].scored}/{d.stats[app].total}
+                                                </span>
+                                            </div>
+                                        </div>
+                                    ))
+                                ) : (
+                                    <div className="py-8 text-center text-[11px] text-emerald-400/60 italic">
+                                        Eksik giriş yok
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                    );
+                })}
+            </div>
+        );
+    };
+
     return (
         <div className="space-y-6 animate-in fade-in duration-500 pb-12">
             {/* Header & Exam Filter */}
@@ -679,6 +775,9 @@ export default function ReportsPanel() {
 
                         {/* DEVIATION TAB */}
                         {activeTab === 'deviation' && renderDeviationAnalysis()}
+
+                        {/* MISSING TAB */}
+                        {activeTab === 'missing' && renderMissingScoresReport()}
 
                         {/* APPARATUS TABS */}
                         {['AtM', 'KP', 'D', 'Y'].includes(activeTab) && (
