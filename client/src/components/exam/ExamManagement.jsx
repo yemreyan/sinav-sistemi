@@ -1,9 +1,17 @@
 import { useState, useEffect } from 'react';
-import { examAPI } from '../../services/api';
+import { Link } from 'react-router-dom';
+import { examAPI, videoAPI } from '../../services/api';
 
 export default function ExamManagement() {
     const [exams, setExams] = useState([]);
+    const [videos, setVideos] = useState([]);
     const [loading, setLoading] = useState(true);
+
+    // Bir yarışmaya bağlı seriler — arşivdeki geçmişi buradan takip ediyoruz
+    const seriesOf = (examId) => videos.filter(v => {
+        const linked = Array.isArray(v.examIds) ? v.examIds : (v.examId ? [v.examId] : []);
+        return linked.includes(examId);
+    });
 
     // Modal states
     const [confirmModal, setConfirmModal] = useState({ isOpen: false, type: '', message: '', targetId: null, isPrompt: false });
@@ -11,10 +19,9 @@ export default function ExamManagement() {
 
     const fetchExams = async () => {
         try {
-            const { data } = await examAPI.getAll();
-            if (data.success) {
-                setExams(data.data || []);
-            }
+            const [examRes, videoRes] = await Promise.all([examAPI.getAll(), videoAPI.getAll()]);
+            if (examRes.data.success) setExams(examRes.data.data || []);
+            if (videoRes.data.success) setVideos(videoRes.data.data || []);
         } catch (error) {
             console.error("Failed to load exams", error);
         } finally {
@@ -36,11 +43,31 @@ export default function ExamManagement() {
         });
     };
 
-    const handleArchive = (id) => {
+    const handleArchive = async (id) => {
+        let impact = null;
+        try {
+            const { data } = await examAPI.archiveImpact(id);
+            if (data.success) impact = data.data;
+        } catch (error) {
+            console.error("Failed to read archive impact", error);
+        }
+
+        const parts = [];
+        if (impact === null) {
+            parts.push('Bağlı seriler ve podyumlar da kapatılacak.');
+        } else {
+            parts.push(impact.videoCount === 0
+                ? 'Birlikte arşivlenecek seri yok.'
+                : `${impact.videoCount} seri de arşivlenecek (başka bir aktif yarışmada kullanılanlar açık kalır).`);
+            parts.push(impact.podiumCount === 0
+                ? 'Kapatılacak podyum yok.'
+                : `${impact.podiumCount} podyum kapatılacak — hakemler "Yarışma Sona Erdi" ekranını görecek ve puan giremeyecek.`);
+        }
+
         setConfirmModal({
             isOpen: true,
             type: 'archive',
-            message: 'Bu sınavı arşivlemek istediğinize emin misiniz?',
+            message: `Bu yarışmayı arşivlemek istediğinize emin misiniz? ${parts.join(' ')} Geri aldığınızda seriler açılır, podyumlar beklemeye (IDLE) döner.`,
             targetId: id,
             isPrompt: false
         });
@@ -92,6 +119,9 @@ export default function ExamManagement() {
                                 <div>
                                     <h3 className="font-bold text-white text-lg">{exam.name}</h3>
                                     <p className="text-xs text-muted-foreground mt-1">{exam.discipline} • {new Date(exam.createdAt).toLocaleDateString('tr-TR')}</p>
+                                    <Link to={`/emre/videos?exam=${exam.id}`} className="text-xs text-primary hover:text-blue-300 transition-colors mt-1 inline-block">
+                                        {seriesOf(exam.id).length} seri →
+                                    </Link>
                                 </div>
                                 <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
                                     <button onClick={() => handleArchive(exam.id)} className="px-3 py-1 bg-white/5 hover:bg-white/10 text-white text-xs rounded-md border border-white/10">Arşivle</button>
@@ -110,12 +140,21 @@ export default function ExamManagement() {
                         <span className="w-2 h-2 rounded-full bg-slate-500"></span>
                         Arşivlenmiş Sınavlar
                     </h2>
+                    <p className="text-xs text-muted-foreground mb-4 -mt-2">
+                        Arşivlenen yarışmalar ve serileri yalnızca burada, yönetici girişiyle görünür.
+                    </p>
                     <div className="space-y-4">
                         {exams.filter(e => e.status === 'archived').map(exam => (
                             <div key={exam.id} className="p-4 rounded-xl border border-white/5 bg-black/20 flex justify-between items-center">
                                 <div>
                                     <h3 className="font-medium text-white/70">{exam.name}</h3>
-                                    <p className="text-xs text-white/40 mt-1">{exam.discipline} • {new Date(exam.createdAt).toLocaleDateString('tr-TR')}</p>
+                                    <p className="text-xs text-white/40 mt-1">
+                                        {exam.discipline} • {new Date(exam.createdAt).toLocaleDateString('tr-TR')}
+                                        {exam.archivedAt ? ` • arşiv: ${new Date(exam.archivedAt).toLocaleDateString('tr-TR')}` : ''}
+                                    </p>
+                                    <Link to={`/emre/videos?exam=${exam.id}&tab=archive`} className="text-xs text-primary hover:text-blue-300 transition-colors mt-1 inline-block">
+                                        {seriesOf(exam.id).length} seri →
+                                    </Link>
                                 </div>
                                 <div className="flex gap-2">
                                     <button onClick={() => handleRestore(exam.id)} className="text-xs text-primary hover:text-blue-300 transition-colors">Geri Al</button>

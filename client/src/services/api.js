@@ -1,22 +1,44 @@
 import axios from 'axios';
+import { getToken, clearToken } from './auth';
 
 const api = axios.create({
-    baseURL: 'https://sinav-backend.onrender.com/api',
+    // Lokal geliştirmede client/.env.local içine VITE_API_URL=http://localhost:3001/api yazın
+    baseURL: import.meta.env.VITE_API_URL || 'https://sinav-backend.onrender.com/api',
     headers: {
         'Content-Type': 'application/json'
     }
 });
 
 api.interceptors.request.use((config) => {
-    const token = localStorage.getItem('adminToken');
+    const token = getToken();
     if (token) {
         config.headers.Authorization = `Bearer ${token}`;
     }
     return config;
 });
 
+// Token düştüyse (süre doldu / geçersiz) oturumu kapat ve giriş ekranına dön.
+// Giriş denemesinin kendisi hariç — oradaki 401 "hatalı şifre" demek, oturum
+// düşmesi değil; sayfayı yenilersek hata mesajı da silinir.
+const LOGIN_PATH = '/emre/login';
+
+api.interceptors.response.use(
+    (response) => response,
+    (error) => {
+        const isLoginRequest = error.config?.url?.includes('/admin/login');
+        const onAdminPage = window.location.pathname.startsWith('/emre');
+
+        if (error.response?.status === 401 && !isLoginRequest && onAdminPage && window.location.pathname !== LOGIN_PATH) {
+            clearToken();
+            window.location.replace(LOGIN_PATH);
+        }
+        return Promise.reject(error);
+    }
+);
+
 export const examAPI = {
     getAll: () => api.get('/exams'),
+    archiveImpact: (id) => api.get(`/exams/${id}/archive-impact`),
     create: (data) => api.post('/exams', data),
     archive: (id) => api.put(`/exams/${id}/archive`),
     restore: (id) => api.put(`/exams/${id}/restore`),

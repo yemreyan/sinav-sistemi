@@ -1,20 +1,34 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ChevronRight, Lock } from 'lucide-react';
+import { authAPI } from '../services/api';
+import { setToken } from '../services/auth';
 
 export default function AdminLogin() {
     const [password, setPassword] = useState('');
     const [error, setError] = useState('');
+    const [loading, setLoading] = useState(false);
     const navigate = useNavigate();
 
-    const handleLogin = (e) => {
+    const handleLogin = async (e) => {
         e.preventDefault();
-        // Temporary hardcoded logic from old system
-        if (password === '63352180') {
-            localStorage.setItem('adminLoggedIn', 'true');
-            navigate('/');
-        } else {
-            setError('Hatalı Şifre!');
+        setError('');
+        setLoading(true);
+
+        try {
+            // Şifre sunucuda doğrulanır; tarayıcıya yalnızca imzalı token iner
+            const res = await authAPI.login(password);
+            setToken(res.data.token);
+            navigate('/emre', { replace: true });
+        } catch (err) {
+            const status = err.response?.status;
+            setError(
+                status === 401
+                    ? 'Hatalı Şifre!'
+                    : err.response?.data?.message || 'Sunucuya ulaşılamadı'
+            );
+        } finally {
+            setLoading(false);
         }
     };
 
@@ -53,9 +67,10 @@ export default function AdminLogin() {
 
                     <button
                         type="submit"
-                        className="w-full bg-primary hover:bg-primary/90 text-primary-foreground font-semibold py-3 px-4 rounded-lg flex items-center justify-center gap-2 group transition-all"
+                        disabled={loading}
+                        className="w-full bg-primary hover:bg-primary/90 disabled:opacity-60 disabled:cursor-not-allowed text-primary-foreground font-semibold py-3 px-4 rounded-lg flex items-center justify-center gap-2 group transition-all"
                     >
-                        Giriş Yap
+                        {loading ? 'Kontrol ediliyor…' : 'Giriş Yap'}
                         <ChevronRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
                     </button>
                 </form>

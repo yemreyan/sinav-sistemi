@@ -1,15 +1,31 @@
 // videoController.js
 const { db } = require('../config/firebase');
+const { isAdminRequest } = require('../utils/adminAuth');
+const { isVideoPublic } = require('../utils/examLinks');
+const { invalidateCache } = require('./sharedCache');
 
 exports.getAllVideos = async (req, res) => {
     try {
-        const snapshot = await db.ref('videos').once('value');
-        const data = snapshot.val() || {};
+        const isAdmin = isAdminRequest(req);
 
-        const videosArray = Object.keys(data).map(key => ({
+        // Arşiv görünürlüğü sınavın durumuna da bağlı — yöneticiye hepsi, diğerlerine
+        // yalnızca aktif bir sınavda kullanılan seriler döner.
+        const [videosSnap, examsSnap] = await Promise.all([
+            db.ref('videos').once('value'),
+            isAdmin ? Promise.resolve(null) : db.ref('exams').once('value')
+        ]);
+
+        const data = videosSnap.val() || {};
+        const examsById = examsSnap ? (examsSnap.val() || {}) : {};
+
+        let videosArray = Object.keys(data).map(key => ({
             id: key,
             ...data[key]
         }));
+
+        if (!isAdmin) {
+            videosArray = videosArray.filter(video => isVideoPublic(video, examsById));
+        }
 
         res.json({ success: true, data: videosArray });
     } catch (error) {
@@ -49,7 +65,15 @@ exports.updateVideo = async (req, res) => {
         const { id } = req.params;
         const updates = req.body;
         delete updates.id; // don't overwrite the key
+
+        // Arşiv durumu elle değiştirildiyse sınav bağını kopar: elle arşivlenen seri
+        // sınav geri alınınca kendiliğinden açılmamalı, elle açılan da yine kapanmamalı.
+        if (Object.prototype.hasOwnProperty.call(updates, 'isArchived')) {
+            updates.archivedByExam = null;
+        }
+
         await db.ref(`videos/${id}`).update(updates);
+        invalidateCache('videos', id);
         res.json({ success: true, message: 'Video updated' });
     } catch (error) {
         console.error('Update Video Error:', error);

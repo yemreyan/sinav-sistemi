@@ -1,12 +1,13 @@
 import { Outlet, NavLink, useNavigate } from 'react-router-dom';
 import { LayoutDashboard, Users, Video, FileText, Settings, LogOut, Grid3X3, PenSquare, BarChart3, Tv } from 'lucide-react';
+import { clearToken } from '../services/auth';
 
 export default function AdminLayout() {
     const navigate = useNavigate();
 
     const handleLogout = () => {
-        localStorage.removeItem('adminLoggedIn');
-        navigate('/login');
+        clearToken();
+        navigate('/emre/login', { replace: true });
     };
 
     const navLinks = [

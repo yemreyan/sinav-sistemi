@@ -124,14 +124,18 @@ exports.getPodiumState = async (req, res) => {
             })()
         ]);
 
+        const isArchived = Boolean(podium.archivedByExam);
+
         const responseData = {
             success: true,
             data: {
                 podiumName: podium.name,
                 examId: podium.examId || '',
                 examName,
-                status: podium.state?.status || 'IDLE',
-                activeVideo
+                status: isArchived ? 'ARCHIVED' : (podium.state?.status || 'IDLE'),
+                isArchived,
+                // Arşivlenmiş yarışmada hakeme seri gösterilmez
+                activeVideo: isArchived ? null : activeVideo
             }
         };
 
@@ -173,6 +177,15 @@ exports.submitScore = async (req, res) => {
         let currentExamId = '';
         if (referee.podiumId) {
             const podium = await getPodiumById(referee.podiumId);
+
+            // Yarışma arşivlendiyse podyum kapalıdır — yeni puan kabul edilmez
+            if (podium?.archivedByExam) {
+                return res.status(403).json({
+                    success: false,
+                    message: 'Bu yarışma sona erdi, puan girişi kapalı'
+                });
+            }
+
             if (podium?.examId) currentExamId = podium.examId;
         }
 

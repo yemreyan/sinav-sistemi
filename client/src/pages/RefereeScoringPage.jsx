@@ -260,7 +260,8 @@ export default function RefereeScoringPage() {
 
     // --- MAIN SCORING ---
     const video = podiumData?.activeVideo;
-    const isWaiting = !video || podiumData?.status === 'IDLE';
+    const isExamArchived = podiumData?.isArchived || podiumData?.status === 'ARCHIVED';
+    const isWaiting = !isExamArchived && (!video || podiumData?.status === 'IDLE');
 
     // Sort moves for zorunlu
     const sortedMoves = video?.expertDMoves
@@ -290,7 +291,21 @@ export default function RefereeScoringPage() {
 
             {/* ===== CONTENT ===== */}
             <main className="flex-1 flex items-start justify-center p-4">
-                {isWaiting ? (
+                {isExamArchived ? (
+                    /* ====== YARIŞMA SONA ERDİ ====== */
+                    <div className="flex flex-col items-center justify-center py-20 space-y-4 text-center">
+                        <div className="w-20 h-20 rounded-full bg-white/5 flex items-center justify-center border border-white/10">
+                            <span className="text-3xl">🏁</span>
+                        </div>
+                        <div>
+                            <h2 className="text-lg font-bold text-white mb-1">Yarışma Sona Erdi</h2>
+                            <p className="text-muted-foreground text-xs max-w-[280px]">
+                                {podiumData?.examName ? `"${podiumData.examName}" ` : ''}arşivlendi. Bu podyumda puan girişi kapatıldı;
+                                girdiğiniz puanlar kayıtlı.
+                            </p>
+                        </div>
+                    </div>
+                ) : isWaiting ? (
                     /* ====== WAITING ====== */
                     <div className="flex flex-col items-center justify-center py-20 space-y-4 text-center">
                         <div className="relative">

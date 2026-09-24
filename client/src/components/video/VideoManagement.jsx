@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { videoAPI, examAPI } from '../../services/api';
 
 const APPARATUS_MAP = { 'AtM': 'Atlama Masası', 'KP': 'Kız Paraleli', 'D': 'Denge', 'Y': 'Yer' };
@@ -132,11 +133,13 @@ function ZorunluDMoves({ apparatus, moveCount, setMoveCount, formMoves, onMoveFi
 }
 
 export default function VideoManagement() {
-    const [activeTab, setActiveTab] = useState('list');
+    const [searchParams] = useSearchParams();
+    const [activeTab, setActiveTab] = useState(searchParams.get('tab') === 'archive' ? 'archive' : 'list');
     const [videos, setVideos] = useState([]);
     const [exams, setExams] = useState([]);
 
     const [filterApparatus, setFilterApparatus] = useState('all');
+    const [filterExam, setFilterExam] = useState(searchParams.get('exam') || 'all');
     const [filterType, setFilterType] = useState('all');
     const [filterSearch, setFilterSearch] = useState('');
 
@@ -322,6 +325,15 @@ export default function VideoManagement() {
         if (activeTab === 'list' && v.isArchived) return false;
         if (activeTab === 'archive' && !v.isArchived) return false;
 
+        if (filterExam !== 'all') {
+            const linked = Array.isArray(v.examIds) ? v.examIds : (v.examId ? [v.examId] : []);
+            if (filterExam === 'none') {
+                if (linked.length > 0) return false;
+            } else if (!linked.includes(filterExam)) {
+                return false;
+            }
+        }
+
         if (filterApparatus !== 'all' && v.apparatus !== filterApparatus) return false;
         if (filterType !== 'all' && v.type !== filterType) return false;
         if (filterSearch && !v.title?.toLowerCase().includes(filterSearch.toLowerCase())) return false;
@@ -349,6 +361,16 @@ export default function VideoManagement() {
                     <div className="glass-panel p-4">
                         <h4 className="text-sm font-bold text-white mb-3">Seri Filtrele</h4>
                         <div className="flex gap-4 flex-wrap">
+                            <select value={filterExam} onChange={(e) => setFilterExam(e.target.value)}
+                                className="bg-black/20 border border-white/10 rounded-lg px-3 py-2 text-white text-sm min-w-[200px]">
+                                <option value="all">Tüm Yarışmalar</option>
+                                {exams.map(e => (
+                                    <option key={e.id} value={e.id}>
+                                        {e.name}{e.status === 'archived' ? ' (arşiv)' : ''}
+                                    </option>
+                                ))}
+                                <option value="none">Yarışmaya bağlı olmayanlar</option>
+                            </select>
                             <select value={filterApparatus} onChange={(e) => setFilterApparatus(e.target.value)}
                                 className="bg-black/20 border border-white/10 rounded-lg px-3 py-2 text-white text-sm min-w-[150px]">
                                 <option value="all">Tüm Aletler</option>
@@ -369,6 +391,8 @@ export default function VideoManagement() {
                         {filteredVideos.map((video) => {
                             const mc = countExistingMoves(video.expertDMoves);
                             const displayCount = isVault(video.apparatus) ? 1 : mc;
+                            const linkedExamIds = Array.isArray(video.examIds) ? video.examIds : (video.examId ? [video.examId] : []);
+                            const linkedExams = linkedExamIds.map(id => ({ id, exam: exams.find(e => e.id === id) }));
 
                             return (
                                 <div key={video.id} className={`glass-panel overflow-hidden group hover:scale-[1.02] transition-transform duration-300 relative ${video.isArchived ? 'opacity-60 saturate-50 hover:opacity-100 hover:saturate-100' : ''}`}>
@@ -404,11 +428,25 @@ export default function VideoManagement() {
                                                     : video.type === 'E' ? `E: ${video.expertE}` : `D: ${video.expertD}`}
                                             </span>
                                         </div>
-                                        <div className="mt-2 text-[10px] text-muted-foreground bg-black/20 p-2 rounded-md">
-                                            {(video.examIds && video.examIds.length > 0)
-                                                ? <span className="text-emerald-400/80">{video.examIds.length} sınava bağlı</span>
-                                                : <span>Hiçbir sınava bağlı değil</span>
+                                        <div className="mt-2 text-[10px] text-muted-foreground bg-black/20 p-2 rounded-md space-y-1.5">
+                                            {linkedExams.length === 0
+                                                ? <span>Hiçbir yarışmaya bağlı değil</span>
+                                                : (
+                                                    <div className="flex flex-wrap gap-1">
+                                                        {linkedExams.map(({ id, exam }) => (
+                                                            <span key={id}
+                                                                className={`px-1.5 py-0.5 rounded border ${exam?.status === 'archived'
+                                                                    ? 'bg-white/5 text-white/40 border-white/5'
+                                                                    : 'bg-emerald-500/10 text-emerald-400/90 border-emerald-500/20'}`}>
+                                                                {exam ? exam.name : 'silinmiş yarışma'}{exam?.status === 'archived' ? ' • arşiv' : ''}
+                                                            </span>
+                                                        ))}
+                                                    </div>
+                                                )
                                             }
+                                            {video.archivedByExam && (
+                                                <div className="text-amber-400/80">📦 Yarışma arşiviyle birlikte kapatıldı</div>
+                                            )}
                                         </div>
                                         {/* Zorunlu move detail grid */}
                                         {video.isZorunlu && video.expertDMoves && displayCount > 0 && (

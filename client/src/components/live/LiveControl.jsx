@@ -147,6 +147,8 @@ export default function LiveControl() {
                     const statusColor = {
                         'SCORING': 'emerald', 'PAUSED': 'amber', 'PREPARATION': 'blue'
                     }[podium.state?.status] || 'slate';
+                    // Yarışma arşivlendiyse podyum kapalıdır — kontroller kilitli
+                    const isArchived = Boolean(podium.archivedByExam);
 
                     return (
                         <div key={podium.id} className="glass-panel p-6 shadow-2xl relative overflow-hidden group">
@@ -171,8 +173,13 @@ export default function LiveControl() {
                                     <div className="flex items-center gap-2 mt-2">
                                         <span className={`w-2 h-2 rounded-full bg-${statusColor}-400 ${podium.state?.status === 'SCORING' ? 'animate-pulse' : ''}`}></span>
                                         <span className={`text-xs font-semibold tracking-wider uppercase text-${statusColor}-400`}>
-                                            {podium.state?.status || 'IDLE'}
+                                            {isArchived ? 'ARŞİV' : (podium.state?.status || 'IDLE')}
                                         </span>
+                                        {isArchived && (
+                                            <span className="text-[10px] text-amber-400/80 bg-amber-500/10 border border-amber-500/20 px-2 py-0.5 rounded">
+                                                🏁 Yarışma arşivlendi — puan girişi kapalı
+                                            </span>
+                                        )}
                                     </div>
                                 </div>
 
@@ -182,20 +189,26 @@ export default function LiveControl() {
                             </div>
 
                             {/* Control Buttons */}
-                            <div className="flex gap-2 mb-4">
-                                <button onClick={() => controlPodium(podium.id, 'START')}
-                                    className="flex-1 px-3 py-2 rounded-lg bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-400 font-bold text-sm transition-colors border border-emerald-500/30">
-                                    ▶ BAŞLAT
-                                </button>
-                                <button onClick={() => controlPodium(podium.id, 'STOP')}
-                                    className="flex-1 px-3 py-2 rounded-lg bg-amber-500/20 hover:bg-amber-500/30 text-amber-400 font-bold text-sm transition-colors border border-amber-500/30">
-                                    ⏸ DURDUR
-                                </button>
-                                <button onClick={() => controlPodium(podium.id, 'RESET')}
-                                    className="flex-1 px-3 py-2 rounded-lg bg-red-500/20 hover:bg-red-500/30 text-red-400 font-bold text-sm transition-colors border border-red-500/30">
-                                    🔄 SIFIRLA
-                                </button>
-                            </div>
+                            {isArchived ? (
+                                <div className="mb-4 px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-xs text-muted-foreground text-center">
+                                    Bu podyumun yarışması arşivde. Kontrolleri açmak için Sınav Yönetimi&apos;nden yarışmayı geri alın.
+                                </div>
+                            ) : (
+                                <div className="flex gap-2 mb-4">
+                                    <button onClick={() => controlPodium(podium.id, 'START')}
+                                        className="flex-1 px-3 py-2 rounded-lg bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-400 font-bold text-sm transition-colors border border-emerald-500/30">
+                                        ▶ BAŞLAT
+                                    </button>
+                                    <button onClick={() => controlPodium(podium.id, 'STOP')}
+                                        className="flex-1 px-3 py-2 rounded-lg bg-amber-500/20 hover:bg-amber-500/30 text-amber-400 font-bold text-sm transition-colors border border-amber-500/30">
+                                        ⏸ DURDUR
+                                    </button>
+                                    <button onClick={() => controlPodium(podium.id, 'RESET')}
+                                        className="flex-1 px-3 py-2 rounded-lg bg-red-500/20 hover:bg-red-500/30 text-red-400 font-bold text-sm transition-colors border border-red-500/30">
+                                        🔄 SIFIRLA
+                                    </button>
+                                </div>
+                            )}
 
                             <div className="space-y-4 relative z-10">
                                 {/* Exam Selection */}

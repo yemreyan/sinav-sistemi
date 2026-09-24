@@ -12,10 +12,19 @@ import ResultsMatrix from './components/results/ResultsMatrix';
 import BulkScores from './components/scores/BulkScores';
 import RefereeScoringPage from './pages/RefereeScoringPage';
 import StatsView from './components/stats/StatsView';
+import { isLoggedIn } from './services/auth';
+
+// Oturum her gezinmede yeniden okunur — App bir kez render edildiği için
+// durumu App gövdesinde tutmak girişten sonra güncellenmiyordu.
+function AdminGate() {
+  return isLoggedIn() ? <AdminLayout /> : <Navigate to="/emre/login" replace />;
+}
+
+function LoginGate() {
+  return isLoggedIn() ? <Navigate to="/emre" replace /> : <AdminLogin />;
+}
 
 function App() {
-  const isAuthenticated = localStorage.getItem('adminLoggedIn') === 'true';
-
   return (
     <BrowserRouter>
       <Routes>
@@ -23,16 +32,10 @@ function App() {
         <Route path="/" element={<RefereeScoringPage />} />
 
         {/* Admin Login — Artık /emre/login altında */}
-        <Route
-          path="/emre/login"
-          element={!isAuthenticated ? <AdminLogin /> : <Navigate to="/emre" replace />}
-        />
+        <Route path="/emre/login" element={<LoginGate />} />
 
         {/* Admin Layout (Tüm Panel) — Artık /emre altında */}
-        <Route
-          path="/emre"
-          element={isAuthenticated ? <AdminLayout /> : <Navigate to="/emre/login" replace />}
-        >
+        <Route path="/emre" element={<AdminGate />}>
           <Route index element={<Dashboard />} />
           <Route path="exams" element={<ExamManagement />} />
           <Route path="live" element={<LiveControl />} />

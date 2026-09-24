@@ -1,14 +1,35 @@
 const { db } = require('../config/firebase');
+const { isAdminRequest } = require('../utils/adminAuth');
+
+// Arşivlenmiş sınavların id kümesi — sonuçları dışarıya kapatmak için
+async function getArchivedExamIds() {
+    const snapshot = await db.ref('exams').once('value');
+    const exams = snapshot.val() || {};
+    return new Set(
+        Object.keys(exams).filter(id => exams[id]?.status === 'archived')
+    );
+}
 
 exports.getAllResults = async (req, res) => {
     try {
-        const snapshot = await db.ref('results').once('value');
+        const isAdmin = isAdminRequest(req);
+
+        const [snapshot, archivedExamIds] = await Promise.all([
+            db.ref('results').once('value'),
+            isAdmin ? Promise.resolve(new Set()) : getArchivedExamIds()
+        ]);
+
         const data = snapshot.val() || {};
 
-        const resultsArray = Object.keys(data).map(key => ({
+        let resultsArray = Object.keys(data).map(key => ({
             id: key,
             ...data[key]
         }));
+
+        // Arşivlenmiş sınavların sonuçları yalnızca yöneticiye görünür
+        if (!isAdmin && archivedExamIds.size > 0) {
+            resultsArray = resultsArray.filter(result => !archivedExamIds.has(result.examId));
+        }
 
         res.json({ success: true, data: resultsArray });
     } catch (error) {
@@ -19,6 +40,8 @@ exports.getAllResults = async (req, res) => {
 
 exports.getStats = async (req, res) => {
     try {
+        const isAdmin = isAdminRequest(req);
+
         const [examsSnap, videosSnap, refereesSnap, podiumsSnap, resultsSnap] = await Promise.all([
             db.ref('exams').once('value'),
             db.ref('videos').once('value'),
@@ -36,17 +59,34 @@ exports.getStats = async (req, res) => {
         const activeExams = Object.values(exams).filter(e => e.status === 'active');
         const activePodiums = Object.values(podiums).filter(p => p.state?.status === 'SCORING');
 
+        const archivedExamIds = new Set(
+            Object.keys(exams).filter(id => exams[id]?.status === 'archived')
+        );
+
+        // Yönetici dışındaki istekler arşivlenmiş sınavların hiçbir sayısını görmez
+        const visibleExamCount = isAdmin ? Object.keys(exams).length : activeExams.length;
+
+        const visibleVideos = isAdmin
+            ? Object.values(videos)
+            : Object.values(videos).filter(v => !v.isArchived);
+
+        const visibleResults = isAdmin
+            ? Object.values(results)
+            : Object.values(results).filter(r => !archivedExamIds.has(r.examId));
+
         res.json({
             success: true,
             data: {
-                totalExams: Object.keys(exams).length,
+                totalExams: visibleExamCount,
                 activeExams: activeExams.length,
                 activeExamName: activeExams.length > 0 ? activeExams[0].name : 'Yok',
-                totalVideos: Object.keys(videos).length,
+                archivedExams: isAdmin ? archivedExamIds.size : 0,
+                totalVideos: visibleVideos.length,
+                archivedVideos: isAdmin ? Object.values(videos).filter(v => v.isArchived).length : 0,
                 totalReferees: Object.keys(referees).length,
                 totalPodiums: Object.keys(podiums).length,
                 activePodiums: activePodiums.length,
-                totalResults: Object.keys(results).length
+                totalResults: visibleResults.length
             }
         });
     } catch (error) {

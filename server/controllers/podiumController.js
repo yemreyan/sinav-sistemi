@@ -1,16 +1,22 @@
 // podiumController.js — Cache invalidation ile optimize edilmiş
 const { db } = require('../config/firebase');
 const { invalidatePodium } = require('./sharedCache');
+const { isAdminRequest } = require('../utils/adminAuth');
 
 exports.getAllPodiums = async (req, res) => {
     try {
         const snapshot = await db.ref('podiums').once('value');
         const data = snapshot.val() || {};
 
-        const podiumsArray = Object.keys(data).map(key => ({
+        let podiumsArray = Object.keys(data).map(key => ({
             id: key,
             ...data[key]
         }));
+
+        // Arşivlenmiş yarışmanın podyumları yalnızca yöneticiye görünür
+        if (!isAdminRequest(req)) {
+            podiumsArray = podiumsArray.filter(podium => !podium.archivedByExam);
+        }
 
         res.json({ success: true, data: podiumsArray });
     } catch (error) {
