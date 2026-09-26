@@ -17,8 +17,9 @@ const scoreController = require('../controllers/scoreController');
 // 1. Auth / Admin Routes
 router.post('/admin/login', adminController.login);
 
-// NOT: Okuma (GET) uçları açık — hakem ekranı ve canlı sonuç sayfaları bunlara
-// giriş yapmadan erişiyor. Veriyi değiştiren tüm uçlar requireAdmin ile korunur.
+// NOT: Okuma (GET) uçları hakem ekranı ve canlı sonuç sayfaları için açık; arşivlenmiş
+// içerik bu yanıtlardan süzülür. Hakem listesi istisnadır — kişisel veri taşıdığı için
+// okuması da yönetici girişine bağlıdır. Veriyi değiştiren tüm uçlar requireAdmin ile korunur.
 
 // 2. Exam Routes
 router.get('/exams', examController.getAllExams);
@@ -42,7 +43,9 @@ router.put('/videos/:id', requireAdmin, videoController.updateVideo);
 router.delete('/videos/:id', requireAdmin, videoController.deleteVideo);
 
 // 5. Referee Routes
-router.get('/referees', refereeController.getAllReferees);
+// Hakem listesi kişisel veri (ad + e-posta) taşır — okuması da yönetici girişine bağlı.
+// Hakemlerin kendi girişi /scores/auth üzerinden yapılır, bu uca ihtiyaç duymaz.
+router.get('/referees', requireAdmin, refereeController.getAllReferees);
 router.post('/referees', requireAdmin, refereeController.createReferee);
 router.put('/referees/:id', requireAdmin, refereeController.updateReferee);
 router.delete('/referees/:id', requireAdmin, refereeController.deleteReferee);
