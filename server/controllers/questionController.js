@@ -9,7 +9,6 @@
 //   questionVideos/<qid>/<vid>      havuz: url + uzman değerleri
 //   assignments/<qid>/<refereeId>   hangi hakem hangi videoyu izliyor
 const { db } = require('../config/firebase');
-const { isAdminRequest } = require('../utils/adminAuth');
 const { invalidateCache } = require('./sharedCache');
 
 const diziye = (obj) => Object.entries(obj || {}).map(([id, v]) => ({ id, ...v }));
@@ -17,18 +16,16 @@ const diziye = (obj) => Object.entries(obj || {}).map(([id, v]) => ({ id, ...v }
 /** GET /api/questions — soru havuzu (videolarıyla birlikte) */
 exports.getAll = async (req, res) => {
     try {
-        const isAdmin = isAdminRequest(req);
-
         const [qSnap, vSnap, aSnap] = await Promise.all([
             db.ref('questions').once('value'),
             db.ref('questionVideos').once('value'),
-            isAdmin ? db.ref('assignments').once('value') : Promise.resolve(null)
+            db.ref('assignments').once('value')
         ]);
 
         const havuz = vSnap.val() || {};
-        const atamalar = aSnap ? (aSnap.val() || {}) : {};
+        const atamalar = aSnap.val() || {};
 
-        let sorular = diziye(qSnap.val()).map(q => {
+        const sorular = diziye(qSnap.val()).map(q => {
             const videolar = diziye(havuz[q.id]).sort((a, b) => (a.order || 0) - (b.order || 0));
             const atama = atamalar[q.id] || {};
 
@@ -38,21 +35,12 @@ exports.getAll = async (req, res) => {
 
             return {
                 ...q,
-                videos: videolar.map(v => ({
-                    ...v,
-                    // uzman değerleri yalnızca yöneticiye
-                    expertD: isAdmin ? v.expertD : undefined,
-                    expertE: isAdmin ? v.expertE : undefined,
-                    expertDMoves: isAdmin ? v.expertDMoves : undefined,
-                    atananHakem: dagilim[v.id] || 0
-                })),
+                videos: videolar.map(v => ({ ...v, atananHakem: dagilim[v.id] || 0 })),
                 videoSayisi: videolar.length,
                 baglantisiEksik: videolar.filter(v => !v.url).length,
                 dagitildi: Object.keys(atama).length > 0
             };
         });
-
-        if (!isAdmin) sorular = sorular.filter(q => !q.isArchived);
 
         res.json({ success: true, data: sorular });
     } catch (error) {

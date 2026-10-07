@@ -13,6 +13,7 @@ import BulkScores from './components/scores/BulkScores';
 import RefereeScoringPage from './pages/RefereeScoringPage';
 import StatsView from './components/stats/StatsView';
 import SubmissionTracker from './components/live/SubmissionTracker';
+import QuestionPool from './components/questions/QuestionPool';
 import { isLoggedIn } from './services/auth';
 
 // Oturum her gezinmede yeniden okunur — App bir kez render edildiği için
@@ -41,6 +42,7 @@ function App() {
           <Route path="exams" element={<ExamManagement />} />
           <Route path="live" element={<LiveControl />} />
           <Route path="canli-takip" element={<SubmissionTracker />} />
+          <Route path="sorular" element={<QuestionPool />} />
           <Route path="videos" element={<VideoManagement />} />
           <Route path="referees" element={<RefereeList />} />
           <Route path="reports" element={<ReportsPanel />} />

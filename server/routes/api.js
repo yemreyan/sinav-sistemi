@@ -58,7 +58,9 @@ router.put('/settings/diff', requireAdmin, settingsController.updateDiffPoints);
 router.put('/settings/matrix', requireAdmin, settingsController.updateMatrixOverrides);
 
 // 6b. Soru Havuzu ve Dağıtım
-router.get('/questions', questionController.getAll);
+// Soru havuzu uzman değerlerini taşır ve yalnızca panelde kullanılır.
+// Hakem ekranı kendi videosunu /scores/my-video üzerinden alır.
+router.get('/questions', requireAdmin, questionController.getAll);
 router.post('/questions', requireAdmin, questionController.create);
 router.put('/questions/:id', requireAdmin, questionController.update);
 router.delete('/questions/:id', requireAdmin, questionController.remove);

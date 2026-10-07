@@ -70,6 +70,19 @@ export const refereeAPI = {
     delete: (id) => api.delete(`/referees/${id}`)
 };
 
+export const questionAPI = {
+    getAll: () => api.get('/questions'),
+    create: (data) => api.post('/questions', data),
+    update: (id, data) => api.put(`/questions/${id}`, data),
+    delete: (id) => api.delete(`/questions/${id}`),
+    addVideo: (id, data) => api.post(`/questions/${id}/videos`, data),
+    updateVideo: (id, vid, data) => api.put(`/questions/${id}/videos/${vid}`, data),
+    deleteVideo: (id, vid) => api.delete(`/questions/${id}/videos/${vid}`),
+    distribute: (id, data) => api.post(`/questions/${id}/distribute`, data),
+    assignments: (id) => api.get(`/questions/${id}/assignments`),
+    clearAssignments: (id) => api.delete(`/questions/${id}/assignments`)
+};
+
 export const authAPI = {
     login: (password) => api.post('/admin/login', { password })
 };
