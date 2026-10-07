@@ -280,28 +280,94 @@ exports.distribute = async (req, res) => {
     }
 };
 
-/** GET /api/questions/:id/assignments — kim hangi videoyu aldı */
+/**
+ * GET /api/questions/:id/assignments
+ * Kim hangi videoyu aldı, izledi mi, puan gönderdi mi — video bazında özetiyle.
+ */
 exports.getAssignments = async (req, res) => {
     try {
         const { id } = req.params;
-        const [aSnap, rSnap] = await Promise.all([
+        const [aSnap, rSnap, qSnap, vSnap, wSnap, iSnap] = await Promise.all([
             db.ref(`assignments/${id}`).once('value'),
-            db.ref('referees').once('value')
+            db.ref('referees').once('value'),
+            db.ref(`questions/${id}`).once('value'),
+            db.ref(`questionVideos/${id}`).once('value'),
+            db.ref('watched').once('value'),
+            db.ref('scoreIndex').once('value')
         ]);
+
         const atama = aSnap.val() || {};
         const hakemler = rSnap.val() || {};
+        const soru = qSnap.val() || {};
+        const havuz = vSnap.val() || {};
+        const izlemeler = wSnap.val() || {};
+        const indeks = iSnap.val() || {};
 
-        const liste = Object.entries(atama).map(([refId, vid]) => ({
-            refereeId: refId,
-            videoId: vid,
-            name: hakemler[refId]?.name || '(silinmiş hakem)',
-            email: hakemler[refId]?.email || ''
-        })).sort((a, b) => a.name.localeCompare(b.name, 'tr'));
+        // Yalnızca bu soruya puan göndermiş hakemlerin sonucunu oku
+        const sonucAnahtarlari = {};
+        for (const refId of Object.keys(atama)) {
+            const k = indeks[`${refId}_${id}`];
+            if (k) sonucAnahtarlari[refId] = k;
+        }
+        const sonuclar = Object.fromEntries(await Promise.all(
+            Object.entries(sonucAnahtarlari).map(async ([refId, key]) => {
+                const snap = await db.ref(`results/${key}`).once('value');
+                return [refId, snap.val()];
+            })
+        ));
 
-        const dagilim = {};
-        for (const vid of Object.values(atama)) dagilim[vid] = (dagilim[vid] || 0) + 1;
+        const liste = Object.entries(atama).map(([refId, vid]) => {
+            const r = sonuclar[refId];
+            return {
+                refereeId: refId,
+                videoId: vid,
+                name: hakemler[refId]?.name || '(silinmiş hakem)',
+                email: hakemler[refId]?.email || '',
+                izledi: Boolean(izlemeler[refId]?.[id]),
+                gonderdi: Boolean(r),
+                d: r?.d ?? null,
+                deductions: r?.deductions ?? null,
+                dev: r?.dev ?? null,
+                points: r?.points ?? null,
+                correctMoves: r?.correctMoves ?? null,
+                totalMoves: r?.totalMoves ?? null,
+                timestamp: r?.timestamp ?? null
+            };
+        }).sort((a, b) => a.name.localeCompare(b.name, 'tr'));
 
-        res.json({ success: true, data: { liste, dagilim, toplam: liste.length } });
+        // Video bazında özet
+        const videolar = Object.entries(havuz)
+            .sort((a, b) => (a[1].order || 0) - (b[1].order || 0))
+            .map(([vid, v]) => {
+                const grup = liste.filter(x => x.videoId === vid);
+                const gonderen = grup.filter(x => x.gonderdi);
+                const puanlar = gonderen.map(x => x.points).filter(p => p !== null);
+                return {
+                    videoId: vid,
+                    url: v.url || '',
+                    expertD: v.expertD ?? null,
+                    expertE: v.expertE ?? null,
+                    uzmanKesinti: soru.type === 'E' ? Math.round((10 - (v.expertE || 0)) * 10) / 10 : null,
+                    atanan: grup.length,
+                    izleyen: grup.filter(x => x.izledi).length,
+                    gonderen: gonderen.length,
+                    ortalamaPuan: puanlar.length
+                        ? Math.round((puanlar.reduce((t, p) => t + p, 0) / puanlar.length) * 1000) / 1000
+                        : null
+                };
+            });
+
+        res.json({
+            success: true,
+            data: {
+                soru: { id, title: soru.title || '', apparatus: soru.apparatus || '', type: soru.type || 'D' },
+                liste,
+                videolar,
+                toplam: liste.length,
+                izleyen: liste.filter(x => x.izledi).length,
+                gonderen: liste.filter(x => x.gonderdi).length
+            }
+        });
     } catch (error) {
         console.error('Get Assignments Error:', error);
         res.status(500).json({ success: false, message: 'Server error' });

@@ -1,5 +1,5 @@
 import { Outlet, NavLink, useNavigate } from 'react-router-dom';
-import { LayoutDashboard, Users, Video, FileText, Settings, LogOut, Grid3X3, PenSquare, BarChart3, Tv, ClipboardCheck, Layers } from 'lucide-react';
+import { LayoutDashboard, Users, Video, FileText, Settings, LogOut, Grid3X3, PenSquare, BarChart3, Tv, ClipboardCheck, Layers, Shuffle } from 'lucide-react';
 import { clearToken } from '../services/auth';
 
 export default function AdminLayout() {
@@ -16,6 +16,7 @@ export default function AdminLayout() {
         { to: "/emre/live", icon: <Tv className="w-5 h-5" />, label: "Canlı Kontrol" },
         { to: "/emre/canli-takip", icon: <ClipboardCheck className="w-5 h-5" />, label: "Canlı Gönderim Takibi" },
         { to: "/emre/sorular", icon: <Layers className="w-5 h-5" />, label: "Soru Havuzu" },
+        { to: "/emre/dagitim", icon: <Shuffle className="w-5 h-5" />, label: "Video Dağıtımı" },
         { to: "/emre/videos", icon: <Video className="w-5 h-5" />, label: "Seriler (Videolar)" },
         { to: "/emre/referees", icon: <Users className="w-5 h-5" />, label: "Hakem Listesi" },
         { to: "/emre/bulk-scores", icon: <PenSquare className="w-5 h-5" />, label: "Toplu Puan Girişi" },
