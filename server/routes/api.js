@@ -81,6 +81,7 @@ router.get('/scores/podium-state/:podiumId', scoreController.getPodiumState);
 router.post('/scores/submit', scoreController.submitScore);
 router.get('/scores/existing', scoreController.getExistingScore);
 router.get('/scores/my-video', scoreController.getMyVideo);
+router.post('/scores/watched', scoreController.markWatched);
 
 // Canlı gönderim takibi — yalnızca yönetici (hakem adı/e-postası döner)
 router.get('/scores/submission-status/:podiumId', requireAdmin, scoreController.getSubmissionStatus);

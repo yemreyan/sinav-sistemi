@@ -114,8 +114,12 @@ exports.getMyVideo = async (req, res) => {
         const kendi = await getRefereeVideo(questionId, referee.id);
         if (!kendi) return res.json({ success: true, data: null });
 
-        const qSnap = await db.ref(`questions/${questionId}`).once('value');
+        const [qSnap, wSnap] = await Promise.all([
+            db.ref(`questions/${questionId}`).once('value'),
+            db.ref(`watched/${referee.id}/${questionId}`).once('value')
+        ]);
         const soru = qSnap.val() || {};
+        const izleme = wSnap.val();
 
         res.json({
             success: true,
@@ -131,6 +135,8 @@ exports.getMyVideo = async (req, res) => {
                 videoUrl: kendi.url || '',
                 havuzSirasi: Number(String(kendi.videoId).replace('v', '')) || 1,
                 havuzBoyu: kendi.havuzBoyu,
+                izlendi: Boolean(izleme),
+                izlenmeZamani: izleme?.at || null,
                 // zorunlu hareket seçenekleri uzman değerini ele vermez, formda gerekli
                 moveOptions: kendi.expertDMoves
                     ? Object.fromEntries(Object.entries(kendi.expertDMoves).map(
@@ -140,6 +146,35 @@ exports.getMyVideo = async (req, res) => {
         });
     } catch (error) {
         console.error('Get My Video Error:', error);
+        res.status(500).json({ success: false, message: 'Sunucu hatası' });
+    }
+};
+
+/**
+ * POST /api/scores/watched  { email, questionId }
+ * Video izlenmeye başlandığında işaretlenir. Hakem ekranı yenilese de video
+ * bir daha açılmaz; puanlama formuna döner. İşaret sunucuda tutulur çünkü
+ * tarayıcı hafızası temizlenebilir.
+ */
+exports.markWatched = async (req, res) => {
+    try {
+        const { email, questionId } = req.body || {};
+        if (!email || !questionId) {
+            return res.status(400).json({ success: false, message: 'email ve questionId gerekli' });
+        }
+
+        const referee = await findRefereeByEmail(email);
+        if (!referee) return res.status(401).json({ success: false, message: 'Hakem bulunamadı' });
+
+        const yol = `watched/${referee.id}/${questionId}`;
+        const mevcut = (await db.ref(yol).once('value')).val();
+
+        // İlk izleme zamanı korunur; ikinci istek onu değiştirmez
+        if (!mevcut) await db.ref(yol).set({ at: Date.now() });
+
+        res.json({ success: true, data: { watchedAt: mevcut?.at || Date.now(), ilkIzleme: !mevcut } });
+    } catch (error) {
+        console.error('Mark Watched Error:', error);
         res.status(500).json({ success: false, message: 'Sunucu hatası' });
     }
 };

@@ -106,6 +106,10 @@ export const scoreAPI = {
     submissionStatus: (podiumId, group) => api.get(
         `/scores/submission-status/${podiumId}${group ? `?group=${encodeURIComponent(group)}` : ''}`
     ),
+    myVideo: (email, questionId) => api.get(
+        `/scores/my-video?email=${encodeURIComponent(email)}&questionId=${encodeURIComponent(questionId)}`
+    ),
+    markWatched: (email, questionId) => api.post('/scores/watched', { email, questionId }),
     getMakeup: (email) => api.get(`/scores/makeup?email=${encodeURIComponent(email)}`),
     grantMakeup: (refereeIds, videoId) => api.post('/scores/makeup', { refereeIds, videoId }),
     revokeMakeup: (refereeIds, videoId) => api.delete('/scores/makeup', { data: { refereeIds, videoId } }),

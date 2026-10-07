@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { scoreAPI } from '../services/api';
+import SingleWatchPlayer from '../components/video/SingleWatchPlayer';
 
 const APPARATUS_MAP = { 'AtM': 'Atlama Masası', 'KP': 'Kız Paraleli', 'D': 'Denge', 'Y': 'Yer' };
 
@@ -30,6 +31,9 @@ export default function RefereeScoringPage() {
     // Telafi: yönetici açtıysa hakem yalnızca bu serileri görür
     const [telafiSeriler, setTelafiSeriler] = useState([]);
     const [seciliTelafi, setSeciliTelafi] = useState(null);
+    // Havuzdan bu hakeme düşen video: {videoUrl, videoId, havuzSirasi, havuzBoyu, izlendi}
+    const [kendiVideo, setKendiVideo] = useState(null);
+    const [videoBitti, setVideoBitti] = useState(false);
 
     // --- Restore session ---
     useEffect(() => {
@@ -81,6 +85,8 @@ export default function RefereeScoringPage() {
                     const newVideoId = newData.activeVideo?.id || null;
                     lastVideoRef.current = newVideoId;
                     resetForm();
+                    setVideoBitti(false);
+                    setKendiVideo(null);
 
                     // Video değiştiğinde mevcut skoru kontrol et ve pre-fill yap
                     if (newVideoId && referee) {
@@ -120,6 +126,22 @@ export default function RefereeScoringPage() {
                 setPodiumData(newData);
                 setPollError('');
                 errorCountRef.current = 0;
+
+                // Aktif soru için bu hakeme düşen videoyu getir
+                const aktifSoru = newData.activeVideo?.id;
+                if (aktifSoru) {
+                    const mail = referee.email || email.trim();
+                    scoreAPI.myVideo(mail, aktifSoru)
+                        .then(res => {
+                            const v = res.data.data;
+                            setKendiVideo(v);
+                            // izlenmiş videoda doğrudan puanlamaya geç
+                            if (v?.izlendi) setVideoBitti(true);
+                        })
+                        .catch(() => setKendiVideo(null));
+                } else {
+                    setKendiVideo(null);
+                }
             }
 
             // Telafi izinleri — varsa canlı akış yerine bunlar gösterilir
@@ -370,6 +392,44 @@ export default function RefereeScoringPage() {
                                 </button>
                             ))}
                         </div>
+                    </div>
+                ) : (kendiVideo?.videoUrl && !videoBitti) ? (
+                    /* ====== VİDEO İZLEME ====== */
+                    <div className="w-full max-w-2xl py-6 space-y-4">
+                        <div className="text-center space-y-1.5">
+                            <h2 className="text-lg font-bold text-white">{kendiVideo.title || video?.title}</h2>
+                            <div className="flex gap-1.5 justify-center flex-wrap">
+                                <span className="text-[10px] px-2 py-0.5 rounded bg-white/5 border border-white/10 text-white/60">
+                                    {kendiVideo.apparatus}
+                                </span>
+                                <span className={`text-[10px] px-2 py-0.5 rounded border ${kendiVideo.type === 'E'
+                                    ? 'bg-amber-500/10 text-amber-400 border-amber-500/20'
+                                    : 'bg-blue-500/10 text-blue-400 border-blue-500/20'}`}>
+                                    {kendiVideo.type}
+                                </span>
+                                {kendiVideo.havuzBoyu > 1 && (
+                                    <span className="text-[10px] px-2 py-0.5 rounded bg-indigo-500/10 border border-indigo-500/20 text-indigo-300">
+                                        Size {kendiVideo.havuzSirasi}. video atandı
+                                    </span>
+                                )}
+                            </div>
+                        </div>
+
+                        <SingleWatchPlayer
+                            url={kendiVideo.videoUrl}
+                            onBasladi={() => {
+                                const mail = referee?.email || email.trim();
+                                scoreAPI.markWatched(mail, kendiVideo.questionId).catch(() => {});
+                            }}
+                            onBitti={() => setVideoBitti(true)}
+                            onAtla={() => setVideoBitti(true)}
+                        />
+
+                        {kendiVideo.havuzBoyu > 1 && (
+                            <p className="text-[11px] text-muted-foreground text-center max-w-[380px] mx-auto">
+                                Yanınızdaki hakeme farklı bir video düşmüş olabilir. Yalnızca kendi videonuzu puanlayın.
+                            </p>
+                        )}
                     </div>
                 ) : isWaiting ? (
                     /* ====== WAITING ====== */
