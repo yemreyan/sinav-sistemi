@@ -13,6 +13,7 @@ const refereeController = require('../controllers/refereeController');
 const settingsController = require('../controllers/settingsController');
 const resultsController = require('../controllers/resultsController');
 const scoreController = require('../controllers/scoreController');
+const questionController = require('../controllers/questionController');
 
 // 1. Auth / Admin Routes
 router.post('/admin/login', adminController.login);
@@ -46,6 +47,7 @@ router.delete('/videos/:id', requireAdmin, videoController.deleteVideo);
 // Hakem listesi kişisel veri (ad + e-posta) taşır — okuması da yönetici girişine bağlı.
 // Hakemlerin kendi girişi /scores/auth üzerinden yapılır, bu uca ihtiyaç duymaz.
 router.get('/referees', requireAdmin, refereeController.getAllReferees);
+router.get('/referee-groups', requireAdmin, refereeController.getGroups);
 router.post('/referees', requireAdmin, refereeController.createReferee);
 router.put('/referees/:id', requireAdmin, refereeController.updateReferee);
 router.delete('/referees/:id', requireAdmin, refereeController.deleteReferee);
@@ -54,6 +56,18 @@ router.delete('/referees/:id', requireAdmin, refereeController.deleteReferee);
 router.get('/settings', settingsController.getSettings);
 router.put('/settings/diff', requireAdmin, settingsController.updateDiffPoints);
 router.put('/settings/matrix', requireAdmin, settingsController.updateMatrixOverrides);
+
+// 6b. Soru Havuzu ve Dağıtım
+router.get('/questions', questionController.getAll);
+router.post('/questions', requireAdmin, questionController.create);
+router.put('/questions/:id', requireAdmin, questionController.update);
+router.delete('/questions/:id', requireAdmin, questionController.remove);
+router.post('/questions/:id/videos', requireAdmin, questionController.addVideo);
+router.put('/questions/:id/videos/:vid', requireAdmin, questionController.updateVideo);
+router.delete('/questions/:id/videos/:vid', requireAdmin, questionController.removeVideo);
+router.post('/questions/:id/distribute', requireAdmin, questionController.distribute);
+router.get('/questions/:id/assignments', requireAdmin, questionController.getAssignments);
+router.delete('/questions/:id/assignments', requireAdmin, questionController.clearAssignments);
 
 // 7. Results & Stats Routes
 router.get('/results', resultsController.getAllResults);
@@ -64,5 +78,16 @@ router.post('/scores/auth', scoreController.authenticate);
 router.get('/scores/podium-state/:podiumId', scoreController.getPodiumState);
 router.post('/scores/submit', scoreController.submitScore);
 router.get('/scores/existing', scoreController.getExistingScore);
+router.get('/scores/my-video', scoreController.getMyVideo);
+
+// Canlı gönderim takibi — yalnızca yönetici (hakem adı/e-postası döner)
+router.get('/scores/submission-status/:podiumId', requireAdmin, scoreController.getSubmissionStatus);
+router.get('/scores/coverage/:podiumId', requireAdmin, scoreController.getCoverage);
+
+// Telafi izinleri — verme/kaldırma yönetici, okuma hakem ekranı için açık
+router.post('/scores/makeup', requireAdmin, scoreController.grantMakeup);
+router.delete('/scores/makeup', requireAdmin, scoreController.revokeMakeup);
+router.get('/scores/makeup', scoreController.getMakeupForReferee);
+router.get('/scores/makeup-list/:videoId', requireAdmin, scoreController.getMakeupByVideo);
 
 module.exports = router;

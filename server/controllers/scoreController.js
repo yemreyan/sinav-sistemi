@@ -1,7 +1,8 @@
 // scoreController.js — Hakem Puanlama Endpointleri (v3 — Full Optimization)
 // Shared cache + composite scoreIndex + paralel sorgular
 const { db } = require('../config/firebase');
-const { getCached, setCache } = require('./sharedCache');
+const { getCached, setCache, invalidateCache } = require('./sharedCache');
+const { ePuani } = require('../utils/scoringMatrix');
 
 // ===================== HELPERS =====================
 
@@ -42,6 +43,24 @@ async function getVideoById(videoId) {
     return data;
 }
 
+// Bir hakemin belirli bir soruda izleyeceği videoyu ve o videonun uzman değerlerini döner.
+// Atama yoksa havuzun ilk videosu kullanılır (tek videolu sorular ve göç öncesi kayıtlar böyle).
+async function getRefereeVideo(questionId, refereeId) {
+    const [aSnap, vSnap] = await Promise.all([
+        db.ref(`assignments/${questionId}/${refereeId}`).once('value'),
+        db.ref(`questionVideos/${questionId}`).once('value')
+    ]);
+
+    const havuz = vSnap.val() || {};
+    const sirali = Object.entries(havuz).sort((a, b) => (a[1].order || 0) - (b[1].order || 0));
+    if (!sirali.length) return null;
+
+    const atanan = aSnap.val();
+    const [vid, veri] = (atanan && havuz[atanan]) ? [atanan, havuz[atanan]] : sirali[0];
+
+    return { videoId: vid, ...veri, havuzBoyu: sirali.length };
+}
+
 // ===================== ENDPOINTS =====================
 
 /**
@@ -73,6 +92,54 @@ exports.authenticate = async (req, res) => {
         });
     } catch (error) {
         console.error('Score Auth Error:', error);
+        res.status(500).json({ success: false, message: 'Sunucu hatası' });
+    }
+};
+
+/**
+ * GET /api/scores/my-video?email=X&questionId=Y
+ * Hakem ekranı: bu soruda bana hangi video düştü, bağlantısı ne?
+ * Uzman değerleri DÖNMEZ — hakem onları görmemeli.
+ */
+exports.getMyVideo = async (req, res) => {
+    try {
+        const { email, questionId } = req.query;
+        if (!email || !questionId) {
+            return res.status(400).json({ success: false, message: 'email ve questionId gerekli' });
+        }
+
+        const referee = await findRefereeByEmail(email);
+        if (!referee) return res.status(401).json({ success: false, message: 'Hakem bulunamadı' });
+
+        const kendi = await getRefereeVideo(questionId, referee.id);
+        if (!kendi) return res.json({ success: true, data: null });
+
+        const qSnap = await db.ref(`questions/${questionId}`).once('value');
+        const soru = qSnap.val() || {};
+
+        res.json({
+            success: true,
+            data: {
+                questionId,
+                title: soru.title || '',
+                apparatus: soru.apparatus || '',
+                type: soru.type || 'D',
+                isZorunlu: !!soru.isZorunlu,
+                moveCount: soru.moveCount || 0,
+                // hakemin göreceği tek şey: kendi videosu
+                videoId: kendi.videoId,
+                videoUrl: kendi.url || '',
+                havuzSirasi: Number(String(kendi.videoId).replace('v', '')) || 1,
+                havuzBoyu: kendi.havuzBoyu,
+                // zorunlu hareket seçenekleri uzman değerini ele vermez, formda gerekli
+                moveOptions: kendi.expertDMoves
+                    ? Object.fromEntries(Object.entries(kendi.expertDMoves).map(
+                        ([k, v]) => [k, (v && typeof v === 'object' && Array.isArray(v.options)) ? v.options : []]))
+                    : null
+            }
+        });
+    } catch (error) {
+        console.error('Get My Video Error:', error);
         res.status(500).json({ success: false, message: 'Sunucu hatası' });
     }
 };
@@ -194,32 +261,59 @@ exports.submitScore = async (req, res) => {
         const eValue = parseFloat(e) || 10;
         const deductionsValue = parseFloat(deductions) || 0;
 
+        // Havuzlu soruda hakemin izlediği videonun uzman değeri kullanılır;
+        // atama yoksa havuzun ilk videosu, o da yoksa eski kayıttaki değerler.
+        const kendiVideo = await getRefereeVideo(videoId, referee.id);
+        const uzman = kendiVideo || video;
+        const poolVideoId = kendiVideo ? kendiVideo.videoId : null;
+
         let dev = 0;
         let points = 0;
+        let dogruHareket = 0;   // D: uzmanla birebir tutan hareket sayısı
+        let toplamHareket = 0;
 
         if (video.type === 'E') {
-            const expertDeductions = 10 - (video.expertE || 0);
-            dev = Math.abs(deductionsValue - expertDeductions);
-            if (dev <= 0.1) points = 1;
-            else if (dev <= 0.2) points = 0.8;
-            else if (dev <= 0.3) points = 0.6;
-            else if (dev <= 0.4) points = 0.4;
-            else if (dev <= 0.5) points = 0.2;
-            else points = 0;
+            // Sistemin sapma tablosu: uzman kesintisi × sapma (scoring_matrix.json + Sistem Ayarları override'ları)
+            const expertDeductions = Math.round((10 - (uzman.expertE || 0)) * 10) / 10;
+            dev = Math.round(Math.abs(deductionsValue - expertDeductions) * 10) / 10;
+            points = await ePuani(expertDeductions, dev);
         } else {
-            dev = Math.abs(dValue - (video.expertD || 0));
-            if (dev === 0) points = 1;
-            else if (dev <= 0.1) points = 0.8;
-            else if (dev <= 0.2) points = 0.6;
-            else if (dev <= 0.3) points = 0.4;
-            else if (dev <= 0.5) points = 0.2;
-            else points = 0;
+            // D puanı hareket eşleşmesiyle hesaplanır: hakemin seçtiği her hareket
+            // uzmanınkiyle birebir tutmalı, tolerans yok. Boş bırakılan hareket 0 sayılır.
+            // puan = doğru hareket / toplam hareket.
+            const uzmanMoves = uzman.expertDMoves;
+            const anahtarlar = (uzmanMoves && typeof uzmanMoves === 'object')
+                ? Object.keys(uzmanMoves).sort((a, b) => (+a.slice(1) || 0) - (+b.slice(1) || 0))
+                : [];
+
+            // Sapma bilgi amaçlı korunur (raporlarda toplam D farkı olarak kullanılıyor)
+            dev = Math.round(Math.abs(dValue - (uzman.expertD || 0)) * 10) / 10;
+
+            if (anahtarlar.length > 0) {
+                const hakemSecim = (zorunluDMoves && typeof zorunluDMoves === 'object') ? zorunluDMoves : {};
+                for (const k of anahtarlar) {
+                    const ham = uzmanMoves[k];
+                    const uzmanDeger = (ham && typeof ham === 'object' && !Array.isArray(ham))
+                        ? Number(ham.expert)
+                        : Number(ham);
+                    if (Number.isNaN(uzmanDeger)) continue;
+                    if (Math.abs(Number(hakemSecim[k] ?? 0) - uzmanDeger) < 1e-9) dogruHareket++;
+                }
+                toplamHareket = anahtarlar.length;
+                points = toplamHareket > 0 ? dogruHareket / toplamHareket : 0;
+            } else {
+                // Hareket listesi olmayan seri: toplam D birebir tutarsa tam puan
+                toplamHareket = 1;
+                dogruHareket = dev === 0 ? 1 : 0;
+                points = dogruHareket;
+            }
         }
 
         const scoreData = {
             refereeId: referee.id,
             refereeName: referee.name,
             videoId,
+            poolVideoId,
             videoTitle: video.title,
             examId: currentExamId || video.examId || '',
             d: dValue,
@@ -227,6 +321,8 @@ exports.submitScore = async (req, res) => {
             deductions: deductionsValue,
             dev,
             points,
+            correctMoves: dogruHareket,
+            totalMoves: toplamHareket,
             btrs: 0,
             cr: 0,
             cv: 0,
@@ -257,6 +353,9 @@ exports.submitScore = async (req, res) => {
                     ...scoreData,
                     history
                 });
+                await db.ref(`makeup/${referee.id}/${videoId}`).remove();
+                invalidateCache('coverage');
+
                 const elapsed = Date.now() - startTime;
                 console.log(`[PERF] submitScore UPDATE: ${elapsed}ms (referee: ${referee.id})`);
                 return res.json({ success: true, message: 'Puan güncellendi', updated: true, id: existingResultKey });
@@ -269,6 +368,10 @@ exports.submitScore = async (req, res) => {
         updates[`results/${newRef.key}`] = scoreData;
         updates[`scoreIndex/${compositeKey}`] = newRef.key;
         await db.ref().update(updates);
+
+        // Telafi izniyle girildiyse izni düşür — hakem normal akışa dönsün
+        await db.ref(`makeup/${referee.id}/${videoId}`).remove();
+        invalidateCache('coverage');
 
         const elapsed = Date.now() - startTime;
         console.log(`[PERF] submitScore CREATE: ${elapsed}ms (referee: ${referee.id})`);
@@ -328,5 +431,353 @@ exports.getExistingScore = async (req, res) => {
     } catch (error) {
         console.error('Get Existing Score Error:', error);
         res.json({ success: true, data: null }); // Hata olsa bile formu engellemiyoruz
+    }
+};
+
+/**
+ * GET /api/scores/submission-status/:podiumId
+ * Canlı gönderim takibi — aktif seri için kim gönderdi, kim göndermedi.
+ * scoreIndex tek sorguda çekilir (anahtar: <refereeId>_<videoId>), sonuçlar
+ * yalnızca gönderen hakemler için okunur. Yanıt kısa süre cache'lenir çünkü
+ * ekran saniyede bir değil, birkaç saniyede bir yoklar.
+ */
+exports.getSubmissionStatus = async (req, res) => {
+    try {
+        const { podiumId } = req.params;
+        // Yalnızca belirli bir hakem listesini izlemek için: ?group=ADANA-2026
+        const grup = (req.query.group || '').trim();
+        const cacheKey = grup ? `${podiumId}::${grup}` : podiumId;
+
+        const cached = getCached('submissionStatus', cacheKey);
+        if (cached) return res.json(cached);
+
+        const podium = await getPodiumById(podiumId);
+        if (!podium) {
+            return res.status(404).json({ success: false, message: 'Podyum bulunamadı' });
+        }
+
+        const activeVideoId = podium.state?.activeVideoId || null;
+
+        // Bu podyuma bağlı hakemler
+        const refSnap = await db.ref('referees').once('value');
+        const refereeler = Object.entries(refSnap.val() || {})
+            .filter(([, r]) => r.podiumId === podiumId)
+            .filter(([, r]) => !grup || r.group === grup)
+            .map(([id, r]) => ({ id, name: r.name || '', email: r.email || '', group: r.group || '' }))
+            .sort((a, b) => a.name.localeCompare(b.name, 'tr'));
+
+        if (!activeVideoId) {
+            const bos = {
+                success: true,
+                data: {
+                    video: null,
+                    podiumName: podium.name || '',
+                    status: podium.state?.status || 'IDLE',
+                    grup: grup || null,
+                    toplam: refereeler.length,
+                    gonderen: [],
+                    gondermeyen: refereeler
+                }
+            };
+            setCache('submissionStatus', cacheKey, bos);
+            return res.json(bos);
+        }
+
+        const [videoData, indexSnap] = await Promise.all([
+            getVideoById(activeVideoId),
+            db.ref('scoreIndex').once('value')
+        ]);
+
+        // scoreIndex anahtarı <refereeId>_<videoId> — aktif seriye ait olanları ayıkla
+        const index = indexSnap.val() || {};
+        const sonek = `_${activeVideoId}`;
+        const resultKeyByReferee = {};
+        for (const [key, resultKey] of Object.entries(index)) {
+            if (key.endsWith(sonek)) {
+                resultKeyByReferee[key.slice(0, -sonek.length)] = resultKey;
+            }
+        }
+
+        // Yalnızca gönderenlerin puanlarını oku
+        const gonderenIds = refereeler.map(r => r.id).filter(id => resultKeyByReferee[id]);
+        const sonuclar = await Promise.all(
+            gonderenIds.map(async id => {
+                const snap = await db.ref(`results/${resultKeyByReferee[id]}`).once('value');
+                return [id, snap.val()];
+            })
+        );
+        const sonucByReferee = Object.fromEntries(sonuclar);
+
+        const gonderen = [];
+        const gondermeyen = [];
+        for (const r of refereeler) {
+            const s = sonucByReferee[r.id];
+            if (s) {
+                gonderen.push({
+                    ...r,
+                    d: s.d ?? null,
+                    e: s.e ?? null,
+                    deductions: s.deductions ?? null,
+                    dev: s.dev ?? null,
+                    points: s.points ?? null,
+                    timestamp: s.timestamp || null,
+                    guncellendi: Array.isArray(s.history) && s.history.length > 0
+                });
+            } else {
+                gondermeyen.push(r);
+            }
+        }
+
+        gonderen.sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
+
+        const responseData = {
+            success: true,
+            data: {
+                video: videoData ? {
+                    id: activeVideoId,
+                    title: videoData.title,
+                    apparatus: videoData.apparatus,
+                    type: videoData.type || 'D',
+                    isZorunlu: !!videoData.isZorunlu,
+                    expertD: videoData.expertD || 0,
+                    expertE: videoData.expertE || 0
+                } : { id: activeVideoId, title: '(seri bulunamadı)' },
+                podiumName: podium.name || '',
+                status: podium.state?.status || 'IDLE',
+                grup: grup || null,
+                toplam: refereeler.length,
+                gonderen,
+                gondermeyen
+            }
+        };
+
+        setCache('submissionStatus', cacheKey, responseData);
+        res.json(responseData);
+    } catch (error) {
+        console.error('Submission Status Error:', error);
+        res.status(500).json({ success: false, message: 'Sunucu hatası' });
+    }
+};
+
+/**
+ * GET /api/scores/coverage/:podiumId?group=X&apparatus=Y
+ * Alet bazında kapsama — seçilen aletin tüm serilerinde kim eksik bıraktı.
+ * Aktif seriye değil, yarışmanın o aletteki bütün serilerine bakar.
+ */
+exports.getCoverage = async (req, res) => {
+    try {
+        const { podiumId } = req.params;
+        const grup = (req.query.group || '').trim();
+        const alet = (req.query.apparatus || '').trim();
+
+        // Henüz hiç kimsenin girmediği seriler büyük olasılıkla daha yayınlanmadı;
+        // varsayılan olarak bunlar "eksik" sayılmaz.
+        const sadeceBaslamis = req.query.onlyStarted !== 'false';
+        const cacheKey = `${podiumId}::${grup}::${alet}::${sadeceBaslamis}`;
+        const cached = getCached('coverage', cacheKey);
+        if (cached) return res.json(cached);
+
+        const podium = await getPodiumById(podiumId);
+        if (!podium) {
+            return res.status(404).json({ success: false, message: 'Podyum bulunamadı' });
+        }
+
+        const [videosSnap, refSnap, indexSnap] = await Promise.all([
+            db.ref('videos').once('value'),
+            db.ref('referees').once('value'),
+            db.ref('scoreIndex').once('value')
+        ]);
+
+        // Podyumun yarışmasına bağlı, arşivlenmemiş seriler
+        const examId = podium.examId || '';
+        const tumVideolar = Object.entries(videosSnap.val() || {})
+            .map(([id, v]) => ({ id, ...v }))
+            .filter(v => !v.isArchived)
+            .filter(v => {
+                if (!examId) return true;
+                const bagli = Array.isArray(v.examIds) ? v.examIds : (v.examId ? [v.examId] : []);
+                return bagli.includes(examId);
+            });
+
+        const aletler = [...new Set(tumVideolar.map(v => v.apparatus))].sort();
+
+        const aletSerileri = (alet ? tumVideolar.filter(v => v.apparatus === alet) : tumVideolar)
+            .sort((a, b) => String(a.title).localeCompare(String(b.title), 'tr'));
+
+        const refereeler = Object.entries(refSnap.val() || {})
+            .filter(([, r]) => r.podiumId === podiumId)
+            .filter(([, r]) => !grup || r.group === grup)
+            .map(([id, r]) => ({ id, name: r.name || '', email: r.email || '' }))
+            .sort((a, b) => a.name.localeCompare(b.name, 'tr'));
+
+        const index = indexSnap.val() || {};
+        const girilmis = new Set(Object.keys(index)); // "<refereeId>_<videoId>"
+
+        // Seri bazında kaç kişi girdi — başlamış/başlamamış ayrımı buradan çıkıyor
+        const tumSeriDurumu = aletSerileri.map(v => {
+            const giren = refereeler.filter(r => girilmis.has(`${r.id}_${v.id}`)).length;
+            return {
+                id: v.id,
+                title: v.title,
+                apparatus: v.apparatus,
+                type: v.type || 'D',
+                giren,
+                girmeyen: refereeler.length - giren,
+                baslamis: giren > 0
+            };
+        });
+
+        const seriler = sadeceBaslamis
+            ? aletSerileri.filter(v => tumSeriDurumu.find(s => s.id === v.id)?.baslamis)
+            : aletSerileri;
+
+        const hakemler = refereeler.map(r => {
+            const eksik = seriler.filter(v => !girilmis.has(`${r.id}_${v.id}`));
+            return {
+                ...r,
+                toplamSeri: seriler.length,
+                girilen: seriler.length - eksik.length,
+                eksikSayi: eksik.length,
+                eksik: eksik.map(v => ({ id: v.id, title: v.title, apparatus: v.apparatus }))
+            };
+        });
+
+        const responseData = {
+            success: true,
+            data: {
+                podiumName: podium.name || '',
+                grup: grup || null,
+                apparatus: alet || null,
+                aletler,
+                sadeceBaslamis,
+                seriSayisi: seriler.length,
+                toplamSeriSayisi: aletSerileri.length,
+                baslamamisSeri: aletSerileri.length - seriler.length,
+                toplamHakem: refereeler.length,
+                tamGiren: hakemler.filter(h => h.eksikSayi === 0).length,
+                eksigiOlan: hakemler.filter(h => h.eksikSayi > 0).length,
+                hicGirmeyen: hakemler.filter(h => h.girilen === 0).length,
+                hakemler,
+                seriDurumu: tumSeriDurumu
+            }
+        };
+
+        setCache('coverage', cacheKey, responseData);
+        res.json(responseData);
+    } catch (error) {
+        console.error('Coverage Error:', error);
+        res.status(500).json({ success: false, message: 'Sunucu hatası' });
+    }
+};
+
+// ===================== TELAFİ (MAKEUP) =====================
+// Yönetici, puan göndermemiş bir hakeme belirli bir seri için tek seferlik giriş
+// izni verir. İzin varken hakem ekranı yalnızca telafi serilerini gösterir; hakem
+// puanı gönderince izin kendiliğinden düşer ve hakem normal canlı akışa döner.
+// Firebase düğümü: makeup/<refereeId>/<videoId> = { videoId, grantedAt }
+
+/** POST /api/scores/makeup  { refereeIds: [], videoId }  — yönetici */
+exports.grantMakeup = async (req, res) => {
+    try {
+        const { refereeIds, videoId } = req.body || {};
+        if (!Array.isArray(refereeIds) || refereeIds.length === 0 || !videoId) {
+            return res.status(400).json({ success: false, message: 'refereeIds ve videoId gerekli' });
+        }
+
+        const video = await getVideoById(videoId);
+        if (!video) {
+            return res.status(404).json({ success: false, message: 'Seri bulunamadı' });
+        }
+
+        const updates = {};
+        const now = Date.now();
+        for (const refereeId of refereeIds) {
+            updates[`${refereeId}/${videoId}`] = { videoId, grantedAt: now };
+        }
+        await db.ref('makeup').update(updates);
+
+        invalidateCache('coverage');
+        console.log(`[MAKEUP] ${refereeIds.length} hakeme "${video.title}" için telafi izni verildi`);
+        res.json({ success: true, message: 'Telafi izni verildi', data: { count: refereeIds.length } });
+    } catch (error) {
+        console.error('Grant Makeup Error:', error);
+        res.status(500).json({ success: false, message: 'Sunucu hatası' });
+    }
+};
+
+/** DELETE /api/scores/makeup  { refereeIds: [], videoId }  — yönetici */
+exports.revokeMakeup = async (req, res) => {
+    try {
+        const { refereeIds, videoId } = req.body || {};
+        if (!Array.isArray(refereeIds) || refereeIds.length === 0 || !videoId) {
+            return res.status(400).json({ success: false, message: 'refereeIds ve videoId gerekli' });
+        }
+
+        const updates = {};
+        for (const refereeId of refereeIds) {
+            updates[`${refereeId}/${videoId}`] = null;
+        }
+        await db.ref('makeup').update(updates);
+
+        invalidateCache('coverage');
+        res.json({ success: true, message: 'Telafi izni kaldırıldı', data: { count: refereeIds.length } });
+    } catch (error) {
+        console.error('Revoke Makeup Error:', error);
+        res.status(500).json({ success: false, message: 'Sunucu hatası' });
+    }
+};
+
+/** GET /api/scores/makeup?email=X — hakem ekranı için; açık telafi serilerini döner */
+exports.getMakeupForReferee = async (req, res) => {
+    try {
+        const { email } = req.query;
+        if (!email) return res.json({ success: true, data: [] });
+
+        const referee = await findRefereeByEmail(email);
+        if (!referee) return res.json({ success: true, data: [] });
+
+        const snap = await db.ref(`makeup/${referee.id}`).once('value');
+        const izinler = snap.val() || {};
+
+        const seriler = await Promise.all(
+            Object.keys(izinler).map(async videoId => {
+                const v = await getVideoById(videoId);
+                if (!v) return null;
+                return {
+                    id: videoId,
+                    title: v.title,
+                    apparatus: v.apparatus,
+                    type: v.type || 'D',
+                    isZorunlu: !!v.isZorunlu,
+                    expertD: v.expertD || 0,
+                    expertE: v.expertE || 0,
+                    expertDMoves: v.expertDMoves || null,
+                    grantedAt: izinler[videoId]?.grantedAt || null
+                };
+            })
+        );
+
+        res.json({ success: true, data: seriler.filter(Boolean).sort((a, b) => (a.grantedAt || 0) - (b.grantedAt || 0)) });
+    } catch (error) {
+        console.error('Get Makeup Error:', error);
+        res.status(500).json({ success: false, message: 'Sunucu hatası' });
+    }
+};
+
+/** GET /api/scores/makeup-list/:videoId — yönetici; bu seri için kimlerde izin açık */
+exports.getMakeupByVideo = async (req, res) => {
+    try {
+        const { videoId } = req.params;
+        const snap = await db.ref('makeup').once('value');
+        const hepsi = snap.val() || {};
+
+        const refereeIds = Object.entries(hepsi)
+            .filter(([, izinler]) => izinler && izinler[videoId])
+            .map(([refereeId]) => refereeId);
+
+        res.json({ success: true, data: refereeIds });
+    } catch (error) {
+        console.error('Get Makeup By Video Error:', error);
+        res.status(500).json({ success: false, message: 'Sunucu hatası' });
     }
 };

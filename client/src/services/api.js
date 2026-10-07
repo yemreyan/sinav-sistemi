@@ -64,6 +64,7 @@ export const videoAPI = {
 
 export const refereeAPI = {
     getAll: () => api.get('/referees'),
+    getGroups: () => api.get('/referee-groups'),
     create: (data) => api.post('/referees', data),
     update: (id, data) => api.put(`/referees/${id}`, data),
     delete: (id) => api.delete(`/referees/${id}`)
@@ -88,7 +89,21 @@ export const scoreAPI = {
     auth: (email) => api.post('/scores/auth', { email }),
     submit: (data) => api.post('/scores/submit', data),
     getPodiumState: (podiumId) => api.get(`/scores/podium-state/${podiumId}`),
-    getExisting: (email, videoId) => api.get(`/scores/existing?email=${encodeURIComponent(email)}&videoId=${encodeURIComponent(videoId)}`)
+    getExisting: (email, videoId) => api.get(`/scores/existing?email=${encodeURIComponent(email)}&videoId=${encodeURIComponent(videoId)}`),
+    submissionStatus: (podiumId, group) => api.get(
+        `/scores/submission-status/${podiumId}${group ? `?group=${encodeURIComponent(group)}` : ''}`
+    ),
+    getMakeup: (email) => api.get(`/scores/makeup?email=${encodeURIComponent(email)}`),
+    grantMakeup: (refereeIds, videoId) => api.post('/scores/makeup', { refereeIds, videoId }),
+    revokeMakeup: (refereeIds, videoId) => api.delete('/scores/makeup', { data: { refereeIds, videoId } }),
+    makeupByVideo: (videoId) => api.get(`/scores/makeup-list/${videoId}`),
+    coverage: (podiumId, group, apparatus, onlyStarted = true) => {
+        const q = new URLSearchParams();
+        if (group) q.set('group', group);
+        if (apparatus) q.set('apparatus', apparatus);
+        if (!onlyStarted) q.set('onlyStarted', 'false');
+        return api.get(`/scores/coverage/${podiumId}?${q.toString()}`);
+    }
 };
 
 export default api;

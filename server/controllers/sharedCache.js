@@ -6,6 +6,9 @@ const cache = {
     videos: {},
     referees: {},
     podiumState: {},
+    submissionStatus: {},
+    coverage: {},
+    settings: {},
 };
 
 const CACHE_TTL = {
@@ -13,6 +16,9 @@ const CACHE_TTL = {
     videos: 30000,        // 30 sn
     referees: 120000,     // 2 dakika
     podiumState: 2000,    // 2 sn — hakemlerin yeni video'yu hızlı görmesi için
+    submissionStatus: 4000, // 4 sn — canlı gönderim takip ekranı için
+    coverage: 8000,       // 8 sn — alet bazında kapsama (daha ağır sorgu)
+    settings: 30000,      // 30 sn — puanlama ayarları
 };
 
 function getCached(type, key) {

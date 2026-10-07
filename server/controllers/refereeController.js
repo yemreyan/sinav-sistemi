@@ -18,6 +18,28 @@ exports.getAllReferees = async (req, res) => {
     }
 };
 
+// Hakem gruplarını (liste etiketlerini) döner — canlı takip ekranındaki seçici için
+exports.getGroups = async (req, res) => {
+    try {
+        const snapshot = await db.ref('referees').once('value');
+        const data = snapshot.val() || {};
+
+        const sayac = {};
+        for (const r of Object.values(data)) {
+            if (r.group) sayac[r.group] = (sayac[r.group] || 0) + 1;
+        }
+
+        const gruplar = Object.entries(sayac)
+            .map(([name, count]) => ({ name, count }))
+            .sort((a, b) => a.name.localeCompare(b.name, 'tr'));
+
+        res.json({ success: true, data: gruplar });
+    } catch (error) {
+        console.error('Fetch Referee Groups Error:', error);
+        res.status(500).json({ success: false, message: 'Server error' });
+    }
+};
+
 exports.createReferee = async (req, res) => {
     try {
         const { name, surname, tckn, phone, email, discipline, podiumId } = req.body;

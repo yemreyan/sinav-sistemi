@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { settingsAPI } from '../../services/api';
+import { SCORING_MATRIX } from '../../utils/scoringConfig';
 
 
 export default function SettingsPanel() {

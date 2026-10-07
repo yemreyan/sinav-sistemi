@@ -27,6 +27,9 @@ export default function RefereeScoringPage() {
 
     const pollRef = useRef(null);
     const lastVideoRef = useRef(null);
+    // Telafi: yönetici açtıysa hakem yalnızca bu serileri görür
+    const [telafiSeriler, setTelafiSeriler] = useState([]);
+    const [seciliTelafi, setSeciliTelafi] = useState(null);
 
     // --- Restore session ---
     useEffect(() => {
@@ -118,6 +121,16 @@ export default function RefereeScoringPage() {
                 setPollError('');
                 errorCountRef.current = 0;
             }
+
+            // Telafi izinleri — varsa canlı akış yerine bunlar gösterilir
+            const refEmailForMakeup = referee.email || email.trim();
+            const mk = await scoreAPI.getMakeup(refEmailForMakeup);
+            if (mk.data.success) {
+                const liste = mk.data.data || [];
+                setTelafiSeriler(liste);
+                // Telafi tamamlandıysa seçimi bırak
+                setSeciliTelafi(prev => (prev && !liste.some(v => v.id === prev.id) ? null : prev));
+            }
         } catch {
             errorCountRef.current = Math.min(errorCountRef.current + 1, 5);
             setPollError('Bağlantı sorunu...');
@@ -143,6 +156,23 @@ export default function RefereeScoringPage() {
         return () => clearTimeout(pollRef.current);
     }, [referee, fetchPodiumState]);
 
+    // Telafi serisi seçildiğinde formu o seriye göre hazırla
+    const telafiSec = (seri) => {
+        setSeciliTelafi(seri);
+        lastVideoRef.current = seri.id;
+        resetForm();
+
+        const refEmail = referee?.email || email.trim();
+        scoreAPI.getExisting(refEmail, seri.id).then(res => {
+            if (res.data.success && res.data.data) {
+                const ex = res.data.data;
+                if (ex.zorunluDMoves && typeof ex.zorunluDMoves === 'object') setZorunluSelections(ex.zorunluDMoves);
+                if (ex.d > 0) setDValue(String(ex.d));
+                if (ex.deductions > 0) setDeductions(String(ex.deductions));
+            }
+        }).catch(() => {});
+    };
+
     const resetForm = () => {
         setDValue('');
         setDeductions('');
@@ -156,7 +186,7 @@ export default function RefereeScoringPage() {
     const handleSubmit = async () => {
         if (!podiumData?.activeVideo) return;
 
-        const video = podiumData.activeVideo;
+        const video = seciliTelafi || podiumData.activeVideo;
         const refEmail = referee?.email || email.trim();
         const payload = { email: refEmail, videoId: video.id, d: 0, e: 10, deductions: 0, zorunluDMoves: null };
 
@@ -259,9 +289,10 @@ export default function RefereeScoringPage() {
     }
 
     // --- MAIN SCORING ---
-    const video = podiumData?.activeVideo;
+    const telafiModu = telafiSeriler.length > 0;
+    const video = seciliTelafi || (telafiModu ? null : podiumData?.activeVideo);
     const isExamArchived = podiumData?.isArchived || podiumData?.status === 'ARCHIVED';
-    const isWaiting = !isExamArchived && (!video || podiumData?.status === 'IDLE');
+    const isWaiting = !isExamArchived && !telafiModu && (!video || podiumData?.status === 'IDLE');
 
     // Sort moves for zorunlu
     const sortedMoves = video?.expertDMoves
@@ -303,6 +334,41 @@ export default function RefereeScoringPage() {
                                 {podiumData?.examName ? `"${podiumData.examName}" ` : ''}arşivlendi. Bu podyumda puan girişi kapatıldı;
                                 girdiğiniz puanlar kayıtlı.
                             </p>
+                        </div>
+                    </div>
+                ) : telafiModu && !seciliTelafi ? (
+                    /* ====== TELAFİ: EKSİK SERİ SEÇİMİ ====== */
+                    <div className="w-full max-w-lg py-10 space-y-5">
+                        <div className="text-center space-y-2">
+                            <div className="w-16 h-16 rounded-full bg-amber-500/15 border border-amber-500/30 flex items-center justify-center mx-auto">
+                                <span className="text-2xl">📝</span>
+                            </div>
+                            <h2 className="text-xl font-bold text-white">Eksik Kalan Serileriniz</h2>
+                            <p className="text-muted-foreground text-xs max-w-[320px] mx-auto">
+                                Yönetici size bu seriler için giriş izni verdi. Puanlamak istediğiniz seriyi seçin.
+                                Hepsini tamamladığınızda ekran normal akışa dönecek.
+                            </p>
+                        </div>
+
+                        <div className="space-y-2">
+                            {telafiSeriler.map(seri => (
+                                <button key={seri.id} onClick={() => telafiSec(seri)}
+                                    className="w-full flex items-center gap-3 p-4 rounded-xl bg-amber-500/5 border border-amber-500/20 hover:bg-amber-500/10 transition-colors text-left">
+                                    <div className="min-w-0 flex-1">
+                                        <p className="text-white font-semibold truncate">{seri.title}</p>
+                                        <div className="flex gap-1.5 mt-1.5">
+                                            <span className="text-[10px] px-1.5 py-0.5 rounded bg-white/5 border border-white/10 text-white/60">{seri.apparatus}</span>
+                                            <span className={`text-[10px] px-1.5 py-0.5 rounded border ${seri.type === 'E' ? 'bg-amber-500/10 text-amber-400 border-amber-500/20' : 'bg-blue-500/10 text-blue-400 border-blue-500/20'}`}>
+                                                {seri.type}
+                                            </span>
+                                            <span className="text-[10px] px-1.5 py-0.5 rounded bg-white/5 border border-white/10 text-white/60">
+                                                {seri.isZorunlu ? 'Zorunlu' : 'Serbest'}
+                                            </span>
+                                        </div>
+                                    </div>
+                                    <span className="text-amber-400 text-lg flex-shrink-0">›</span>
+                                </button>
+                            ))}
                         </div>
                     </div>
                 ) : isWaiting ? (

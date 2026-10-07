@@ -1,4 +1,5 @@
 const { db } = require('../config/firebase');
+const { invalidateCache } = require('./sharedCache');
 
 exports.getSettings = async (req, res) => {
     try {
