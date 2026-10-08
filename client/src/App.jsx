@@ -1,20 +1,21 @@
+import { lazy, Suspense } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import AdminLayout from './layouts/AdminLayout';
 import AdminLogin from './pages/AdminLogin';
-import Dashboard from './pages/Dashboard';
-import ExamManagement from './components/exam/ExamManagement';
-import LiveControl from './components/live/LiveControl';
-import VideoManagement from './components/video/VideoManagement';
-import RefereeList from './components/referee/RefereeList';
-import SettingsPanel from './components/settings/SettingsPanel';
-import ReportsPanel from './components/reports/ReportsPanel';
-import ResultsMatrix from './components/results/ResultsMatrix';
-import BulkScores from './components/scores/BulkScores';
+const Dashboard = lazy(() => import('./pages/Dashboard'));
+const ExamManagement = lazy(() => import('./components/exam/ExamManagement'));
+const LiveControl = lazy(() => import('./components/live/LiveControl'));
+const VideoManagement = lazy(() => import('./components/video/VideoManagement'));
+const RefereeList = lazy(() => import('./components/referee/RefereeList'));
+const SettingsPanel = lazy(() => import('./components/settings/SettingsPanel'));
+const ReportsPanel = lazy(() => import('./components/reports/ReportsPanel'));
+const ResultsMatrix = lazy(() => import('./components/results/ResultsMatrix'));
+const BulkScores = lazy(() => import('./components/scores/BulkScores'));
 import RefereeScoringPage from './pages/RefereeScoringPage';
-import StatsView from './components/stats/StatsView';
-import SubmissionTracker from './components/live/SubmissionTracker';
-import QuestionPool from './components/questions/QuestionPool';
-import VideoDistribution from './components/questions/VideoDistribution';
+const StatsView = lazy(() => import('./components/stats/StatsView'));
+const SubmissionTracker = lazy(() => import('./components/live/SubmissionTracker'));
+const QuestionPool = lazy(() => import('./components/questions/QuestionPool'));
+const VideoDistribution = lazy(() => import('./components/questions/VideoDistribution'));
 import { isLoggedIn } from './services/auth';
 
 // Oturum her gezinmede yeniden okunur — App bir kez render edildiği için
@@ -30,6 +31,7 @@ function LoginGate() {
 function App() {
   return (
     <BrowserRouter>
+      <Suspense fallback={<div className="p-8 text-muted-foreground">Yükleniyor...</div>}>
       <Routes>
         {/* Hakem Puanlama — Artık Ana Sayfa (/) */}
         <Route path="/" element={<RefereeScoringPage />} />
@@ -57,6 +59,7 @@ function App() {
         {/* Catch-all for undefined routes — Redirect to main page */}
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
+      </Suspense>
     </BrowserRouter>
   );
 }

@@ -9,6 +9,7 @@ const cache = {
     submissionStatus: {},
     coverage: {},
     settings: {},
+    stats: {},
 };
 
 const CACHE_TTL = {
@@ -19,6 +20,7 @@ const CACHE_TTL = {
     submissionStatus: 4000, // 4 sn — canlı gönderim takip ekranı için
     coverage: 8000,       // 8 sn — alet bazında kapsama (daha ağır sorgu)
     settings: 30000,      // 30 sn — puanlama ayarları
+    stats: 15000,         // 15 sn — Dashboard özeti; tüm results'ı okuyan ağır sorgu
 };
 
 function getCached(type, key) {

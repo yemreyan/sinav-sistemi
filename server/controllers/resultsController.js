@@ -1,4 +1,5 @@
 const { db } = require('../config/firebase');
+const { getCached, setCache } = require('./sharedCache');
 const { isAdminRequest } = require('../utils/adminAuth');
 
 // Arşivlenmiş sınavların id kümesi — sonuçları dışarıya kapatmak için
@@ -42,6 +43,12 @@ exports.getStats = async (req, res) => {
     try {
         const isAdmin = isAdminRequest(req);
 
+        // Dashboard bunu düzenli aralıkla çağırıyor ve sorgu tüm results'ı okuyor.
+        // Yönetici ve ziyaretçi farklı sayılar gördüğü için anahtar role göre ayrı.
+        const cacheKey = isAdmin ? 'admin' : 'public';
+        const onbellek = getCached('stats', cacheKey);
+        if (onbellek) return res.json(onbellek);
+
         const [examsSnap, videosSnap, refereesSnap, podiumsSnap, resultsSnap] = await Promise.all([
             db.ref('exams').once('value'),
             db.ref('videos').once('value'),
@@ -74,7 +81,7 @@ exports.getStats = async (req, res) => {
             ? Object.values(results)
             : Object.values(results).filter(r => !archivedExamIds.has(r.examId));
 
-        res.json({
+        const yanit = {
             success: true,
             data: {
                 totalExams: visibleExamCount,
@@ -83,12 +90,16 @@ exports.getStats = async (req, res) => {
                 archivedExams: isAdmin ? archivedExamIds.size : 0,
                 totalVideos: visibleVideos.length,
                 archivedVideos: isAdmin ? Object.values(videos).filter(v => v.isArchived).length : 0,
-                totalReferees: Object.keys(referees).length,
+                totalReferees: Object.values(referees).filter(r => !r.isArchived).length,
+                archivedReferees: isAdmin ? Object.values(referees).filter(r => r.isArchived).length : 0,
                 totalPodiums: Object.keys(podiums).length,
                 activePodiums: activePodiums.length,
                 totalResults: visibleResults.length
             }
-        });
+        };
+
+        setCache('stats', cacheKey, yanit);
+        res.json(yanit);
     } catch (error) {
         console.error('Fetch Stats Error:', error);
         res.status(500).json({ success: false, message: 'Server error' });

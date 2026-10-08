@@ -18,8 +18,19 @@ export default function Dashboard() {
             }
         };
         fetchStats();
-        const interval = setInterval(fetchStats, 10000);
-        return () => clearInterval(interval);
+
+        // Sekme arka plandayken sunucuyu meşgul etmenin anlamı yok; öne gelince
+        // hemen bir kez tazeleyip düzenli yoklamaya devam eder.
+        let interval = null;
+        const basla = () => { if (!interval) interval = setInterval(fetchStats, 30000); };
+        const dur = () => { if (interval) { clearInterval(interval); interval = null; } };
+        const gorunurluk = () => {
+            if (document.hidden) dur();
+            else { fetchStats(); basla(); }
+        };
+        basla();
+        document.addEventListener('visibilitychange', gorunurluk);
+        return () => { dur(); document.removeEventListener('visibilitychange', gorunurluk); };
     }, []);
 
     if (loading) return <div className="text-white p-8">Yükleniyor...</div>;

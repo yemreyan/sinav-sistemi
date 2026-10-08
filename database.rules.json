@@ -1,0 +1,25 @@
+{
+  "_aciklama": [
+    "Firebase Realtime Database kuralları.",
+    "",
+    "AMAÇ: referees/email üzerinde index tanımlamak. Hakem girişi her seferinde",
+    "orderByChild('email').equalTo(...) sorgusu yapıyor; index olmadan Firebase tüm",
+    "hakem listesini indirip istemcide süzüyor ve konsola uyarı basıyor.",
+    "",
+    "UYARI: .read/.write şu an açık. Sunucu Firebase'e kimlik doğrulamasız web SDK",
+    "(firebase/compat) ile bağlanıyor, bu yüzden kuralları kapatmak sistemi anında",
+    "durdurur. Kapatmak için önce sunucunun firebase-admin service account ile",
+    "bağlanmaya geçmesi gerekir — ayrı bir iş.",
+    "",
+    "YAYINA ALMA: Firebase Console > Realtime Database > Rules'a yapıştırıp Publish,",
+    "veya: firebase deploy --only database"
+  ],
+  "rules": {
+    ".read": true,
+    ".write": true,
+
+    "referees": {
+      ".indexOn": ["email"]
+    }
+  }
+}
