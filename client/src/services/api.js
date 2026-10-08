@@ -63,7 +63,8 @@ export const videoAPI = {
 };
 
 export const refereeAPI = {
-    getAll: () => api.get('/referees'),
+    // Geçmiş sonuçların hakem adlarını çözen ekranlar arşivlileri de ister.
+    getAll: (includeArchived = false) => api.get(`/referees${includeArchived ? '?includeArchived=true' : ''}`),
     getGroups: () => api.get('/referee-groups'),
     create: (data) => api.post('/referees', data),
     update: (id, data) => api.put(`/referees/${id}`, data),

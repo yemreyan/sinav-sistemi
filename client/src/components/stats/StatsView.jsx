@@ -19,7 +19,7 @@ export default function StatsView() {
         const fetchData = async () => {
             try {
                 const [resRes, refRes, vidRes] = await Promise.all([
-                    resultsAPI.getAll(), refereeAPI.getAll(), videoAPI.getAll()
+                    resultsAPI.getAll(), refereeAPI.getAll(true), videoAPI.getAll()
                 ]);
                 if (resRes.data.success) setResults(resRes.data.data || []);
                 if (refRes.data.success) setReferees(refRes.data.data || []);

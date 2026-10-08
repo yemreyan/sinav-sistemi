@@ -246,6 +246,7 @@ exports.distribute = async (req, res) => {
         const grup = (req.body.group || '').trim();
 
         const hakemler = Object.entries(rSnap.val() || {})
+            .filter(([, r]) => !r.isArchived)
             .filter(([, r]) => r.podiumId && hedefPodyumlar.has(r.podiumId))
             .filter(([, r]) => !grup || r.group === grup)
             .sort((a, b) => String(a[1].name || '').localeCompare(String(b[1].name || ''), 'tr'))

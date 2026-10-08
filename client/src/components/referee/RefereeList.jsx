@@ -10,6 +10,9 @@ export default function RefereeList() {
     const [bulkData, setBulkData] = useState('');
     const [isSubmittingBulk, setIsSubmittingBulk] = useState(false);
     const [selectedIds, setSelectedIds] = useState([]);
+    const [arsivGoster, setArsivGoster] = useState(false);
+    const [sayac, setSayac] = useState({ toplam: 0, arsivli: 0 });
+    const [islemde, setIslemde] = useState(false);
 
     // Form state
     const [form, setForm] = useState({
@@ -20,8 +23,12 @@ export default function RefereeList() {
 
     const fetchData = async () => {
         try {
-            const [refRes, podRes] = await Promise.all([refereeAPI.getAll(), podiumAPI.getAll()]);
-            if (refRes.data.success) setReferees(refRes.data.data || []);
+            const [refRes, podRes] = await Promise.all([refereeAPI.getAll(arsivGoster), podiumAPI.getAll()]);
+            if (refRes.data.success) {
+                const hepsi = refRes.data.data || [];
+                setReferees(arsivGoster ? hepsi.filter(r => r.isArchived) : hepsi);
+                if (refRes.data.meta) setSayac(refRes.data.meta);
+            }
             if (podRes.data.success) setPodiums(podRes.data.data || []);
         } catch (error) {
             console.error("Failed to load data", error);
@@ -30,7 +37,23 @@ export default function RefereeList() {
         }
     };
 
-    useEffect(() => { fetchData(); }, []);
+    useEffect(() => { setSelectedIds([]); fetchData(); }, [arsivGoster]); // eslint-disable-line react-hooks/exhaustive-deps
+
+    // Arşivleme veriyi silmez: hakem kaydı ve gönderdiği puanlar olduğu gibi kalır,
+    // yalnızca aktif listelerden, dağıtımdan ve girişten çıkar.
+    const arsivle = async (ids, arsivli) => {
+        setIslemde(true);
+        try {
+            for (const id of ids) await refereeAPI.update(id, { isArchived: arsivli });
+            setSelectedIds([]);
+            await fetchData();
+        } catch (error) {
+            console.error('Arşiv islemi basarisiz', error);
+            alert('İşlem tamamlanamadı.');
+        } finally {
+            setIslemde(false);
+        }
+    };
 
     const handleChange = (field, value) => {
         setForm(prev => ({ ...prev, [field]: value }));
@@ -163,7 +186,7 @@ export default function RefereeList() {
                         <span className="text-emerald-400">📊</span> Toplu Hakem Ekleme (Excel)
                     </h3>
                     <p className="text-sm text-muted-foreground mb-4">
-                        Aşağıdaki alana Excel'den sütunları kopyalayıp yapıştırın. İlk sütun <strong>Ad Soyad</strong>, ikinci sütun <strong>E-posta</strong> olmalıdır.
+                        Aşağıdaki alana Excel&apos;den sütunları kopyalayıp yapıştırın. İlk sütun <strong>Ad Soyad</strong>, ikinci sütun <strong>E-posta</strong> olmalıdır.
                     </p>
                     <form onSubmit={handleBulkSubmit} className="space-y-4">
                         <textarea
@@ -238,15 +261,36 @@ export default function RefereeList() {
             {/* Referee Table */}
             <div className="glass-panel overflow-hidden shadow-2xl relative">
 
+                {/* Aktif / Arşiv sekmesi */}
+                <div className="flex items-center gap-2 px-4 py-3 border-b border-white/10 bg-black/20">
+                    <button onClick={() => setArsivGoster(false)}
+                        className={`text-xs font-semibold px-3 py-1.5 rounded-lg transition-all ${!arsivGoster ? 'bg-primary/20 text-blue-400 border border-primary/30' : 'text-muted-foreground hover:bg-white/5 border border-transparent'}`}>
+                        Aktif ({sayac.toplam - sayac.arsivli})
+                    </button>
+                    <button onClick={() => setArsivGoster(true)}
+                        className={`text-xs font-semibold px-3 py-1.5 rounded-lg transition-all ${arsivGoster ? 'bg-amber-500/20 text-amber-400 border border-amber-500/30' : 'text-muted-foreground hover:bg-white/5 border border-transparent'}`}>
+                        Arşiv ({sayac.arsivli})
+                    </button>
+                    <p className="text-[11px] text-muted-foreground ml-2">
+                        Arşivlenen hakemin puanları ve kaydı durur; aktif listelerde, dağıtımda ve girişte görünmez.
+                    </p>
+                </div>
+
                 {/* Bulk Delete Ribbon */}
                 {selectedIds.length > 0 && (
                     <div className="bg-red-500/10 border-b border-red-500/20 px-4 py-3 flex items-center justify-between animate-in slide-in-from-top-2 duration-300">
                         <span className="text-red-400 font-semibold text-sm drop-shadow-md">
                             {selectedIds.length} hakem seçildi
                         </span>
-                        <button onClick={handleBulkDelete} className="bg-red-600 hover:bg-red-700 text-white text-xs font-bold py-1.5 px-4 rounded shadow-lg shadow-red-500/20 transition-all flex items-center gap-2">
-                            <span>🗑️</span> Seçilenleri Sil
-                        </button>
+                        <div className="flex items-center gap-2">
+                            <button onClick={() => arsivle(selectedIds, !arsivGoster)} disabled={islemde}
+                                className="bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/30 text-amber-300 text-xs font-bold py-1.5 px-4 rounded transition-all disabled:opacity-50">
+                                {arsivGoster ? 'Seçilenleri Arşivden Çıkar' : 'Seçilenleri Arşivle'}
+                            </button>
+                            <button onClick={handleBulkDelete} className="bg-red-600 hover:bg-red-700 text-white text-xs font-bold py-1.5 px-4 rounded shadow-lg shadow-red-500/20 transition-all flex items-center gap-2">
+                                <span>🗑️</span> Seçilenleri Sil
+                            </button>
+                        </div>
                     </div>
                 )}
 
@@ -303,15 +347,21 @@ export default function RefereeList() {
                                         </select>
                                     </td>
                                     <td className="p-4 text-right">
-                                        <button onClick={() => handleDelete(referee.id)} className="text-xs font-semibold text-red-400 hover:text-red-300 transition-colors opacity-0 group-hover:opacity-100 px-3 py-1 bg-red-400/10 rounded-md">
-                                            Sil
-                                        </button>
+                                        <div className="flex items-center justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                                            <button onClick={() => arsivle([referee.id], !referee.isArchived)} disabled={islemde}
+                                                className="text-xs font-semibold text-amber-400 hover:text-amber-300 px-3 py-1 bg-amber-400/10 rounded-md disabled:opacity-50">
+                                                {referee.isArchived ? 'Geri Al' : 'Arşivle'}
+                                            </button>
+                                            <button onClick={() => handleDelete(referee.id)} className="text-xs font-semibold text-red-400 hover:text-red-300 transition-colors px-3 py-1 bg-red-400/10 rounded-md">
+                                                Sil
+                                            </button>
+                                        </div>
                                     </td>
                                 </tr>
                             ))}
                             {referees.length === 0 && (
                                 <tr>
-                                    <td colSpan="7" className="p-8 text-center text-muted-foreground">Sistemde hakem bulunmamaktadır.</td>
+                                    <td colSpan="7" className="p-8 text-center text-muted-foreground">{arsivGoster ? 'Arşivde hakem yok.' : 'Sistemde hakem bulunmamaktadır.'}</td>
                                 </tr>
                             )}
                         </tbody>

@@ -6,12 +6,17 @@ exports.getAllReferees = async (req, res) => {
         const snapshot = await db.ref('referees').once('value');
         const data = snapshot.val() || {};
 
-        const refereesArray = Object.keys(data).map(key => ({
-            id: key,
-            ...data[key]
-        }));
+        // Arşivli hakemler geçmiş yarışmalara ait; kayıtları ve puanları durur ama
+        // aktif listelerde görünmezler. ?includeArchived=true ile getirilir.
+        const arsivDahil = req.query.includeArchived === 'true';
+        const hepsi = Object.keys(data).map(key => ({ id: key, ...data[key] }));
+        const refereesArray = arsivDahil ? hepsi : hepsi.filter(r => !r.isArchived);
 
-        res.json({ success: true, data: refereesArray });
+        res.json({
+            success: true,
+            data: refereesArray,
+            meta: { toplam: hepsi.length, arsivli: hepsi.filter(r => r.isArchived).length }
+        });
     } catch (error) {
         console.error('Fetch Referees Error:', error);
         res.status(500).json({ success: false, message: 'Server error' });
@@ -26,6 +31,7 @@ exports.getGroups = async (req, res) => {
 
         const sayac = {};
         for (const r of Object.values(data)) {
+            if (r.isArchived) continue;
             if (r.group) sayac[r.group] = (sayac[r.group] || 0) + 1;
         }
 

@@ -30,7 +30,7 @@ export default function ReportsPanel() {
         const fetchData = async () => {
             try {
                 const [examRes, refRes, resRes, vidRes] = await Promise.all([
-                    examAPI.getAll(), refereeAPI.getAll(), resultsAPI.getAll(), videoAPI.getAll()
+                    examAPI.getAll(), refereeAPI.getAll(true), resultsAPI.getAll(), videoAPI.getAll()
                 ]);
 
                 if (examRes.data.success) {

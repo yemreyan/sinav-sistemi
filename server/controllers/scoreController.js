@@ -77,6 +77,14 @@ exports.authenticate = async (req, res) => {
         if (!referee) {
             return res.status(401).json({ success: false, message: 'Bu e-posta adresine ait hakem bulunamadı' });
         }
+        // Geçmiş yarışmaların hakemleri arşivlidir: kayıtları durur, ama yeni bir
+        // sınava giremezler. Yeniden katılacaklarsa panelden arşivden çıkarılır.
+        if (referee.isArchived) {
+            return res.status(403).json({
+                success: false,
+                message: 'Bu hakem kaydı geçmiş bir yarışmaya ait. Güncel sınava katılacaksanız kurul ile görüşün.'
+            });
+        }
 
         res.json({
             success: true,
@@ -270,6 +278,13 @@ exports.submitScore = async (req, res) => {
 
         if (!referee) {
             return res.status(401).json({ success: false, message: 'Yetkisiz erişim: Email bulunamadı' });
+        }
+        // Arşivli hakem yeni puan gönderemez — eski kayıtları olduğu gibi durur
+        if (referee.isArchived) {
+            return res.status(403).json({
+                success: false,
+                message: 'Bu hakem kaydı geçmiş bir yarışmaya ait, puan girişi kapalı'
+            });
         }
         if (!video) {
             return res.status(404).json({ success: false, message: 'Video bulunamadı' });
@@ -496,6 +511,7 @@ exports.getSubmissionStatus = async (req, res) => {
         // Bu podyuma bağlı hakemler
         const refSnap = await db.ref('referees').once('value');
         const refereeler = Object.entries(refSnap.val() || {})
+            .filter(([, r]) => !r.isArchived)
             .filter(([, r]) => r.podiumId === podiumId)
             .filter(([, r]) => !grup || r.group === grup)
             .map(([id, r]) => ({ id, name: r.name || '', email: r.email || '', group: r.group || '' }))
@@ -640,6 +656,7 @@ exports.getCoverage = async (req, res) => {
             .sort((a, b) => String(a.title).localeCompare(String(b.title), 'tr'));
 
         const refereeler = Object.entries(refSnap.val() || {})
+            .filter(([, r]) => !r.isArchived)
             .filter(([, r]) => r.podiumId === podiumId)
             .filter(([, r]) => !grup || r.group === grup)
             .map(([id, r]) => ({ id, name: r.name || '', email: r.email || '' }))

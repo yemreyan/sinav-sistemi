@@ -19,7 +19,7 @@ export default function ResultsMatrix() {
         const fetchAll = async () => {
             try {
                 const [resRes, refRes, vidRes, examRes] = await Promise.all([
-                    resultsAPI.getAll(), refereeAPI.getAll(), videoAPI.getAll(), examAPI.getAll()
+                    resultsAPI.getAll(), refereeAPI.getAll(true), videoAPI.getAll(), examAPI.getAll()
                 ]);
                 if (resRes.data.success) setResults(resRes.data.data || []);
                 if (refRes.data.success) setReferees(refRes.data.data || []);
