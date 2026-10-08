@@ -13,6 +13,11 @@ exports.getSettings = async (req, res) => {
         if (!data.matrixOverrides) {
             data.matrixOverrides = {};
         }
+        // Başarı eşikleri: D ve E ayrı ayrı geçer, genel ortalama da tutmalı.
+        // kritikBant: eşiğin bu kadar altı/üstü "sınırda" sayılır ve ayrı renkte gösterilir.
+        if (!data.thresholds) {
+            data.thresholds = { d: 70, e: 60, average: 65, criticalBand: 5 };
+        }
 
         res.json({ success: true, data });
     } catch (error) {
@@ -39,6 +44,28 @@ exports.updateMatrixOverrides = async (req, res) => {
         res.json({ success: true, message: 'Matrix overrides updated' });
     } catch (error) {
         console.error('Update Matrix Overrides Error:', error);
+        res.status(500).json({ success: false, message: 'Server error' });
+    }
+};
+
+exports.updateThresholds = async (req, res) => {
+    try {
+        const { thresholds } = req.body || {};
+        const sayi = (v, varsayilan) => {
+            const n = Number(v);
+            return Number.isFinite(n) && n >= 0 && n <= 100 ? n : varsayilan;
+        };
+        const temiz = {
+            d: sayi(thresholds?.d, 70),
+            e: sayi(thresholds?.e, 60),
+            average: sayi(thresholds?.average, 65),
+            criticalBand: sayi(thresholds?.criticalBand, 5)
+        };
+        await db.ref('settings/scoring/thresholds').set(temiz);
+        invalidateCache('settings');
+        res.json({ success: true, data: temiz, message: 'Başarı eşikleri güncellendi' });
+    } catch (error) {
+        console.error('Update Thresholds Error:', error);
         res.status(500).json({ success: false, message: 'Server error' });
     }
 };

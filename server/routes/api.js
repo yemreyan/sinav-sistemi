@@ -56,6 +56,7 @@ router.delete('/referees/:id', requireAdmin, refereeController.deleteReferee);
 router.get('/settings', settingsController.getSettings);
 router.put('/settings/diff', requireAdmin, settingsController.updateDiffPoints);
 router.put('/settings/matrix', requireAdmin, settingsController.updateMatrixOverrides);
+router.put('/settings/thresholds', requireAdmin, settingsController.updateThresholds);
 
 // 6b. Soru Havuzu ve Dağıtım
 // Soru havuzu uzman değerlerini taşır ve yalnızca panelde kullanılır.

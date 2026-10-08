@@ -1,10 +1,11 @@
 import { useState, useEffect } from 'react';
-import { resultsAPI, refereeAPI, videoAPI, examAPI } from '../../services/api';
+import { resultsAPI, refereeAPI, videoAPI, examAPI, settingsAPI, podiumAPI } from '../../services/api';
 import * as XLSX from 'xlsx';
 
 const APPARATUS_MAP = { 'AtM': 'Atlama Masası', 'KP': 'Kız Paraleli', 'D': 'Denge', 'Y': 'Yer' };
 const TABS = [
     { id: 'general', label: 'Genel Sonuçlar' },
+    { id: 'basari', label: 'Başarı Durumu' },
     { id: 'AtM', label: 'Atlama Masası' },
     { id: 'KP', label: 'Kız Paraleli' },
     { id: 'D', label: 'Denge' },
@@ -18,6 +19,7 @@ export default function ReportsPanel() {
     const [referees, setReferees] = useState([]);
     const [results, setResults] = useState([]);
     const [videos, setVideos] = useState([]);
+    const [podiums, setPodiums] = useState([]);
 
     const [selectedExamId, setSelectedExamId] = useState('');
     const [activeTab, setActiveTab] = useState('general');
@@ -25,12 +27,16 @@ export default function ReportsPanel() {
 
     const [loading, setLoading] = useState(true);
     const [exporting, setExporting] = useState(false);
+    const [esikler, setEsikler] = useState({ d: 70, e: 60, average: 65, criticalBand: 5 });
 
     useEffect(() => {
         const fetchData = async () => {
             try {
-                const [examRes, refRes, resRes, vidRes] = await Promise.all([
-                    examAPI.getAll(), refereeAPI.getAll(true), resultsAPI.getAll(), videoAPI.getAll()
+                settingsAPI.get()
+                    .then(({ data }) => { if (data.success && data.data?.thresholds) setEsikler(data.data.thresholds); })
+                    .catch(() => {});
+                const [examRes, refRes, resRes, vidRes, podRes] = await Promise.all([
+                    examAPI.getAll(), refereeAPI.getAll(true), resultsAPI.getAll(), videoAPI.getAll(), podiumAPI.getAll()
                 ]);
 
                 if (examRes.data.success) {
@@ -41,6 +47,7 @@ export default function ReportsPanel() {
                 if (refRes.data.success) setReferees(refRes.data.data || []);
                 if (resRes.data.success) setResults(resRes.data.data || []);
                 if (vidRes.data.success) setVideos(vidRes.data.data || []);
+                if (podRes.data.success) setPodiums(podRes.data.data || []);
             } catch (err) {
                 console.error('Failed to load report data', err);
             } finally {
@@ -68,6 +75,140 @@ export default function ReportsPanel() {
         if (!vid || vid.isArchived) return false;
         return true;
     });
+
+
+    // --- Başarı Durumu ---
+    // D ve E ayrı ayrı kendi eşiğini geçmeli, genel ortalama da ortalama eşiğini tutmalı.
+    // Boş bırakılan soru 0 sayılır: hakem o seriyi puanlamadıysa ortalamasını düşürür.
+    const basariSatirlari = () => {
+        const dVideolar = examVideos.filter(v => v.type === 'D');
+        const eVideolar = examVideos.filter(v => v.type === 'E');
+        // Kadro = sınavın podyumuna bağlı aktif hakemler. Hiç puan göndermemiş olanlar
+        // da listede çıkmalı (sıfır alıp başarısız sayılırlar), yoksa sonuç listesi eksik olur.
+        const sinavPodyumlari = new Set(podiums.filter(p => p.examId === selectedExamId).map(p => p.id));
+        const kadro = referees
+            .filter(r => !r.isArchived && r.podiumId && sinavPodyumlari.has(r.podiumId))
+            .map(r => r.id);
+        const refIds = [...new Set([...kadro, ...examResults.map(r => r.refereeId)])];
+
+        const ortalama = (videolar, refId) => {
+            if (!videolar.length) return null;
+            const toplam = videolar.reduce((t, v) => {
+                const kayit = examResults.find(r => r.refereeId === refId && r.videoId === v.id);
+                return t + (kayit?.points || 0);
+            }, 0);
+            return (toplam / videolar.length) * 100;
+        };
+
+        return refIds.map(refId => {
+            const d = ortalama(dVideolar, refId);
+            const e = ortalama(eVideolar, refId);
+            const giren = examResults.filter(r => r.refereeId === refId).length;
+            const tumVideolar = [...dVideolar, ...eVideolar];
+            const genel = ortalama(tumVideolar, refId);
+            const dGecti = d === null || d >= esikler.d;
+            const eGecti = e === null || e >= esikler.e;
+            const genelGecti = genel !== null && genel >= esikler.average;
+            return {
+                refId, ad: getRefereeName(refId), d, e, genel, giren, toplamSoru: tumVideolar.length,
+                dGecti, eGecti, genelGecti, basarili: dGecti && eGecti && genelGecti
+            };
+        }).sort((a, b) => (b.genel || 0) - (a.genel || 0));
+    };
+
+    // Eşiğe criticalBand kadar yakın değerler "sınırda" — desteklenecek hakemi görmek için
+    const esikRengi = (deger, esik) => {
+        if (deger === null) return 'text-white/30';
+        if (deger >= esik + esikler.criticalBand) return 'text-emerald-400';
+        if (deger >= esik) return 'text-lime-400';
+        if (deger >= esik - esikler.criticalBand) return 'text-amber-400 font-bold';
+        return 'text-red-400';
+    };
+
+    const renderBasariDurumu = () => {
+        const satirlar = basariSatirlari();
+        const basarili = satirlar.filter(r => r.basarili).length;
+        const sinirda = satirlar.filter(r => !r.basarili &&
+            [[r.d, esikler.d], [r.e, esikler.e], [r.genel, esikler.average]]
+                .some(([v, t]) => v !== null && v < t && v >= t - esikler.criticalBand)).length;
+
+        return (
+            <div className="space-y-6 animate-in slide-in-from-bottom-4 duration-500">
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                    <div className="glass-panel p-4">
+                        <p className="text-xs text-muted-foreground">Değerlendirilen hakem</p>
+                        <p className="text-2xl font-bold mt-1">{satirlar.length}</p>
+                    </div>
+                    <div className="glass-panel p-4">
+                        <p className="text-xs text-muted-foreground">Başarılı</p>
+                        <p className="text-2xl font-bold mt-1 text-emerald-400">{basarili}</p>
+                    </div>
+                    <div className="glass-panel p-4">
+                        <p className="text-xs text-muted-foreground">Başarısız</p>
+                        <p className="text-2xl font-bold mt-1 text-red-400">{satirlar.length - basarili}</p>
+                    </div>
+                    <div className="glass-panel p-4 border border-amber-500/30">
+                        <p className="text-xs text-amber-400">Sınırda (desteklenebilir)</p>
+                        <p className="text-2xl font-bold mt-1 text-amber-400">{sinirda}</p>
+                    </div>
+                </div>
+
+                <div className="glass-panel p-4 text-xs text-muted-foreground flex flex-wrap gap-x-5 gap-y-1">
+                    <span>Geçme şartı: D ≥ %{esikler.d} <b>ve</b> E ≥ %{esikler.e} <b>ve</b> genel ≥ %{esikler.average}</span>
+                    <span className="text-amber-400">Sınırda bandı: ±%{esikler.criticalBand}</span>
+                    <span>Eşikleri Sistem Ayarları&apos;ndan değiştirebilirsiniz.</span>
+                </div>
+
+                <div className="glass-panel overflow-hidden">
+                    <div className="overflow-x-auto">
+                        <table className="w-full text-left border-collapse text-sm">
+                            <thead>
+                                <tr className="bg-black/40 border-b border-white/10 text-xs uppercase tracking-wider text-muted-foreground">
+                                    <th className="p-4">#</th>
+                                    <th className="p-4">Hakem</th>
+                                    <th className="p-4 text-right">D</th>
+                                    <th className="p-4 text-right">E</th>
+                                    <th className="p-4 text-right">Genel</th>
+                                    <th className="p-4 text-center">Giriş</th>
+                                    <th className="p-4 text-center">Sonuç</th>
+                                </tr>
+                            </thead>
+                            <tbody className="divide-y divide-white/5">
+                                {satirlar.map((r, i) => (
+                                    <tr key={r.refId} className="hover:bg-white/[0.02]">
+                                        <td className="p-4 text-white/40">{i + 1}</td>
+                                        <td className="p-4 font-semibold text-white/90">{r.ad}</td>
+                                        <td className={`p-4 text-right font-mono ${esikRengi(r.d, esikler.d)}`}>
+                                            {r.d === null ? '—' : `%${r.d.toFixed(1)}`}
+                                        </td>
+                                        <td className={`p-4 text-right font-mono ${esikRengi(r.e, esikler.e)}`}>
+                                            {r.e === null ? '—' : `%${r.e.toFixed(1)}`}
+                                        </td>
+                                        <td className={`p-4 text-right font-mono font-bold ${esikRengi(r.genel, esikler.average)}`}>
+                                            {r.genel === null ? '—' : `%${r.genel.toFixed(1)}`}
+                                        </td>
+                                        <td className={`p-4 text-center text-xs ${r.giren < r.toplamSoru ? 'text-amber-400' : 'text-white/50'}`}>
+                                            {r.giren}/{r.toplamSoru}
+                                        </td>
+                                        <td className="p-4 text-center">
+                                            <span className={`text-xs font-bold px-3 py-1 rounded-full ${r.basarili
+                                                ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30'
+                                                : 'bg-red-500/15 text-red-400 border border-red-500/30'}`}>
+                                                {r.basarili ? 'BAŞARILI' : 'BAŞARISIZ'}
+                                            </span>
+                                        </td>
+                                    </tr>
+                                ))}
+                                {satirlar.length === 0 && (
+                                    <tr><td colSpan="7" className="p-8 text-center text-muted-foreground">Bu yarışmada sonuç yok.</td></tr>
+                                )}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        );
+    };
 
     const calcPointColor = (points) => {
         const p = points * 100;
@@ -772,6 +913,9 @@ export default function ReportsPanel() {
                                 </div>
                             </div>
                         )}
+
+                        {/* BAŞARI DURUMU */}
+                        {activeTab === 'basari' && renderBasariDurumu()}
 
                         {/* DEVIATION TAB */}
                         {activeTab === 'deviation' && renderDeviationAnalysis()}

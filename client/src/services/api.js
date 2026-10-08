@@ -91,7 +91,8 @@ export const authAPI = {
 export const settingsAPI = {
     get: () => api.get('/settings'),
     updateDiff: (diffPoints) => api.put('/settings/diff', { diffPoints }),
-    updateMatrix: (matrixOverrides) => api.put('/settings/matrix', { matrixOverrides })
+    updateMatrix: (matrixOverrides) => api.put('/settings/matrix', { matrixOverrides }),
+    updateThresholds: (thresholds) => api.put('/settings/thresholds', { thresholds })
 };
 
 export const resultsAPI = {

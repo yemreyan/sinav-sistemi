@@ -13,6 +13,8 @@ export default function SettingsPanel() {
 
     // overrides object mapped by expert string
     const [matrixOverrides, setMatrixOverrides] = useState({});
+    const [esikler, setEsikler] = useState({ d: 70, e: 60, average: 65, criticalBand: 5 });
+    const [esikKaydediliyor, setEsikKaydediliyor] = useState(false);
 
     useEffect(() => {
         const fetchSettings = async () => {
@@ -21,6 +23,7 @@ export default function SettingsPanel() {
                 if (data.success && data.data) {
                     if (data.data.diffPoints) setDiffPoints(data.data.diffPoints);
                     if (data.data.matrixOverrides) setMatrixOverrides(data.data.matrixOverrides);
+                    if (data.data.thresholds) setEsikler(data.data.thresholds);
                 }
             } catch (err) {
                 console.error("Failed to fetch settings", err);
@@ -30,6 +33,19 @@ export default function SettingsPanel() {
         };
         fetchSettings();
     }, []);
+
+    const esikKaydet = async () => {
+        setEsikKaydediliyor(true);
+        try {
+            await settingsAPI.updateThresholds(esikler);
+            alert('Başarı eşikleri kaydedildi. Raporlar ekranı bu değerlere göre hesaplar.');
+        } catch (err) {
+            console.error(err);
+            alert('Kaydetme başarısız oldu.');
+        } finally {
+            setEsikKaydediliyor(false);
+        }
+    };
 
     const handleDiffChange = (lvl, val) => {
         setDiffPoints(prev => ({ ...prev, [lvl]: parseFloat(val) || 0 }));
@@ -93,6 +109,43 @@ export default function SettingsPanel() {
                 <div>
                     <h1 className="text-3xl font-bold tracking-tight text-white mb-2">Sistem Ayarları</h1>
                     <p className="text-muted-foreground">Puanlama katsayıları ve sapma matrisini yapılandırın</p>
+                </div>
+            </div>
+
+            {/* Başarı Eşikleri */}
+            <div className="glass-panel overflow-hidden">
+                <div className="p-6 border-b border-white/5 bg-black/20">
+                    <h3 className="text-xl font-bold text-primary mb-1">Başarı Eşikleri</h3>
+                    <p className="text-sm text-muted-foreground">
+                        Bir hakemin başarılı sayılması için D ve E ayrı ayrı kendi eşiğini geçmeli,
+                        genel ortalaması da ortalama eşiğini tutmalıdır. Eşiğe bu kadar yakın değerler
+                        Raporlar ekranında &quot;sınırda&quot; rengiyle gösterilir.
+                    </p>
+                </div>
+                <div className="p-6 grid grid-cols-2 md:grid-cols-4 gap-4">
+                    {[
+                        { k: 'd', l: 'D eşiği (%)', ipucu: 'D sorularının ortalaması' },
+                        { k: 'e', l: 'E eşiği (%)', ipucu: 'E sorularının ortalaması' },
+                        { k: 'average', l: 'Genel ortalama (%)', ipucu: 'Tüm soruların ortalaması' },
+                        { k: 'criticalBand', l: 'Sınırda bandı (±%)', ipucu: 'Desteklenecek hakemi görmek için' }
+                    ].map(alan => (
+                        <div key={alan.k}>
+                            <label className="block text-xs text-muted-foreground mb-1">{alan.l}</label>
+                            <input
+                                type="number" min="0" max="100" step="1"
+                                value={esikler[alan.k]}
+                                onChange={e => setEsikler(p => ({ ...p, [alan.k]: Number(e.target.value) }))}
+                                className="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2 text-white focus:ring-1 focus:ring-primary/50 outline-none"
+                            />
+                            <p className="text-[11px] text-muted-foreground mt-1">{alan.ipucu}</p>
+                        </div>
+                    ))}
+                </div>
+                <div className="px-6 pb-6">
+                    <button onClick={esikKaydet} disabled={esikKaydediliyor}
+                        className="bg-primary hover:bg-primary/90 text-primary-foreground font-semibold px-5 py-2 rounded-lg disabled:opacity-50">
+                        {esikKaydediliyor ? 'Kaydediliyor...' : 'Eşikleri Kaydet'}
+                    </button>
                 </div>
             </div>
 
